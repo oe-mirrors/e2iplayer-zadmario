@@ -15281,6 +15281,7 @@ class pageParser(CaptchaHelper):
         printDBG("parserFILEMOON baseUrl[%s]" % baseUrl)
 
         def tear_decode(data_file, data_seed):
+
             def replacer(match):
                 chars = {
                     '0': '5',
@@ -15292,97 +15293,135 @@ class pageParser(CaptchaHelper):
                 }
                 return chars[match.group(0)]
 
+            def str2bytes(a16):
+                a21 = []
+                for i in a16:
+                    a21.append(ord(i))
+                return a21
+
             def bytes2str(a10):
+                a13 = 0
+                a14 = len(a10)
                 a15 = ''
-                for i in a10:
-                    a15 += chr(i)
+                while True:
+                    if a13 >= a14:
+                        break
+                    a15 += chr(255 & a10[a13])
+                    a13 += 1
                 return a15
 
-            def digest_pad(string):
-                emplist = []
-                length = len(string)
-                extra = 15 - (length % 16)
-                emplist.append(extra)
-                for i in range(length):
-                    emplist.append(string[i])
-                for i in range(extra):
-                    emplist.append(0)
-                return emplist
+            def digest_pad(a36):
+                a41 = []
+                a39 = 0
+                a40 = len(a36)
+                a43 = 15 - (a40 % 16)
+                a41.append(a43)
+                while a39 < a40:
+                    a41.append(a36[a39])
+                    a39 += 1
+                a45 = a43
+                while a45 > 0:
+                    a41.append(0)
+                    a45 -= 1
+                return a41
 
-            def blocks2bytes(inp):
-                temp_list = []
-                for i in range(len(inp)):
-                    temp_list += [255 & rshift((inp[i]), 24)]
-                    temp_list += [255 & rshift((inp[i]), 16)]
-                    temp_list += [255 & rshift((inp[i]), 8)]
-                    temp_list += [255 & inp[i]]
-                return temp_list
+            def blocks2bytes(a29):
+                a34 = []
+                a33 = 0
+                a32 = len(a29)
+                while a33 < a32:
+                    a34 += [255 & rshift(int(a29[a33]), 24)]
+                    a34 += [255 & rshift(int(a29[a33]), 16)]
+                    a34 += [255 & rshift(int(a29[a33]), 8)]
+                    a34 += [255 & a29[a33]]
+                    a33 += 1
+                return a34
 
             def bytes2blocks(a22):
-                emplist = []
-                length = len(a22)
-                listIndex = 0
-
-                for i in range(length):
-                    subIndex = i % 4
-                    shiftedByte = a22[i] << (3-subIndex)*8
-
-                    if(subIndex == 0):
-                        emplist.append(shiftedByte)
-                    else:
-                        emplist[listIndex] |= (shiftedByte)
-
-                    if(subIndex == 3):
-                        listIndex += 1
-
-                return emplist
+                a27 = []
+                a28 = 0
+                a26 = 0
+                a25 = len(a22)
+                while True:
+                    a27.append(((255 & a22[a26]) << 24) & 0xFFFFFFFF)
+                    a26 += 1
+                    if a26 >= a25:
+                        break
+                    a27[a28] |= ((255 & a22[a26]) << 16 & 0xFFFFFFFF)
+                    a26 += 1
+                    if a26 >= a25:
+                        break
+                    a27[a28] |= ((255 & a22[a26]) << 8 & 0xFFFFFFFF)
+                    a26 += 1
+                    if a26 >= a25:
+                        break
+                    a27[a28] |= (255 & a22[a26])
+                    a26 += 1
+                    if a26 >= a25:
+                        break
+                    a28 += 1
+                return a27
 
             def xor_blocks(a76, a77):
                 return [a76[0] ^ a77[0], a76[1] ^ a77[1]]
 
             def unpad(a46):
+                a49 = 0
                 a52 = []
-                even_odd = a46[0] % 2
-                for i in range(1, len(a46) - even_odd):
-                    a52 += [a46[i]]
+                a53 = (7 & a46[a49])
+                a49 += 1
+                a51 = (len(a46) - a53)
+                while a49 < a51:
+                    a52 += [a46[a49]]
+                    a49 += 1
                 return a52
 
             def rshift(a, b):
-                return (a % 4294967296) >> b
+                return (a % 0x100000000) >> b
 
             def tea_code(a79, a80):
-                a85, a83 = a79 # unpacking
+                a85 = a79[0]
+                a83 = a79[1]
                 a87 = 0
-                for _ in range(32):
-                    a85 += (((((a83) << 4) ^ rshift((a83), 5)) + a83) ^ (a87 + a80[(a87 & 3)]))
-                    a87 = (a87) - (1640531527)
-                    a83 += (((((a85) << 4) ^ rshift((a85), 5)) + a85) ^ (a87 + a80[(rshift(a87, 11) & 3)]))
+
+                for a86 in range(32):
+                    a85 += int((((int(a83) << 4) ^ rshift(int(a83), 5)) + a83) ^ (a87 + a80[(a87 & 3)]))
+                    a85 = int(a85 | 0)
+                    a87 = int(a87) - int(1640531527)
+                    a83 += int(
+                        (((int(a85) << 4) ^ rshift(int(a85), 5)) + a85) ^ (a87 + a80[(rshift(a87, 11) & 3)]))
+                    a83 = int(a83 | 0)
                 return [a85, a83]
 
             def binarydigest(a55):
                 a63 = [1633837924, 1650680933, 1667523942, 1684366951]
-                a62 = a63[:2]
+                a62 = [1633837924, 1650680933]
                 a61 = a62
-                a59 = bytes2blocks(digest_pad(bytes(a55, 'ascii')))
-
-                for i in range(0,len(a59),4):
-                    a66 = a59[i:i+2]
-                    a68 = a59[i+2:i+4]
- 
+                a66 = [0, 0]
+                a68 = [0, 0]
+                a59 = bytes2blocks(digest_pad(str2bytes(a55)))
+                a65 = 0
+                a67 = len(a59)
+                while a65 < a67:
+                    a66[0] = a59[a65]
+                    a65 += 1
+                    a66[1] = a59[a65]
+                    a65 += 1
+                    a68[0] = a59[a65]
+                    a65 += 1
+                    a68[1] = a59[a65]
+                    a65 += 1
                     a62 = tea_code(xor_blocks(a66, a62), a63)
                     a61 = tea_code(xor_blocks(a68, a61), a63)
-
-                    # THIS WHOLE BULLSHIT IS A LEFT SHIFT, eg [1,2,3,4] -> [2,3,4,1]
                     a64 = a62[0]
                     a62[0] = a62[1]
                     a62[1] = a61[0]
                     a61[0] = a61[1]
                     a61[1] = a64
-                    # left shift end
 
                 return [a62[0], a62[1], a61[0], a61[1]]
 
-            def ascii2bytes(inp):
+            def ascii2bytes(a99):
                 a2b = {'A': 0, 'B': 1, 'C': 2, 'D': 3, 'E': 4, 'F': 5, 'G': 6, 'H': 7, 'I': 8, 'J': 9, 'K': 10,
                        'L': 11, 'M': 12, 'N': 13, 'O': 14, 'P': 15, 'Q': 16, 'R': 17, 'S': 18, 'T': 19, 'U': 20,
                        'V': 21, 'W': 22, 'X': 23, 'Y': 24, 'Z': 25, 'a': 26, 'b': 27, 'c': 28, 'd': 29, 'e': 30,
@@ -15390,57 +15429,92 @@ class pageParser(CaptchaHelper):
                        'p': 41, 'q': 42, 'r': 43, 's': 44, 't': 45, 'u': 46, 'v': 47, 'w': 48, 'x': 49, 'y': 50,
                        'z': 51, '0': 52, '1': 53, '2': 54, '3': 55, '4': 56, '5': 57, '6': 58, '7': 59, '8': 60,
                        '9': 61, '-': 62, '_': 63}
-                ind = -1
-                length = len(inp)
-                listIndex = 0
-                emplist = []
+                a6 = -1
+                a7 = len(a99)
+                a9 = 0
+                a8 = []
 
                 while True:
-                    for i in inp:
-                        if i in a2b.keys():
-                            ind += 1
-                            break
-                    emplist.append(a2b[inp[ind]] * 4)
                     while True:
-                        ind += 1
-                        if inp[ind] in a2b.keys():
+                        a6 += 1
+                        if a6 >= a7:
+                            return a8
+                        if a99[a6] in a2b.keys():
                             break
-                    a3 = a2b[inp[ind]]
-                    emplist[listIndex] |= rshift((a3), 4)
-                    listIndex += 1
+                    a8.insert(a9, int(int(a2b[a99[a6]]) << 2))
+                    while True:
+                        a6 += 1
+                        if a6 >= a7:
+                            return a8
+                        if a99[a6] in a2b.keys():
+                            break
+                    a3 = a2b[a99[a6]]
+                    a8[a9] |= rshift(int(a3), 4)
+                    a9 += 1
                     a3 = (15 & a3)
-                    if (a3 == 0) and (ind == (length - 1)):
-                        return emplist
-                    emplist.append((a3) * 16)
+                    if (a3 == 0) and (a6 == (a7 - 1)):
+                        return a8
+                    a8.insert(a9, int(a3) << 4)
                     while True:
-                        ind += 1
-                        if ind >= length:
-                            return emplist
-                        if inp[ind] in a2b.keys():
+                        a6 += 1
+                        if a6 >= a7:
+                            return a8
+                        if a99[a6] in a2b.keys():
                             break
-                    a3 = a2b[inp[ind]]
-                    emplist[listIndex] |= rshift((a3), 2)
-                    listIndex += 1
+                    a3 = a2b[a99[a6]]
+                    a8[a9] |= rshift(int(a3), 2)
+                    a9 += 1
                     a3 = (3 & a3)
-                    if (a3 == 0) and (ind == (length - 1)):
-                        return emplist
-                    emplist.append((a3) << 6)
-                    for i in inp:
-                        ind += 1
-                        if inp[ind] in a2b.keys():
+                    if (a3 == 0) and (a6 == (a7 - 1)):
+                        return a8
+                    a8.insert(a9, int(a3) << 6)
+                    while True:
+                        a6 += 1
+                        if a6 >= a7:
+                            return a8
+                        if a99[a6] in a2b.keys():
                             break
-                    emplist[listIndex] |= a2b[inp[ind]]
-                    listIndex += 1
+                    a8[a9] |= a2b[a99[a6]]
+                    a9 += 1
+
+                return a8
+
+            def ascii2binary(a0):
+                return bytes2blocks(ascii2bytes(a0))
 
             def tea_decode(a90, a91):
-                a95,a96 = a90 # unpacking
-        
-                a97 = -957401312
-                for _ in range(32):
-                    a96 = (a96) - (((((a95) << 4) ^ rshift((a95), 5)) + a95) ^ (a97 + a91[(rshift((a97), 11) & 3)]))
-                    a97 = (a97) + 1640531527
-                    a95 = (a95) - (((((a96) << 4) ^ rshift((a96), 5)) + a96) ^ (a97 + a91[(a97 & 3)]))
+                a95 = a90[0]
+                a96 = a90[1]
+                a97 = int(-957401312)
+                for a98 in range(32):
+                    a96 = int(a96) - ((((int(a95) << 4) ^ rshift(int(a95), 5)) + a95) ^ (
+                        a97 + a91[(rshift(int(a97), 11) & 3)]))
+                    a96 = int(a96 | 0)
+                    a97 = int(a97) + 1640531527
+                    a97 = int(a97 | 0)
+                    a95 = int(a95) - int(
+                        (((int(a96) << 4) ^ rshift(int(a96), 5)) + a96) ^ (a97 + a91[(a97 & 3)]))
+                    a95 = int(a95 | 0)
                 return [a95, a96]
+
+            data_seed = re.sub('[012567]', replacer, data_seed)
+            new_data_seed = binarydigest(data_seed)
+            new_data_file = ascii2binary(data_file)
+            a69 = 0
+            a70 = len(new_data_file)
+            a71 = [1633837924, 1650680933]
+            a73 = [0, 0]
+            a74 = []
+            while a69 < a70:
+                a73[0] = new_data_file[a69]
+                a69 += 1
+                a73[1] = new_data_file[a69]
+                a69 += 1
+                a72 = xor_blocks(a71, tea_decode(a73, new_data_seed))
+                a74 += a72
+                a71[0] = a73[0]
+                a71[1] = a73[1]
+            return re.sub('[012567]', replacer, bytes2str(unpad(blocks2bytes(a74))))
 
         urlTab = []
         HTTP_HEADER = self.cm.getDefaultHeader(browser='chrome')
@@ -15471,7 +15545,7 @@ class pageParser(CaptchaHelper):
             sts, data = self.cm.getPage(url, urlParams, post_data)
             if not sts:
                 return []
-
+            data = data.replace(self.cm.ph.getDataBeetwenMarkers(data, 'tracks":[', ']', False)[1], '')
             vfile = self.cm.ph.getSearchGroups(data, '''file['"]:\s?['"]([^"^']+?)['"]''')[0]
             seed = self.cm.ph.getSearchGroups(data, '''seed['"]:\s?['"]([^"^']+?)['"]''')[0]
             hlsUrl = tear_decode(vfile, seed)
