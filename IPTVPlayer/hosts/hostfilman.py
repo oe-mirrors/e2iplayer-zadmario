@@ -158,7 +158,7 @@ class Filman(CBaseHostClass):
         data = self.cm.ph.getDataBeetwenNodes(data, ('<div id="wrapper">',) , ('<!-- Footer: -->',))[1] # exclude header and footer
 
         if 'phrase=' in cItem['url']:
-            data = self.cm.ph.getAllItemsBeetwenNodes(data, ('<a', '>', ' title='), ('</a', '>'))
+            data = self.cm.ph.getAllItemsBeetwenNodes(data, ('<a', '>', 'data-title='), ('</a', '>'))
         else:
             data = data.split('<div class="poster">')[1:]
 
