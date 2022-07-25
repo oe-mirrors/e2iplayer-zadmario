@@ -172,7 +172,7 @@ class AsyncCall(object):
                 else:
                     if self.Thread.is_alive():
                       self._kill()
-                      self.Thread._stop()
+                      self.Thread.join(timeout=1)
                 bRet = True
 
         self.mainLock.release()
