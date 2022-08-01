@@ -1,24 +1,27 @@
 # -*- encoding: utf-8 -*-
 
-import base64
-try:
-    from SimpleHTTPServer import SimpleHTTPRequestHandler
-except Exception:
-    from http.server import SimpleHTTPRequestHandler
-import json
-try:
-    import SocketServer
-except Exception:
-    import socketserver as SocketServer
+###################################################
+#module run in different context then e2iplayer, must have separate version checking and assigments
 import sys
+if sys.version_info[0] == 2: #PY2
+    from SimpleHTTPServer import SimpleHTTPRequestHandler
+    import SocketServer
+    from urlparse import urlsplit, urlparse, parse_qs, urljoin
+else: #PY3
+    from http.server import SimpleHTTPRequestHandler
+    import socketserver as SocketServer
+    from urllib.parse import urlsplit, urlparse, parse_qs, urljoin
+###################################################
+try:
+    import json
+except Exception:
+    import simplejson as json
+
+import base64
 import os
 import traceback
 import urllib
 import signal
-try:
-    from urlparse import urlsplit, urlparse, parse_qs, urljoin
-except Exception:
-    from urllib.parse import urlsplit, urlparse, parse_qs, urljoin
 
 def signal_handler(sig, frame):
     os.kill(os.getpid(), signal.SIGTERM)
