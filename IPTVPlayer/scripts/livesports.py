@@ -9,26 +9,27 @@ if sys.version_info[0] == 2: #PY2
     import cookielib
     from urllib2 import HTTPSHandler as urllib2_HTTPSHandler, HTTPCookieProcessor as urllib2_HTTPCookieProcessor, \
                         Request as urllib2_Request, build_opener as urllib2_build_opener, HTTPError as urllib2_HTTPError
+    import SocketServer
+    from SimpleHTTPServer import SimpleHTTPRequestHandler
 else: #PY3
     from urllib.parse import urlsplit, urlparse, parse_qs, urljoin
     import http.cookiejar as cookielib
     from urllib.request import HTTPSHandler as urllib2_HTTPSHandler, HTTPCookieProcessor as urllib2_HTTPCookieProcessor, \
                                Request as urllib2_Request, build_opener as urllib2_build_opener
     from urllib.error import HTTPError as urllib2_HTTPError
+    import socketserver as SocketServer
+    from http.server import SimpleHTTPRequestHandler
 ###################################################
-
-import sys
-import traceback
-import base64
-import SocketServer
-import SimpleHTTPServer
-import re
-import ssl
-
 try:
     import json
 except Exception:
     import simplejson as json
+
+import traceback
+import base64
+import re
+import ssl
+
 import time
 
 import signal

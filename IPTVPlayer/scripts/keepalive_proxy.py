@@ -6,16 +6,17 @@ from __future__ import print_function
 import sys
 if sys.version_info[0] == 2: #PY2
     from urllib2 import Request as urllib2_Request, urlopen as urllib2_urlopen, build_opener as urllib2_build_opener, install_opener as urllib2_install_opener
+    import SocketServer
+    from SimpleHTTPServer import SimpleHTTPRequestHandler
 else: #PY3
     from urllib.request import Request as urllib2_Request, urlopen as urllib2_urlopen, build_opener as urllib2_build_opener, install_opener as urllib2_install_opener
+    import socketserver as SocketServer
+    from http.server import SimpleHTTPRequestHandler
 ###################################################
 
-import sys
 import time
 import traceback
 #import urlparse
-import SocketServer
-import SimpleHTTPServer
 
 import signal
 import os
