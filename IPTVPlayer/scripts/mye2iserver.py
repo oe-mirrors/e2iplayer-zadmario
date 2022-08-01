@@ -1,9 +1,15 @@
 # -*- encoding: utf-8 -*-
 
 import base64
-from SimpleHTTPServer import SimpleHTTPRequestHandler
+try:
+    from SimpleHTTPServer import SimpleHTTPRequestHandler
+except Exception:
+    from http.server import SimpleHTTPRequestHandler
 import json
-import SocketServer
+try:
+    import SocketServer
+except Exception:
+    import socketserver as SocketServer
 import sys
 import os
 import traceback
