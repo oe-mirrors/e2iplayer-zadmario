@@ -13,9 +13,9 @@ try:
     from cbc import CBC
     from base import BlockCipher, padWithPadLen, noPadding
 except Exception:
-    from from Plugins.Extensions.IPTVPlayer.libs.crypto.cipher.aes import AES
-    from from Plugins.Extensions.IPTVPlayer.libs.crypto.cipher.cbc import CBC
-    from from Plugins.Extensions.IPTVPlayer.libs.crypto.cipher.base import BlockCipher, padWithPadLen, noPadding
+    from Plugins.Extensions.IPTVPlayer.libs.crypto.cipher.aes import AES
+    from Plugins.Extensions.IPTVPlayer.libs.crypto.cipher.cbc import CBC
+    from Plugins.Extensions.IPTVPlayer.libs.crypto.cipher.base import BlockCipher, padWithPadLen, noPadding
 
 
 class AES_CBC(CBC):
