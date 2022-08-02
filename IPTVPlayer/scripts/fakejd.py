@@ -6,10 +6,12 @@ import sys
 if sys.version_info[0] == 2: #PY2
     from urllib import quote as urllib_quote
     from urllib2 import Request as urllib2_Request, HTTPSHandler as urllib2_HTTPSHandler, build_opener as urllib2_build_opener, HTTPError as urllib2_HTTPError
+    from SimpleHTTPServer import BaseHTTPRequestHandler
 else: #PY3
     from urllib.parse import quote as urllib_quote
     from urllib.request import Request as urllib2_Request, HTTPSHandler as urllib2_HTTPSHandler, build_opener as urllib2_build_opener
     from urllib.error import HTTPError as urllib2_HTTPError
+    from http.server import BaseHTTPRequestHandler
 ###################################################
 
 import socket
@@ -17,9 +19,7 @@ import hashlib
 import hmac
 import time
 import base64
-import sys
 import traceback
-from BaseHTTPServer import BaseHTTPRequestHandler
 try:
     import json
 except Exception:
@@ -497,6 +497,8 @@ if __name__ == "__main__":
 
     libsPath = sys.argv[1]
     sys.path.insert(1, libsPath)
+    if sys.version_info[0] >= 3: #PY3
+        sys.path.append('/usr/lib/enigma2/python/Plugins/Extensions/IPTVPlayer/libs/crypto/cipher')
     from crypto.cipher.aes_cbc import AES_CBC
 
     APP_KEY = "JD_api_39100"
