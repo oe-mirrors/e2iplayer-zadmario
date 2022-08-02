@@ -24,7 +24,7 @@ from struct import unpack, pack
 try:
     from crypto.errors import InitCryptoError, EncryptError, DecryptError, IntegrityCheckError
 except Exception:
-    from Plugins.Extensions.IPTVPlayer.libs.crypto.errors import InitCryptoError, EncryptError, DecryptError, 
+    from Plugins.Extensions.IPTVPlayer.libs.crypto.errors import InitCryptoError, EncryptError, DecryptError, IntegrityCheckError
 
 
 class CCM(BlockCipherWithIntegrity):
