@@ -11,7 +11,9 @@
 
     November 2002
 """
+try:
     from crypto.cipher.arc4 import ARC4
+except Exception:
     from Plugins.Extensions.IPTVPlayer.libs.crypto.cipher.arc4 import ARC4
 
 from zlib import crc32
