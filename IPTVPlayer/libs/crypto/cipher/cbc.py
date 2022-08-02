@@ -12,9 +12,15 @@
     Copyright (c) 2002 by Paul A. Lambert
     Read LICENSE.txt for license information.
 """
-from Plugins.Extensions.IPTVPlayer.libs.crypto.cipher.base import BlockCipher, padWithPadLen, noPadding
-from Plugins.Extensions.IPTVPlayer.libs.crypto.errors import EncryptError
-from Plugins.Extensions.IPTVPlayer.libs.crypto.common import xor
+
+try:
+    from ..cipher.base import BlockCipher, padWithPadLen, noPadding
+    from ..errors import EncryptError
+    from ..common import xor
+except Exception:
+    from Plugins.Extensions.IPTVPlayer.libs.crypto.cipher.base import BlockCipher, padWithPadLen, noPadding
+    from Plugins.Extensions.IPTVPlayer.libs.crypto.errors import EncryptError
+    from Plugins.Extensions.IPTVPlayer.libs.crypto.common import xor
 from random import Random  # should change to crypto.random!!!
 
 

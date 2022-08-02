@@ -12,8 +12,13 @@
 
     2002-04-25   changed block input
 """
-from Plugins.Extensions.IPTVPlayer.libs.crypto.errors import DecryptNotBlockAlignedError
-from Plugins.Extensions.IPTVPlayer.libs.crypto.keyedHash.pbkdf2 import pbkdf2
+
+try:
+    from ..errors import DecryptNotBlockAlignedError
+    from ..keyedHash.pbkdf2 import pbkdf2
+except Exception:
+    from Plugins.Extensions.IPTVPlayer.libs.crypto.errors import DecryptNotBlockAlignedError
+    from Plugins.Extensions.IPTVPlayer.libs.crypto.keyedHash.pbkdf2 import pbkdf2
 
 
 class BlockCipher:

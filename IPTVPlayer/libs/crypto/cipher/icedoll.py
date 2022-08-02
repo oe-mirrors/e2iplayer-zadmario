@@ -21,9 +21,13 @@
                      http://theory.lcs.mit.edu/~rivest/publications.html
                      These are about the same concept ....
 """
+try:
+    from crypto.cipher.base import BlockCipherWithIntegrity, padWithPadLen, noPadding
+    from crypto.cipher.rijndael import *
+except Exception:
+    from Plugins.Extensions.IPTVPlayer.libs.crypto.cipher.base import BlockCipherWithIntegrity, padWithPadLen, noPadding
+    from Plugins.Extensions.IPTVPlayer.libs.crypto.cipher.rijndael import *
 
-from Plugins.Extensions.IPTVPlayer.libs.crypto.cipher.base import BlockCipherWithIntegrity, padWithPadLen, noPadding
-from Plugins.Extensions.IPTVPlayer.libs.crypto.cipher.rijndael import *
 from binascii_plus import b2a_hex
 from copy import deepcopy
 

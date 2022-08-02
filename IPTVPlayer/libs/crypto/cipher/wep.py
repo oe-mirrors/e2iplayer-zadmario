@@ -8,8 +8,13 @@
 
     September 2002
 """
-from Plugins.Extensions.IPTVPlayer.libs.crypto.cipher.arc4 import ARC4
-from Plugins.Extensions.IPTVPlayer.libs.crypto.errors import IntegrityCheckError, BadKeySizeError
+try:
+    from crypto.cipher.arc4 import ARC4
+    from crypto.errors import IntegrityCheckError, BadKeySizeError
+except Exception:
+    from Plugins.Extensions.IPTVPlayer.libs.crypto.cipher.arc4 import ARC4
+    from Plugins.Extensions.IPTVPlayer.libs.crypto.errors import IntegrityCheckError, BadKeySizeError
+
 from zlib import crc32
 from struct import pack
 

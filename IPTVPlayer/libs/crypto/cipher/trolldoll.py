@@ -17,8 +17,13 @@
     Read LICENSE.txt for license information.
 """
 
-from Plugins.Extensions.IPTVPlayer.libs.crypto.cipher.icedoll import Icedoll
-from Plugins.Extensions.IPTVPlayer.libs.crypto.errors import IntegrityCheckError
+try:
+    from crypto.cipher.icedoll import Icedoll
+    from crypto.errors import IntegrityCheckError
+except Exception:
+    from Plugins.Extensions.IPTVPlayer.libs.crypto.cipher.icedoll import Icedoll
+    from Plugins.Extensions.IPTVPlayer.libs.crypto.errors import IntegrityCheckError
+
 from random import Random  # should change to crypto.random!!!
 
 

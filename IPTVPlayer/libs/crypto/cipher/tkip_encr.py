@@ -11,11 +11,19 @@
 
     November 2002
 """
-from Plugins.Extensions.IPTVPlayer.libs.crypto.cipher.arc4 import ARC4
+    from crypto.cipher.arc4 import ARC4
+    from Plugins.Extensions.IPTVPlayer.libs.crypto.cipher.arc4 import ARC4
+
 from zlib import crc32
 from struct import pack
-from Plugins.Extensions.IPTVPlayer.libs.crypto.keyedHash.tkip_key_mixing import TKIP_Mixer
-from Plugins.Extensions.IPTVPlayer.libs.crypto.errors import BadKeySizeError, IntegrityCheckError
+
+try:
+    from crypto.keyedHash.tkip_key_mixing import TKIP_Mixer
+    from crypto.errors import BadKeySizeError, IntegrityCheckError
+except Exception:
+    from Plugins.Extensions.IPTVPlayer.libs.crypto.keyedHash.tkip_key_mixing import TKIP_Mixer
+    from Plugins.Extensions.IPTVPlayer.libs.crypto.errors import BadKeySizeError, IntegrityCheckError
+
 from binascii_plus import *
 
 
