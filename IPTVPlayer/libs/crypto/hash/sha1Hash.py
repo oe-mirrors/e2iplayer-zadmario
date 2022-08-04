@@ -6,6 +6,7 @@
     Copyright © (c) 2002 by Paul A. Lambert
     Read LICENSE.txt for license information.
 """
+import sys
 import hashlib
 try:
     from ..hash.hash import Hash

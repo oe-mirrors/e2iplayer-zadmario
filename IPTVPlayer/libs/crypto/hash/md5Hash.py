@@ -2,6 +2,7 @@
 """   md5Hash.py
       Wrapper for python md5 module to support crypo module standard interface
 """
+import sys
 from hashlib import md5
 try:
     from ..hash.hash import Hash
