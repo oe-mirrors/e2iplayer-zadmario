@@ -7,9 +7,10 @@
     Read LICENSE.txt for license information.
 """
 import hashlib
-from Plugins.Extensions.IPTVPlayer.libs.crypto.hash.hash import Hash
-from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import strEncode
-
+try:
+    from ..hash.hash import Hash
+except Exception:
+    from Plugins.Extensions.IPTVPlayer.libs.crypto.hash.hash import Hash
 
 class SHA1(Hash):
 
@@ -28,7 +29,7 @@ class SHA1(Hash):
             equivalent to a single call with the concatenation of all the
             arguments: m.update(a); m.update(b) is equivalent to m.update(a+b).
         """
-        self.pysha1.update(strEncode(data))
+        self.pysha1.update(data.encode(utf-8))
 
     def digest(self):
         """ Return the digest of the strings passed to the update()

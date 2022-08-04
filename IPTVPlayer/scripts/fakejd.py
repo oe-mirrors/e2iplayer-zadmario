@@ -6,7 +6,7 @@ import sys
 if sys.version_info[0] == 2: #PY2
     from urllib import quote as urllib_quote
     from urllib2 import Request as urllib2_Request, HTTPSHandler as urllib2_HTTPSHandler, build_opener as urllib2_build_opener, HTTPError as urllib2_HTTPError
-    from SimpleHTTPServer import BaseHTTPRequestHandler
+    from BaseHTTPServer import BaseHTTPRequestHandler
 else: #PY3
     from urllib.parse import quote as urllib_quote
     from urllib.request import Request as urllib2_Request, HTTPSHandler as urllib2_HTTPSHandler, build_opener as urllib2_build_opener
