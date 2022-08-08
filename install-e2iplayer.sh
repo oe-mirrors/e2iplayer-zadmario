@@ -6,8 +6,11 @@ cd /tmp
 [ -e /tmp/e2iplayer-master ] && rm -fr /tmp/e2iplayer-master
 wget -q https://gitlab.com/zadmario/e2iplayer/-/archive/master/e2iplayer-master.tar.gz -O /tmp/e2iplayer-master.zip
 if [ $? -gt 0 ] ;then
-	[ $isPL -eq 1 ] && echo "błąd pobierania archiwum, koniec" || echo "error downloading archive, end"
-	exit 1
+  wget -q "--no-check-certificate" https://gitlab.com/zadmario/e2iplayer/-/archive/master/e2iplayer-master.tar.gz -O /tmp/e2iplayer-master.zip
+  if [ $? -gt 0 ] ;then
+    [ $isPL -eq 1 ] && echo "błąd pobierania archiwum, koniec" || echo "error downloading archive, end"
+    exit 1
+  fi
 else
 	[ $isPL -eq 1 ] && echo "Archiwum pobrane" || echo "Archive downloaded"
 fi
