@@ -9,7 +9,8 @@
 ###################################################
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, GetSkinsList, GetHostsList, GetEnabledHostsList, \
                                                           IsHostEnabled, IsExecutable, CFakeMoviePlayerOption, GetAvailableIconSize, \
-                                                          IsWebInterfaceModuleAvailable, SetIconsHash, SetGraphicsHash, isOPKGinstall
+                                                          IsWebInterfaceModuleAvailable, SetIconsHash, SetGraphicsHash, isOPKGinstall, \
+                                                          defaultToolPath
 from Plugins.Extensions.IPTVPlayer.iptvupdate.updatemainwindow import IPTVUpdateWindow, UpdateMainAppImpl
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, IPTVPlayerNeedInit
 from Plugins.Extensions.IPTVPlayer.components.configbase import ConfigBaseWidget, COLORS_DEFINITONS
@@ -52,7 +53,10 @@ config.plugins.iptvplayer.otherConfVisible = NoSave(ConfigNothing())
 
 from Plugins.Extensions.IPTVPlayer.components.configextmovieplayer import ConfigExtMoviePlayer
 
-config.plugins.iptvplayer.exteplayer3path = ConfigText(default="", fixed_size=False)
+config.plugins.iptvplayer.plarform = ConfigSelection(default="auto", choices=[("auto", "auto"), ("mipsel", _("mipsel")), ("sh4", _("sh4")), ("i686", _("i686")), ("armv7", _("armv7")), ("armv5t", _("armv5t")), ("unknown", _("unknown"))])
+config.plugins.iptvplayer.plarformfpuabi = ConfigSelection(default="", choices=[("", ""), ("hard_float", _("Hardware floating point")), ("soft_float", _("Software floating point"))])
+
+config.plugins.iptvplayer.exteplayer3path = ConfigText(default=defaultToolPath("exteplayer3"), fixed_size=False)
 config.plugins.iptvplayer.gstplayerpath = ConfigText(default="", fixed_size=False)
 config.plugins.iptvplayer.wgetpath = ConfigText(default="", fixed_size=False)
 config.plugins.iptvplayer.hlsdlpath = ConfigText(default="", fixed_size=False)
@@ -63,8 +67,6 @@ config.plugins.iptvplayer.f4mdumppath = ConfigText(default="", fixed_size=False)
 config.plugins.iptvplayer.uchardetpath = ConfigText(default="", fixed_size=False)
 config.plugins.iptvplayer.set_curr_title = ConfigYesNo(default=False)
 config.plugins.iptvplayer.curr_title_file = ConfigText(default="", fixed_size=False)
-config.plugins.iptvplayer.plarform = ConfigSelection(default="auto", choices=[("auto", "auto"), ("mipsel", _("mipsel")), ("sh4", _("sh4")), ("i686", _("i686")), ("armv7", _("armv7")), ("armv5t", _("armv5t")), ("unknown", _("unknown"))])
-config.plugins.iptvplayer.plarformfpuabi = ConfigSelection(default="", choices=[("", ""), ("hard_float", _("Hardware floating point")), ("soft_float", _("Software floating point"))])
 
 config.plugins.iptvplayer.showcover = ConfigYesNo(default=True)
 config.plugins.iptvplayer.deleteIcons = ConfigSelection(default="3", choices=[("0", _("after closing")), ("1", _("after day")), ("3", _("after three days")), ("7", _("after a week"))])

@@ -1858,3 +1858,20 @@ def getIPTVplayerOPKGVersion():
                         if line.startswith('Version: '):
                             CACHED_DATA_DICT['IPTVplayerOPKGVersion'] = line[9:].strip()
     return CACHED_DATA_DICT.get('IPTVplayerOPKGVersion', '')
+
+def defaultToolPath(fileName):
+    toolPaths = []
+    if isPY2():
+        toolPaths.append(os.path.join(resolveFilename(SCOPE_PLUGINS, 'Extensions/IPTVPlayer/bin/') , config.plugins.iptvplayer.plarform.value))
+        toolPaths.append(resolveFilename(SCOPE_PLUGINS, 'Extensions/IPTVPlayer/bin/'))
+        toolPaths.append('/usr/bin/')
+    else: #PY3
+        toolPaths.append('/usr/bin/')
+        toolPaths.append(resolveFilename(SCOPE_PLUGINS, 'Extensions/IPTVPlayer/bin/'))
+        toolPaths.append(os.path.join(resolveFilename(SCOPE_PLUGINS, 'Extensions/IPTVPlayer/bin/') , config.plugins.iptvplayer.plarform.value))
+      
+    for toolPath in toolPaths:
+        if os.path.exists(os.path.join(toolPath, fileName)):
+            return os.path.join(toolPath, fileName)
+    
+    return ""
