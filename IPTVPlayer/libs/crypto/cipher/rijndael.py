@@ -16,7 +16,10 @@
 try:
     from base import BlockCipher, padWithPadLen, noPadding
 except Exception:
-    from Plugins.Extensions.IPTVPlayer.libs.crypto.cipher.base import BlockCipher, padWithPadLen, noPadding
+    try:
+        from .base import BlockCipher, padWithPadLen, noPadding
+    except Exception:
+        from Plugins.Extensions.IPTVPlayer.libs.crypto.cipher.base import BlockCipher, padWithPadLen, noPadding
 
 
 class Rijndael(BlockCipher):

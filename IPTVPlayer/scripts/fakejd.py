@@ -505,7 +505,10 @@ if __name__ == "__main__":
     LOGIN = sys.argv[2]
     PASSWORD = sys.argv[3]
     JDNAME = "IPTVPlayer@" + sys.argv[4]
-    CAPTCHA_DATA = json.loads(base64.b64decode(sys.argv[5]))
+    CAPTCHA_DATA = base64.b64decode(sys.argv[5])
+    if sys.version_info[0] == 3 and isinstance(CAPTCHA_DATA, bytes): # ensure string in PY3
+        CAPTCHA_DATA = CAPTCHA_DATA.decode('utf-8', 'ignore')
+    CAPTCHA_DATA = json.loads(CAPTCHA_DATA)
     CAPTCHA_DATA['id'] = int(time.time() * 1000)
 
     hash = hashlib.sha256()
