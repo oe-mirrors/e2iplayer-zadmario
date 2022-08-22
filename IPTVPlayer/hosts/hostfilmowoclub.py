@@ -30,7 +30,7 @@ def gettytul():
 class Filmowoclub(CBaseHostClass):
 
     def __init__(self):
-        CBaseHostClass.__init__(self, {'history': 'horrory.cc', 'cookie': 'horrory.cc.cookie'})
+        CBaseHostClass.__init__(self, {'history': 'filmowo.club', 'cookie': 'filmowo.club.cookie'})
         self.USER_AGENT = 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.0'
         self.MAIN_URL = 'https://filmowo.club/'
         self.DEFAULT_ICON_URL = 'https://i.imgur.com/MbU6GXb.png'
