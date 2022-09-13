@@ -15584,14 +15584,12 @@ class pageParser(CaptchaHelper):
         ret = js_execute(jscode)
         if ret['sts'] and 0 == ret['code']:
             tmp = ret['data'].strip()
-            printDBG("parser1L1LTO tmp[%s]" % tmp)
         url = self.cm.ph.getSearchGroups(tmp, '''<iframe[^>]+?src=['"]([^"^']+?)['"]''', 1, True)[0]
         HTTP_HEADER['Referer'] = baseUrl
         urlParams = {'header': HTTP_HEADER}
         sts, data = self.cm.getPage(url, urlParams)
         if not sts:
             return []
-        printDBG("parser1L1LTO data[%s]" % data)
         urlTab = []
         videoUrl = eval(re.findall('return\((\[.+?\])', data)[0])
         videoUrl = ''.join(videoUrl).replace('\/', '/')
