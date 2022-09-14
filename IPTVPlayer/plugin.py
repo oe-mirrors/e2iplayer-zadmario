@@ -7,7 +7,7 @@ from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import ConfigMenu
 from Plugins.Extensions.IPTVPlayer.components.iptvpin import IPTVPinWidget
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, IPTVPlayerNeedInit
 from Plugins.Extensions.IPTVPlayer.setup.iptvsetupwidget import IPTVSetupMainWidget
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import IsExecutable, IsWebInterfaceModuleAvailable
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, IsExecutable, IsWebInterfaceModuleAvailable
 ###################################################
 
 ###################################################
@@ -136,14 +136,20 @@ def doRunMain(session):
 
 def runMain(session, nextFunction=doRunMain):
     def allToolsFromOPKG():
-        toolsList = ['enigma2-plugin-extensions-e2iplayer-deps', 'duktape', 'exteplayer3', 'uchardet', 'gstplayer', 'rtmpdump']
+        toolsList = ['enigma2-plugin-extensions-e2iplayer-deps', 'duktape', 'exteplayer3', 'uchardet', 'gstplayer', 'rtmpdump', 'python3-e2icjson', 'python3-pycurl']
         for tool in toolsList:
+            tryToInstall = ''
             if not os.path.exists(os.path.join('/var/lib/opkg/info/', tool) + '.control'):
-                return False
+                tryToInstall += ' ' + tool
+        if tryToInstall != '':
+            printDBG('allToolsFromOPKG() >>> Trying to install missing packages: %s' % tryToInstall)
+            os.system('(opkg update;opkg install %s)&' % tryToInstall)
+            return False
         else:
+            printDBG('allToolsFromOPKG() >>> All required packages installed :)')
             return True
     
-    for DBGfile in ['/hdd/iptv.dbg','/tmp/iptv.dbg','/home/root/logs/iptv.dbg']:
+    for DBGfile in ['/hdd/iptv.dbg','/tmp/iptv.dbg','/home/root/logs/iptv.dbg', '/tmp/print.log']:
         if os.path.exists(DBGfile):
             os.remove(DBGfile)
 
@@ -153,7 +159,7 @@ def runMain(session, nextFunction=doRunMain):
     platform = config.plugins.iptvplayer.plarform.value
     if platform in ["auto", "unknown"] or not wgetpath or not rtmpdumppath or not f4mdumppath:
         session.openWithCallback(boundFunction(nextFunction, session), IPTVSetupMainWidget)
-    elif IPTVPlayerNeedInit() and not allToolsFromOPKG():
+    elif IPTVPlayerNeedInit() and os.path.exists('/var/lib/opkg/info/') and not allToolsFromOPKG():
         session.openWithCallback(boundFunction(nextFunction, session), IPTVSetupMainWidget, True)
     else:
         nextFunction(session)
