@@ -20,12 +20,18 @@ e2icjson = None
 def loads(input, noneReplacement=None, baseTypesAsString=False, utf8=True):
     global e2icjson
     if e2icjson == None:
-        try:
-            from Plugins.Extensions.IPTVPlayer.libs.e2icjson import e2icjson
-            e2icjson = e2icjson
-        except Exception:
-            e2icjson = False
-            #printExc()
+        if isPY2():
+            try:
+                from Plugins.Extensions.IPTVPlayer.libs.e2icjson import e2icjson
+                e2icjson = e2icjson
+            except Exception:
+                e2icjson = False
+        else:
+            try:
+                import e2icjson  #p3 should have it installed in site-packages through opkg
+                e2icjson = e2icjson
+            except Exception:
+                e2icjson = False
 
     if e2icjson:
         printDBG(">> cjson ACELERATION noneReplacement[%s] baseTypesAsString[%s]" % (noneReplacement, baseTypesAsString))
