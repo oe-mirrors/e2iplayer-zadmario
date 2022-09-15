@@ -842,7 +842,10 @@ class UpdateMainAppImpl(IUpdateObjectInterface):
             self.serverIconsHash = serverIconsHash
             if 0 < len(serversList):
                 options = []
-                self.serversList.sort(cmp=ServerComparator, reverse=True)
+                if isPY2():
+                    self.serversList.sort(cmp=ServerComparator, reverse=True)
+                else: #py3
+                    pass #TBC sorting for py3
                 for idx in range(len(serversList)):
                     server = serversList[idx]
                     if not config.plugins.iptvplayer.hiddenAllVersionInUpdate.value:
