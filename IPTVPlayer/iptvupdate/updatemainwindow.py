@@ -23,6 +23,7 @@ from Plugins.Extensions.IPTVPlayer.libs.pCommon import common
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
 ###################################################
 from Plugins.Extensions.IPTVPlayer.p2p3.pVer import isPY2
+from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import iterDictKeys
 ###################################################
 # FOREIGN import
 ###################################################
@@ -800,7 +801,7 @@ class UpdateMainAppImpl(IUpdateObjectInterface):
                     serverOK = True
                     extServer = {}
                     for key in ['name', 'version', 'url', 'subdir', 'pyver', 'packagetype', 'graphics_url', 'icons_url']:
-                        if key not in server.iterkeys():
+                        if key not in iterDictKeys(server):
                             serverOK = False
                             break
                         else:
