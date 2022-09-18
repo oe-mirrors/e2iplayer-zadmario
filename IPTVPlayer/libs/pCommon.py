@@ -1424,10 +1424,10 @@ class common:
                 customOpeners.append(MultipartPostHandler())
                 dataPost = post_data
             else:
-                if isPY2():
-                    dataPost = urllib_urlencode(post_data)
-                else:
-                    dataPost = urllib_urlencode(post_data).encode()
+                dataPost = urllib_urlencode(post_data)
+
+            if not isPY2():
+                dataPost = dataPost.encode()
             req = urllib2_Request(pageUrl, dataPost, headers)
         else:
             req = urllib2_Request(pageUrl, None, headers)
