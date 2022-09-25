@@ -15,6 +15,7 @@ from Plugins.Extensions.IPTVPlayer.libs import ph
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_urlencode
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlParse import urlparse, urlunparse, parse_qsl
 from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str
+from Plugins.Extensions.IPTVPlayer.p2p3.pVer import isPY2
 ###################################################
 # FOREIGN import
 ###################################################
@@ -283,16 +284,16 @@ class YouTubeParser():
                 title = videoJson['title']['simpleText']
 
             badges = []
-            bb = videoJson.get("badges", [])
-            for b in bb:
+            videoBadges = videoJson.get("badges", [])
+            for videoBadge in videoBadges:
                 try:
-                    bLabel = b["metadataBadgeRenderer"]["label"]
-                    badges.append(bLabel.upper())
-                except:
+                    badgeLabel = ensure_str(videoBadge["metadataBadgeRenderer"]["label"])
+                    badges.append(badgeLabel.upper())
+                except Exception:
                     pass
 
             if badges:
-                title = title + " [" + (' , '.join(badges)) + "]"
+                title = ensure_str(title) + " [" + (' , '.join(badges)) + "]"
 
             icon = self.getThumbnailUrl(videoJson)
 
@@ -300,21 +301,21 @@ class YouTubeParser():
             try:
                 duration = videoJson["lengthText"]["simpleText"]
                 if duration:
-                    desc.append(_("Duration: %s") % duration)
+                    desc.append(_("Duration: %s") % ensure_str(duration))
             except:
                 pass
 
             try:
                 views = videoJson["viewCountText"]["simpleText"]
                 if views:
-                    desc.append(views)
+                    desc.append(ensure_str(views))
             except:
                 pass
 
             try:
                 time = videoJson["publishedTimeText"]["simpleText"]
                 if time:
-                    desc.append(time)
+                    desc.append(ensure_str(time))
             except:
                 time = ''
 
@@ -325,14 +326,15 @@ class YouTubeParser():
                     owner = videoJson["longBylineText"]["runs"][0]["text"]
                 except:
                     owner = ""
-
+            owner = ensure_str(owner)
+            
             if desc:
                 desc = " | ".join(desc) + "\n" + owner
             else:
                 desc = owner
 
             try:
-                desc = desc + "\n" + videoJson["descriptionSnippet"]["runs"][0]["text"]
+                desc = desc + "\n" + ensure_str(videoJson["descriptionSnippet"]["runs"][0]["text"])
             except:
                 pass
 
@@ -706,7 +708,15 @@ class YouTubeParser():
                     if len(data2) == 0:
                         data2 = self.cm.ph.getDataBeetwenMarkers(data, "var ytInitialData =", "};", False)[1]
 
-                    response = json_loads(data2 + "}")
+                    data2 = ensure_str(data2.strip()) #just cleaning and ensuring we're working with string
+                    #json simple schema verification and correction
+                    jsonStarts = data2.count('{')
+                    jsonEnds = data2.count('}')
+                    printDBG('youtuberparser.YouTubeParser().getSearchResult correcting json string by adding "}" %s time(s) at the end' % (jsonStarts - jsonEnds))
+                    while jsonEnds < jsonStarts:
+                        data2 = data2 + '}'
+                        jsonEnds += 1
+                    response = json_loads(data2)
 
             if not sts:
                 return []
@@ -718,8 +728,12 @@ class YouTubeParser():
             # search videos
             r2 = list(self.findKeys(response, 'videoRenderer'))
 
-            printDBG("---------------------")
-            printDBG(json_dumps(r2))
+            printDBG("---------Returned DICT ------------")
+            if isPY2():
+                printDBG(json_dumps(r2))
+            else:
+                for item in r2:
+                    printDBG(str(item))
             printDBG("---------------------")
 
             for item in r2:
