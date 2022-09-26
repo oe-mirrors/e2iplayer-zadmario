@@ -283,6 +283,7 @@ class YouTubeParser():
             except:
                 title = videoJson['title']['simpleText']
 
+            title = ensure_str(title)
             badges = []
             videoBadges = videoJson.get("badges", [])
             for videoBadge in videoBadges:
@@ -293,7 +294,7 @@ class YouTubeParser():
                     pass
 
             if badges:
-                title = ensure_str(title) + " [" + (' , '.join(badges)) + "]"
+                title = title + " [" + (' , '.join(badges)) + "]"
 
             icon = self.getThumbnailUrl(videoJson)
 
@@ -707,7 +708,7 @@ class YouTubeParser():
                     data2 = self.cm.ph.getDataBeetwenMarkers(data, "window[\"ytInitialData\"] =", "};", False)[1]
                     if len(data2) == 0:
                         data2 = self.cm.ph.getDataBeetwenMarkers(data, "var ytInitialData =", "};", False)[1]
-
+                    
                     data2 = ensure_str(data2.strip()) #just cleaning and ensuring we're working with string
                     #json simple schema verification and correction
                     jsonStarts = data2.count('{')
@@ -716,6 +717,7 @@ class YouTubeParser():
                     while jsonEnds < jsonStarts:
                         data2 = data2 + '}'
                         jsonEnds += 1
+                    open("/tmp/data2.txt", "w").write(data2)
                     response = json_loads(data2)
 
             if not sts:
