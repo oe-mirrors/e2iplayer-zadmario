@@ -13,7 +13,7 @@ from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote_plus
 from Plugins.Extensions.IPTVPlayer.p2p3.pVer import isPY2
 if not isPY2:
     long = int
-from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str
+from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str, ensure_binary
 ###################################################
 # FOREIGN import
 ###################################################
@@ -108,7 +108,7 @@ class Chomikuj(CBaseHostClass):
             data = ''
         if addToken:
             token = "wzrwYua$.DSe8suk!`'2"
-            token = md5(url + data + token).hexdigest()
+            token = md5(ensure_binary(url + data + token)).hexdigest()
             addParams['header']['Token'] = token
         if 'ApiKey' in self.loginData:
             addParams['header']['Api-Key'] = self.loginData['ApiKey']
