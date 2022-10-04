@@ -156,7 +156,7 @@ class ZDFmediathek(CBaseHostClass):
     def _getIcon(self, iconsItem):
         iconssize = config.plugins.iptvplayer.zdfmediathek_iconssize.value
         iconsTab = []
-        for item in iconsItem.keys():
+        for item in list(iconsItem.keys()):
             item = iconsItem[item]
             if "/assets/" in item["url"]:
                 iconsTab.append({'size': item["width"], 'url': item["url"]})
@@ -169,7 +169,7 @@ class ZDFmediathek(CBaseHostClass):
                 idx /= 2
             elif 'small' == iconssize:
                 idx = 0
-            return iconsTab[idx]['url']
+            return iconsTab[int(idx)]['url']
         return ''
 
     def kinderListABC(self, cItem, nextCategory):

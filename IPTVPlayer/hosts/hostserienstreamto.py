@@ -9,8 +9,12 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, Ge
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.libs import ph
 from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads
+from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import hex_md5
 ###################################################
 from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str
+from Plugins.Extensions.IPTVPlayer.p2p3.pVer import isPY2
+if not isPY2():
+    from functools import cmp_to_key
 ###################################################
 # FOREIGN import
 ###################################################
@@ -32,6 +36,7 @@ from Screens.MessageBox import MessageBox
 ###################################################
 # Config options for HOST
 ###################################################
+DEFAULTHOST = "http://190.115.18.20/"
 config.plugins.iptvplayer.serienstreamto_langpreference = ConfigSelection(default="de,de_sub,en", choices=[("de,de_sub,en", "de,sub,en"),
                                                                                                                ("de,en,de_sub", "de,en,sub"),
                                                                                                                ("de_sub,de,en", "sub,de,en"),
@@ -40,7 +45,7 @@ config.plugins.iptvplayer.serienstreamto_langpreference = ConfigSelection(defaul
                                                                                                                ("en,de,de_sub", "en,de,sub")])
 config.plugins.iptvplayer.serienstreamto_login = ConfigText(default="", fixed_size=False)
 config.plugins.iptvplayer.serienstreamto_password = ConfigText(default="", fixed_size=False)
-
+config.plugins.iptvplayer.serienstreamto_host = ConfigText(default=DEFAULTHOST, fixed_size=False)
 
 def GetConfigList():
     optionList = []
@@ -48,13 +53,13 @@ def GetConfigList():
 
     optionList.append(getConfigListEntry(_("e-mail") + ":", config.plugins.iptvplayer.serienstreamto_login))
     optionList.append(getConfigListEntry(_("password") + ":", config.plugins.iptvplayer.serienstreamto_password))
+    optionList.append(getConfigListEntry(_("host") + ":", config.plugins.iptvplayer.serienstreamto_host))
     return optionList
 ###################################################
 
 
 def gettytul():
-    return 'https://serienstream.to/'
-
+    return config.plugins.iptvplayer.serienstreamto_host.value
 
 class SerienStreamTo(CBaseHostClass, CaptchaHelper):
 
@@ -67,8 +72,8 @@ class SerienStreamTo(CBaseHostClass, CaptchaHelper):
 
         self.defaultParams = {'header': self.HEADER, 'use_cookie': True, 'load_cookie': True, 'save_cookie': True, 'cookiefile': self.COOKIE_FILE}
 
-        self.MAIN_URL = 'https://s.to/'
-        self.DEFAULT_ICON_URL = 'https://s.to/public/img/facebook.jpg'
+        self.MAIN_URL = gettytul()
+        self.DEFAULT_ICON_URL = gettytul() + '/public/img/facebook.jpg'
 
         self.MAIN_CAT_TAB = [{'category': 'all_series', 'title': 'Alle Serien', 'url': self.getFullUrl('/serien-alphabet')},
                              {'category': 'list_abc', 'title': _('A-Z'), 'url': self.MAIN_URL},
@@ -375,7 +380,10 @@ class SerienStreamTo(CBaseHostClass, CaptchaHelper):
                 if len(urlTab):
                     self.cacheLinks[cItem['url']] = urlTab
 
-            urlTab = sorted(urlTab, cmp=compare)
+            if isPY2():
+                urlTab = sorted(urlTab, cmp=compare)
+            else:
+                urlTab = sorted(urlTab, key=cmp_to_key(compare))
         else:
             urlTab = self.up.getVideoLinkExt(cItem['url'])
         return urlTab
@@ -491,7 +499,7 @@ class SerienStreamTo(CBaseHostClass, CaptchaHelper):
             freshSession = False
             if sts and '/home/logout' in data:
                 printDBG("Check hash")
-                hash = hexlify(md5('%s@***@%s' % (self.login, self.password)).digest())
+                hash = hex_md5('%s@***@%s' % (self.login, self.password))
                 prevHash = ReadTextFile(loginCookie)[1].strip()
 
                 printDBG("$hash[%s] $prevHash[%s]" % (hash, prevHash))
@@ -576,7 +584,7 @@ class SerienStreamTo(CBaseHostClass, CaptchaHelper):
                             break
 
             if self.loggedIn:
-                hash = hexlify(md5('%s@***@%s' % (self.login, self.password)).digest())
+                hash = hex_md5('%s@***@%s' % (self.login, self.password))
                 WriteTextFile(loginCookie, hash)
             else:
                 self.sessionEx.open(MessageBox, _('Login failed.') + '\n' + errorMsg, type=MessageBox.TYPE_ERROR, timeout=10)
@@ -631,8 +639,65 @@ class SerienStreamTo(CBaseHostClass, CaptchaHelper):
 
         CBaseHostClass.endHandleService(self, index, refresh)
 
+    def getArticleContent(self, cItem):
+        printDBG("SerienStreamTo.getArticleContent [%s]" % cItem)
+        retTab = []
+
+        sts, data = self.getPage(cItem.get('url', ''))
+        if not sts:
+            return retTab
+
+        retTab = []
+        itemsList = []
+        icons = []
+        title = ''
+        desc = ''
+
+        sts, data = self.getPage(cItem.get('url'))
+        if not sts:
+            return []
+        cUrl = self.cm.meta['url']
+        self.setMainUrl(cUrl)
+
+        if cItem.get('type') == 'video':
+            tmp = ph.find(data, ('<div', '>', 'containsSeason'), '</script>', flags=0)[1]
+            s = ph.clean_html(ph.getattr(ph.find(tmp, ('<meta', '>', 'seasonNumber'))[1], 'content'))
+            e = ph.clean_html(ph.getattr(ph.find(tmp, ('<meta', '>', 'episode'))[1], 'content'))
+            title = ph.clean_html(ph.find(tmp, ('<h2', '>'), '</h2>', flags=0)[1])
+            if s and e and title:
+                title = 's%se%s %s' % (s.zfill(2), e.zfill(2), title)
+            desc = ph.clean_html(ph.find(tmp, ('<p', '>'), '</p>', flags=0)[1])
+
+        data = ph.find(data, ('<section', '>'), '</section>', flags=0)[1]
+
+        data = ph.findall(data, ('<strong', '</strong>'), '</ul', flags=ph.START_S)
+        for idx in range(1, len(data), 2):
+            label = ph.clean_html(data[idx - 1])
+            if len(label) < 3:
+                continue
+            value = []
+            tmp = ph.findall(data[idx], ('<li', '>'), '</li>', flags=0)
+            for it in tmp:
+                it = ph.clean_html(it)
+                if it:
+                    value.append(it)
+
+            if label and value:
+                itemsList.append((label, ', '.join(value)))
+
+        if not title:
+            title = cItem['title']
+        if not icons:
+            icons.append({'title': '', 'url': cItem.get('icon', self.DEFAULT_ICON_URL)})
+        if not desc:
+            desc = cItem.get('desc', '')
+
+        return [{'title': ph.clean_html(title), 'text': ph.clean_html(desc), 'images': icons, 'other_info': {'custom_items_list': itemsList}}]
 
 class IPTVHost(CHostBase):
 
     def __init__(self):
         CHostBase.__init__(self, SerienStreamTo(), True, [])
+
+    def withArticleContent(self, cItem):
+        return cItem.get('type') == 'video'
