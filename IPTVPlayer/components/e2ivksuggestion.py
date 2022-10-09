@@ -114,7 +114,7 @@ class AutocompleteSearch:
             if stamp != prevStamp:
                 if self.historyList:
                     try:
-                        if isPY2:
+                        if isPY2():
                             text = text.decode('utf-8').lower()
                         else:
                             text = ensure_str(text).lower()

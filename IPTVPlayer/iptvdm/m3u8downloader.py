@@ -501,7 +501,7 @@ class M3U8Downloader(BaseDownloader):
 
         '''
         if None != self.updateThread:
-            if isPY2:
+            if isPY2():
                 if self.updateThread.Thread.isAlive():
                     # give some time for update thread to finish
                     sleep(self.MIN_REFRESH_DELAY)
