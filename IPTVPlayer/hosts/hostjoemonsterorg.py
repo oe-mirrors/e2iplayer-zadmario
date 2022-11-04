@@ -168,7 +168,7 @@ class JoeMonster(CBaseHostClass):
             tmp = self.cm.ph.getAllItemsBeetwenNodes(data, ('<iframe', '>'), ('</iframe', '>'))
             for item in tmp:
                 url = self.cm.ph.getSearchGroups(item, '''src=['"]([^'^"]+?)['"]''')[0]
-                if 'joe.pl' in url:
+                if 'embed.html' in url:
                     url = urllib_unquote(self.cm.ph.getSearchGroups(url + '&', '[\?&]v=([^&]+?)&')[0])
                 urlTab.append({'name': 'name', 'url': self.getFullUrl(url), 'need_resolve': 1})
 
