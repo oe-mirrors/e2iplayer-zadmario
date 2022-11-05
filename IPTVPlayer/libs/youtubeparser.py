@@ -605,7 +605,6 @@ class YouTubeParser():
                     response = json_loads(data2 + "}")
 
                     r1 = response['contents']['twoColumnBrowseResultsRenderer']['tabs']
-
                     r2 = {}
                     for tab in r1:
                         try:
@@ -617,14 +616,15 @@ class YouTubeParser():
                         if r2:
                             break
 
-                    r3 = r2['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents']
-                    r4 = r3[0]['gridRenderer'].get('items', '')
+                    r4 = r2['richGridRenderer']['contents']
 
                 nextPage = ''
                 for r5 in r4:
-                    videoJson = r5.get("gridVideoRenderer", "")
+                    videoJson = r5.get("richItemRenderer", "")
                     nP = r5.get('continuationItemRenderer', '')
                     if videoJson:
+                        videoJson = videoJson.get("content", {})
+                        videoJson = videoJson.get("videoRenderer", "")
                         params = self.getVideoData(videoJson)
                         if params:
                             printDBG(str(params))
