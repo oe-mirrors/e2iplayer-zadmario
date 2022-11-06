@@ -37,7 +37,10 @@ class AutocompleteSearch:
         self.historyList = []
         for item in historyList:
             try:
-                self.historyList.append((item.decode('utf-8').lower(), item))
+                if isPY2():
+                    self.historyList.append((item.decode('utf-8').lower(), item))
+                else:
+                    self.historyList.append((ensure_str(text).lower(), item))
             except Exception:
                 printExc()
 
