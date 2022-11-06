@@ -481,6 +481,7 @@ class urlparser:
                        'rapidvideo.ws': self.pp.parserRAPIDVIDEOWS,
                        'raptu.com': self.pp.parserRAPTUCOM,
                        'realvid.net': self.pp.parserFASTVIDEOIN,
+                       'redload.co': self.pp.parserTUBELOADCO,
                        'rockfile.co': self.pp.parserROCKFILECO,
                        'rumble.com': self.pp.parserRUMBLECOM,
                        'rutube.ru': self.pp.parserRUTUBE,
