@@ -132,19 +132,12 @@ class YouTubeParser():
 
             def _key(x):
                 if x['format'].startswith('>'):
-                     int(x['format'][1:-1])
+                    return int(x['format'][1:-1])
                 else:
-                     int(ph.search(x['format'], reNum)[0])
+                    return int(ph.search(x['format'], reNum)[0])
 
-            if isPY2():
-                dashAudioLists = sorted(dashAudioLists, key=_key, reverse=True)
-                dashVideoLists = sorted(dashVideoLists, key=_key, reverse=True)
-            else:
-                #needs deeper investigation, as error suggests null values inside
-                printDBG(">>>>>>>>dashAudioLists>>>>>>>>>>>>>")
-                printDBG(str(dashAudioLists))
-                printDBG(">>>>>>>>dashAudioLists>>>>>>>>>>>>>")
-                printDBG(str(dashVideoLists))
+            dashAudioLists = sorted(dashAudioLists, key=_key, reverse=True)
+            dashVideoLists = sorted(dashVideoLists, key=_key, reverse=True)
 
         for item in linksList:
             printDBG(">>>>>>>>>>>>>>>>>>>>>")
