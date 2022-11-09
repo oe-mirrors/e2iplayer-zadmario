@@ -20,15 +20,16 @@ class SuggestionsProvider:
         return _("Filmweb Suggestions")
 
     def getSuggestions(self, text, locale):
-        url = 'http://www.filmweb.pl/search/live?q=' + urllib_quote(text)
+        url = 'https://www.filmweb.pl/api/v1/live/search?query=' + urllib_quote(text)
         sts, data = self.cm.getPage(url)
-        if sts and data.startswith("f\\c"):
+        if sts:
             retList = []
-            data = data.split("\\af")
+#            printDBG(data)
+            data = json.loads(data)['searchHits']
             for item in data:
-                item = item.split('\\c')
-                retList.append(item[4])
-                if item[4] != item[3]:
-                    retList.append(item[3])
+                if item.get('matchedName', '') == '':
+                    retList.append(item['matchedTitle'].encode('utf-8'))
+                else:
+                    retList.append(item['matchedName'].encode('utf-8'))
             return retList
         return None
