@@ -142,6 +142,8 @@ class Vizjer(CBaseHostClass):
         url = cItem['url']
         sort = cItem.get('sort', '')
         if sort not in url:
+            if not sort.endswith('/'):
+                sort = sort + '/'
             url = url + sort
 
         if '?' in url:
