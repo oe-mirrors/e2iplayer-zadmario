@@ -190,6 +190,10 @@ class Youtube(CBaseHostClass):
            params = {'category': 'feeds_video', 'title': title, 'url': url}
            self.addDir(params)
 
+    def listSubItems(self, cItem):
+        printDBG("Youtube.listSubItems")
+        self.currList = cItem['sub_items']
+
     def getVideos(self, cItem):
         printDBG('Youtube.getVideos cItem[%s]' % (cItem))
 
@@ -203,7 +207,17 @@ class Youtube(CBaseHostClass):
                     url = url + '?flow=list&view=0&sort=dd'
                 else:
                     url = url + '/videos?flow=list&view=0&sort=dd'
-            self.currList = self.ytp.getVideosFromChannelList(url, category, page, cItem)
+                tmp = self.ytp.getVideosFromChannelList(url, category, page, cItem)
+                if len(tmp) > 0:
+                    params = {'good_for_fav': False, 'category': 'sub_items', 'title': _('Videos'), 'sub_items': tmp}
+                    self.addDir(params)
+                url = url.replace('videos', 'streams')
+                tmp = self.ytp.getVideosFromChannelList(url, category, page, cItem)
+                if len(tmp) > 0:
+                    params = {'good_for_fav': False, 'category': 'sub_items', 'title': _('Live streams'), 'sub_items': tmp}
+                    self.addDir(params)
+            else:
+                self.currList = self.ytp.getVideosFromChannelList(url, category, page, cItem)
         elif "playlist" == category:
             self.currList = self.ytp.getVideosFromPlaylist(url, category, page, cItem)
         elif "traylist" == category:
@@ -284,6 +298,8 @@ class Youtube(CBaseHostClass):
             self.listFeeds(self.currItem)
         elif category == 'playlists':
             self.listItems(self.currItem)
+        elif category == 'sub_items':
+            self.listSubItems(self.currItem)
         #SEARCH
         elif category in ["search", "search_next_page"]:
             cItem = dict(self.currItem)

@@ -621,7 +621,7 @@ class YoutubeIE(object):
         if isGoogleDoc:
             cookieHeader = self.cm.getCookieHeader(COOKIE_FILE)
 
-        sub_tracks = self._get_automatic_captions(video_id, )
+        sub_tracks = self._get_automatic_captions(video_id, player_response)
         results = []
         for format_param, url_item in video_url_list:
             # Extension
