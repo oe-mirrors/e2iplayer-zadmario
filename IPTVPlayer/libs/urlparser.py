@@ -426,6 +426,7 @@ class urlparser:
                        'ntv.ru': self.pp.parserNTVRU,
                        'nxload.com': self.pp.parserNXLOADCOM,
                        #o
+                       'odysee.com': self.pp.parserODYSEECOM,
                        'ok.ru': self.pp.parserOKRU,
 #                       'oload.cloud':          self.pp.parserOPENLOADIO    ,
 #                       'oload.co':             self.pp.parserOPENLOADIO    ,
@@ -15597,5 +15598,25 @@ class pageParser(CaptchaHelper):
         videoUrl = strwithmeta(videoUrl, {'Origin': "https://" + urlparser.getDomain(url), 'Referer': url})
         if videoUrl != '':
             urlTab.extend(getDirectM3U8Playlist(videoUrl, checkContent=True, sortWithMaxBitrate=999999999))
+
+        return urlTab
+
+    def parserODYSEECOM(self, baseUrl):
+        printDBG("parserODYSEECOM baseUrl[%s]" % baseUrl)
+
+        HTTP_HEADER = self.cm.getDefaultHeader(browser='chrome')
+        referer = baseUrl.meta.get('Referer')
+        if referer:
+            HTTP_HEADER['Referer'] = referer
+        urlParams = {'header': HTTP_HEADER}
+        sts, data = self.cm.getPage(baseUrl, urlParams)
+        if not sts:
+            return []
+
+        urlTab = []
+        url = self.cm.ph.getSearchGroups(data, '''contentUrl['"]:\s?['"]([^"^']+?)['"]''')[0]
+        url = strwithmeta(url, {'Origin': urlparser.getDomain(baseUrl, False), 'Referer': baseUrl})
+        if url != '':
+            urlTab.append({'name': 'mp4', 'url': url})
 
         return urlTab
