@@ -1831,9 +1831,9 @@ class pageParser(CaptchaHelper):
                     return ''
 
             jsdata = self.jscode.get('data', '')
-            jscode = self.cm.ph.getSearchGroups(jsdata, '''var\s([a-z]+?,[a-z]+?,[a-z]+?,.*?);''')[0]
+            jscode = self.cm.ph.getSearchGroups(jsdata, '''var\s([a-zA-Z]+?,[a-zA-Z]+?,[a-zA-Z]+?,[a-zA-Z]+?,[a-zA-Z]+?,.*?);''')[0]
             tmp = jscode.split(',')
-            jscode = self.cm.ph.getSearchGroups(jsdata, '''(var\s[a-z]+?,[a-z]+?,[a-z]+?,.*?;)''')[0]
+            jscode = self.cm.ph.getSearchGroups(jsdata, '''(var\s[a-zA-Z]+?,[a-zA-Z]+?,[a-zA-Z]+?,[a-zA-Z]+?,[a-zA-Z]+?,.*?);''')[0]
             for item in tmp:
                 jscode += self.cm.ph.getSearchGroups(jsdata, '(%s=function\(.*?};)' % item)[0]
             jscode += "file = '%s';" % dat
