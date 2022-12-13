@@ -80,7 +80,8 @@ class Filman(CBaseHostClass, CaptchaHelper):
         try:
             retVal = self.cm.getPageCFProtection(baseUrl, addParams, post_data)
         except Exception:
-            printExc()
+            retVal = printExc()
+            self.sessionEx.open(MessageBox, "Błąd CFProtection '%s'" % retVal, type=MessageBox.TYPE_ERROR, timeout=10)
             retVal = False, None
         return retVal
 
