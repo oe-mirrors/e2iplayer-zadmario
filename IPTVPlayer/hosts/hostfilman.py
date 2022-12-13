@@ -77,7 +77,12 @@ class Filman(CBaseHostClass, CaptchaHelper):
             else:
                 return urljoin(baseUrl, url)
         addParams['cloudflare_params'] = {'domain': self.up.getDomain(baseUrl), 'cookie_file': self.COOKIE_FILE, 'User-Agent': self.USER_AGENT, 'full_url_handle': _getFullUrl}
-        return self.cm.getPageCFProtection(baseUrl, addParams, post_data)
+        try:
+            retVal = self.cm.getPageCFProtection(baseUrl, addParams, post_data)
+        except Exception:
+            printExc()
+            retVal = False, None
+        return retVal
 
     def setMainUrl(self, url):
         if self.cm.isValidUrl(url):
