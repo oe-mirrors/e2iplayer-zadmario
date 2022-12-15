@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
+import sys
 
+if sys.version_info[0] == 3:
+  xrange = range
 
 def EVP_BytesToKey(md, data, salt, keyLength, ivLength, count):
     assert(data)
@@ -20,19 +23,16 @@ def EVP_BytesToKey(md, data, salt, keyLength, ivLength, count):
             m.update(salt)
         hashed = m.digest()
 
-        try: #silly catch of missing xrange
-            for i in xrange(count - 1):
-                m = md()
-                m.update(hashed)
-                hashed = m.digest()
-        except Exception: #py3 lands here
-            for i in range(count - 1):
-                m = md()
-                m.update(hashed)
-                hashed = m.digest()
+        for i in xrange(count - 1):
+            m = md()
+            m.update(hashed)
+            hashed = m.digest()
 
         keyNeeds = keyLength - len(key)
-        tmp = hashed
+        if sys.version_info[0] == 2:
+            tmp = hashed
+        else:
+            tmp = hashed.decode('utf-8', 'ignore')
         if keyNeeds > 0:
             key += tmp[:keyNeeds]
             tmp = tmp[keyNeeds:]
