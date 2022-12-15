@@ -265,7 +265,7 @@ class AnimeOdcinkiPL(CBaseHostClass):
             key, iv = EVP_BytesToKey(md5, ensure_binary("s05z9Gpd=syG^7{"), ensure_binary(salt), 32, 16, 1)
 
             if iv != a2b_hex(data.get('b', '')):
-                prinDBG("_encryptPlayerUrl IV mismatched")
+                printDBG("_encryptPlayerUrl IV mismatched")
 
             if 0:
                 from Crypto.Cipher import AES
