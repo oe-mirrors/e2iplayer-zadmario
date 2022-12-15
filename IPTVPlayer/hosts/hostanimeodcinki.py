@@ -11,7 +11,7 @@ from hashlib import md5
 from Plugins.Extensions.IPTVPlayer.libs.crypto.cipher.aes_cbc import AES_CBC
 from Plugins.Extensions.IPTVPlayer.libs.crypto.keyedHash.evp import EVP_BytesToKey
 ###################################################
-from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str
+from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str, ensure_binary
 ###################################################
 # FOREIGN import
 ###################################################
@@ -262,7 +262,7 @@ class AnimeOdcinkiPL(CBaseHostClass):
         decrypted = ''
         try:
             salt = a2b_hex(data["v"])
-            key, iv = EVP_BytesToKey(md5, "s05z9Gpd=syG^7{", salt, 32, 16, 1)
+            key, iv = EVP_BytesToKey(md5, ensure_binary("s05z9Gpd=syG^7{"), ensure_binary(salt), 32, 16, 1)
 
             if iv != a2b_hex(data.get('b', '')):
                 prinDBG("_encryptPlayerUrl IV mismatched")
