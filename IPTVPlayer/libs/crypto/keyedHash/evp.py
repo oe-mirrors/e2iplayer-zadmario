@@ -20,10 +20,16 @@ def EVP_BytesToKey(md, data, salt, keyLength, ivLength, count):
             m.update(salt)
         hashed = m.digest()
 
-        for i in xrange(count - 1):
-            m = md()
-            m.update(hashed)
-            hashed = m.digest()
+        try: #silly catch of missing xrange
+            for i in xrange(count - 1):
+                m = md()
+                m.update(hashed)
+                hashed = m.digest()
+        except Exception: #py3 lands here
+            for i in range(count - 1):
+                m = md()
+                m.update(hashed)
+                hashed = m.digest()
 
         keyNeeds = keyLength - len(key)
         tmp = hashed
