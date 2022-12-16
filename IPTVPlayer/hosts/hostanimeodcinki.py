@@ -251,21 +251,21 @@ class AnimeOdcinkiPL(CBaseHostClass):
             self.addVideo(params)
 
     def listSearchResult(self, cItem, searchPattern, searchType):
-        printDBG("AnimeOdcinkiPL.listSearchResult cItem[%s], searchPattern[%s] searchType[%s]" % (cItem, searchPattern, searchType))
+        printDBG("hostanimeodcinki.listSearchResult cItem[%s], searchPattern[%s] searchType[%s]" % (cItem, searchPattern, searchType))
         cItem = dict(cItem)
         cItem['url'] = self.MAIN_URL
         cItem['f_search'] = searchPattern
         self.listSearchItems(cItem, 'list_episodes')
 
     def _encryptPlayerUrl(self, data):
-        printDBG("_encryptPlayerUrl data[%s]" % data)
+        printDBG("hostanimeodcinki._encryptPlayerUrl data[%s]" % data)
         decrypted = ''
         try:
             salt = a2b_hex(data["v"])
             key, iv = EVP_BytesToKey(md5, ensure_binary("s05z9Gpd=syG^7{"), ensure_binary(salt), 32, 16, 1)
 
             if iv != a2b_hex(data.get('b', '')):
-                printDBG("_encryptPlayerUrl IV mismatched")
+                printDBG("hostanimeodcinki._encryptPlayerUrl IV mismatched")
 
             if 0:
                 from Crypto.Cipher import AES
@@ -284,7 +284,7 @@ class AnimeOdcinkiPL(CBaseHostClass):
         return decrypted
 
     def getLinksForVideo(self, cItem):
-        printDBG("AnimeOdcinkiPL.getLinksForVideo [%s]" % cItem)
+        printDBG("hostanimeodcinki.getLinksForVideo [%s]" % cItem)
         urlTab = []
 
         urlTab = self.cacheLinks.get(cItem['url'], [])
