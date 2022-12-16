@@ -36,7 +36,7 @@ class Rijndael(BlockCipher):
         assert(blockSize % 4 == 0 and NrTable.has_key(blockSize / 4)), 'block size must be 16,20,24,29 or 32 bytes'
 
         self.Nb = self.blockSize / 4          # Nb is number of columns of 32 bit words
-        self.Nk = keySize / 4                 # Nk is the key length in 32-bit words
+        self.Nk = int(keySize / 4)            # Nk is the key length in 32-bit words
         self.Nr = NrTable[self.Nb][self.Nk] # The number of rounds (Nr) is a function of
                                             # the block (Nb) and key (Nk) sizes.
         if key != None:
