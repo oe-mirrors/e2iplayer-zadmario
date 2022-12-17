@@ -484,6 +484,7 @@ class urlparser:
                        'realvid.net': self.pp.parserFASTVIDEOIN,
                        'redload.co': self.pp.parserTUBELOADCO,
                        'rockfile.co': self.pp.parserROCKFILECO,
+                       'room905.com': self.pp.parserONLYSTREAMTV,
                        'rumble.com': self.pp.parserRUMBLECOM,
                        'rutube.ru': self.pp.parserRUTUBE,
                        #s
