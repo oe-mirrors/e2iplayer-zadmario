@@ -437,6 +437,7 @@ class urlparser:
 #                       'oload.tv':             self.pp.parserOPENLOADIO    ,
                        'onet.pl': self.pp.parserONETTV,
                        'onet.tv': self.pp.parserONETTV,
+                       'onlinez.pl': self.pp.parserJAWCLOUDCO,
                        'onlystream.tv': self.pp.parserONLYSTREAMTV,
                        'openlive.org': self.pp.parserOPENLIVEORG,
 #                       'openload.co':          self.pp.parserOPENLOADIO    ,
