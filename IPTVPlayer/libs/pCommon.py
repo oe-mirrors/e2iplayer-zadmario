@@ -1034,7 +1034,7 @@ class common:
                     printDBG(data)
                     printDBG('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<')
 
-                data = strwithmeta(data, {'cf_user': cf_user})
+        data = strwithmeta(data, {'cf_user': cf_user})
 
         return sts, data
 
