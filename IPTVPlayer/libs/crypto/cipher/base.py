@@ -35,11 +35,11 @@ class BlockCipher:
 
     def resetEncrypt(self):
         self.encryptBlockCount = 0
-        self.bytesToEncrypt = ''
+        self.bytesToEncrypt = b''
 
     def resetDecrypt(self):
         self.decryptBlockCount = 0
-        self.bytesToDecrypt = ''
+        self.bytesToDecrypt = b''
 
     def setPassphrase(self, passphrase):
         """ Use pbkdf2 to hash passphrase into a key """
