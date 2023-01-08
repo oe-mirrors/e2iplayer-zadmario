@@ -14252,8 +14252,14 @@ class pageParser(CaptchaHelper):
         if not sts:
             return []
 
+        if 'function(h,u,n,t,e,r)' in data:
+            ff = re.findall('function\(h,u,n,t,e,r\).*?}\((".+?)\)\)', data, re.DOTALL)[0]
+            ff = ff.replace('"', '')
+            h, u, n, t, e, r = ff.split(',')
+            data = dehunt(h, int(u), n, int(t), int(e), int(r))
+
         urlTab = []
-        data = self.cm.ph.getDataBeetwenMarkers(data, 'Clappr.Player', ('</script', '>'), False)[1]
+        data = self.cm.ph.getDataBeetwenMarkers(data, 'Clappr.Player', ';', False)[1]
         url = self.cm.ph.getSearchGroups(data, '''source:\s?['"]([^"^']+?)['"]''')[0]
         url = strwithmeta(url, {'Origin': urlparser.getDomain(baseUrl, False), 'Referer': baseUrl, 'User-Agent': 'Wget/1.20.3 (linux-gnu)'})
         if url != '':
