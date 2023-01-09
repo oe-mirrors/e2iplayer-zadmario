@@ -1594,7 +1594,7 @@ class IPTVExtMoviePlayer(Screen):
         msgType = MessageBox.TYPE_INFO
         for item in data:
             #printDBG('item= %s' % item)
-            item = item.strip()
+            item = item.strip().replace('{"PLAYBACK_LENGTH":{"PLAYBACK_LENGTH":','{"PLAYBACK_LENGTH":')
             if item.endswith(':'):
                 item = item[:-1]
             if item.startswith('{'):
