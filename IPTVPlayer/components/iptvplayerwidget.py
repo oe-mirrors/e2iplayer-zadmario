@@ -1623,6 +1623,7 @@ class E2iPlayerWidget(Screen):
         self.session.openWithCallback(self.selectLinksCallback, ChoiceBox, title=_("Select link"), list=options)
 
     def selectLinksCallback(self, retArg):
+        printDBG("selectLinksCallback: retArg = |%s|" % str(retArg))
         # retArg[0] - name
         # retArg[1] - url src
         # retArg[2] - urlNeedsResolve
