@@ -8,7 +8,7 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, Ge
 from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads, dumps as json_dumps
 
 from Plugins.Extensions.IPTVPlayer.libs.pCommon import CParsingHelper
-from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import getDirectM3U8Playlist, getF4MLinksWithMeta
+from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import getDirectM3U8Playlist, getF4MLinksWithMeta, getMPDLinksWithMeta
 from Plugins.Extensions.IPTVPlayer.libs.youtube_dl.utils import clean_html
 from Plugins.Extensions.IPTVPlayer.libs.teledunet import TeledunetParser
 from Plugins.Extensions.IPTVPlayer.libs.urlparser import urlparser
@@ -1228,10 +1228,17 @@ class HasBahCa(CBaseHostClass):
                     linkVideo = 'http:' + linkVideo
                 if len(linkVideo) and not linkVideo.startswith('http'):
                     linkVideo = 'http://strims.top' + linkVideo
-                    sts, tmp = self.cm.getPage(linkVideo)
-                    tmp = CParsingHelper.getDataBeetwenNodes(tmp, ('<iframe', '>', 'src'), ('</iframe', '>'))[1]
-                    linkVideo = self.cm.ph.getSearchGroups(tmp, '''src=['"]([^"^']+?)['"]''')[0]
-                    linkVideo = linkVideo.strip(' \n\t\r')
+                    sts, data = self.cm.getPage(linkVideo)
+                    tmp = CParsingHelper.getDataBeetwenNodes(data, ('<iframe', '>', 'src'), ('</iframe', '>'))[1]
+                    if len(tmp):
+                        linkVideo = self.cm.ph.getSearchGroups(tmp, '''src=['"]([^"^']+?)['"]''')[0]
+                        linkVideo = linkVideo.strip(' \n\t\r')
+                    else:
+                        tmp = self.cm.ph.getSearchGroups(data, '''eval\(unescape\(['"]([^"^']+?)['"]''')[0]
+                        tmp = urllib_unquote(tmp)
+                        linkVideo = self.cm.ph.getSearchGroups(tmp, '''['"]*(http[^'^"]+?\.m3u8[^'^"]*?)['"]''')[0]
+                        if '' == linkVideo:
+                            linkVideo = self.cm.ph.getSearchGroups(tmp, '''['"]*(http[^'^"]+?\.mpd[^'^"]*?)['"]''')[0].replace('\\', '')
                     if len(linkVideo) and linkVideo.startswith('//'):
                         linkVideo = 'http:' + linkVideo
                 linkVideo = linkVideo.replace('https://href.li/', '')
@@ -1248,6 +1255,8 @@ class HasBahCa(CBaseHostClass):
 
         if 'm3u8' in url and 'hlsplayer' not in url:
             urlsTab = getDirectM3U8Playlist(url, False)
+        elif 'mpd' in url:
+            urlsTab = getMPDLinksWithMeta(url, False)
         else:
             urlsTab.extend(self.up.getVideoLinkExt(url))
         return urlsTab
