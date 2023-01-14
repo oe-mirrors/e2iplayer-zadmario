@@ -427,6 +427,8 @@ class urlparser:
                        'nxload.com': self.pp.parserNXLOADCOM,
                        #o
                        'odysee.com': self.pp.parserODYSEECOM,
+                       'olacast.live': self.pp.parserASSIAORG,
+                       'orangehost.online': self.pp.parserASSIAORG,
                        'ok.ru': self.pp.parserOKRU,
 #                       'oload.cloud':          self.pp.parserOPENLOADIO    ,
 #                       'oload.co':             self.pp.parserOPENLOADIO    ,
