@@ -566,6 +566,7 @@ class urlparser:
                        'swirownia.com.usrfiles.com': self.pp.parserSWIROWNIA,
                        #t
                        'talbol.net': self.pp.parserTXNEWSNETWORK,
+                       'techclips.net': self.pp.parserTECHCLIPSNET,
                        'telerium.tv': self.pp.parserTELERIUMTV,
                        'teleriumtv.com': self.pp.parserTELERIUMTVCOM,
                        'theactionlive.com': self.pp.parserTHEACTIONLIVE,
@@ -15609,5 +15610,28 @@ class pageParser(CaptchaHelper):
         url = strwithmeta(url, {'Origin': urlparser.getDomain(baseUrl, False), 'Referer': baseUrl})
         if url != '':
             urlTab.append({'name': 'mp4', 'url': url})
+
+        return urlTab
+
+    def parserTECHCLIPSNET(self, baseUrl):
+        printDBG("parserTECHCLIPSNET baseUrl[%s]" % baseUrl)
+
+        HTTP_HEADER = self.cm.getDefaultHeader(browser='chrome')
+        referer = baseUrl.meta.get('Referer')
+        if referer:
+            HTTP_HEADER['Referer'] = referer
+        urlParams = {'header': HTTP_HEADER}
+        sts, data = self.cm.getPage(baseUrl, urlParams)
+        if not sts:
+            return []
+        cUrl = self.cm.meta['url']
+
+        data = self.cm.ph.getDataBeetwenNodes(data, ('<div', '>', 'player'), ('</script', '>'))[1]
+        serv = self.cm.ph.getSearchGroups(data, '''var servs\s?=\s?\[['"]([^"^']+?)['"]''')[0]
+        url = eval(self.cm.ph.getSearchGroups(data, '''[^/]source:\s?(['"][^,]+?['"]),''')[0])
+        urlTab = []
+        url = strwithmeta(url, {'Origin': urlparser.getDomain(baseUrl, False), 'Referer': cUrl})
+        if url != '':
+            urlTab.extend(getDirectM3U8Playlist(url, checkContent=True, sortWithMaxBitrate=999999999))
 
         return urlTab
