@@ -860,6 +860,7 @@ class common:
             if fileHandler:
                 fileHandler.close()
         except pycurl.error as e:
+            printDBG('pycurl.error = %s' % str(e))
             metadata['pycurl_error'] = (e[0], str(e[1]))
             printExc()
         except Exception:
