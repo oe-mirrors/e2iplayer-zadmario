@@ -2613,11 +2613,13 @@ msgid "JDownloader script execution"
 msgstr "JDownloader Script Ausführung"
 
 #: ../components/recaptcha_v2myjd_widget.py:104
-#, fuzzy, python-format
+#, python-format
 msgid ""
 "JDownloader script execution failed.\n"
 "Error code: %s\n"
-msgstr "JDownloader Script Ausführung fehlgeschlagen.\n"
+msgstr ""
+"JDownloader Script Ausführung fehlgeschlagen.\n"
+"Fehler-Code: %s\n"
 
 #: ../components/recaptcha_v2myjd_widget.py:101
 msgid "JDownloader script finished."
@@ -3145,18 +3147,20 @@ msgstr "My JDownloader reCAPTCHA v2 Lösung"
 
 #: ../libs/recaptcha_mye2i.py:18
 msgid "MyE2i Cloudflare solution"
-msgstr ""MyE2i Cloudflare Lösung"
+msgstr "MyE2i Cloudflare Lösung"
 
 #: ../libs/recaptcha_mye2i.py:20
 msgid "MyE2i reCAPTCHA solution"
 msgstr "MyE2i reCAPTCHA Lösung"
 
 #: ../components/recaptcha_mye2i_widget.py:100
-#, fuzzy, python-format
+#, python-format
 msgid ""
 "MyE2i script execution failed.\n"
 "Error code: %s\n"
-msgstr "JDownloader Script Ausführung fehlgeschlagen.\n"
+msgstr ""
+"MyE2i Script Ausführung fehlgeschlagen.\n"
+"Fehler-Code: %s\n"
 
 #: ../components/recaptcha_mye2i_widget.py:97
 msgid "MyE2i script finished."
