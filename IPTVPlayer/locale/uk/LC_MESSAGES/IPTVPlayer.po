@@ -3835,7 +3835,7 @@ msgstr ""
 
 #: ../hosts/hostmediayou.py:28 ../hosts/hosttvjworg.py:30
 msgid "Polish"
-msgstr ""Польський"
+msgstr "Польський"
 
 #: ../components/iptvconfigmenu.py:420
 msgid "Polish proxy server url"
