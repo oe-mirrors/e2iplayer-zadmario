@@ -513,8 +513,8 @@ class EkinoTv(CBaseHostClass, CaptchaHelper):
                 if not sts:
                     return False
 
-                cookieHeader = self.cm.getCookieHeader(self.COOKIE_FILE, ['PHPSESSID'])
-                printDBG('tryTologin cookieHeader [%s]' % cookieHeader)
+#                cookieHeader = self.cm.getCookieHeader(self.COOKIE_FILE, ['PHPSESSID'])
+#                printDBG('tryTologin cookieHeader [%s]' % cookieHeader)
 
                 sts, data = self.cm.ph.getDataBeetwenNodes(data, ('<form', '>', 'login'), ('</form', '>'))
                 if not sts:
@@ -532,7 +532,7 @@ class EkinoTv(CBaseHostClass, CaptchaHelper):
                 httpParams = dict(self.defaultParams)
                 httpParams['header'] = dict(httpParams['header'])
                 httpParams['header']['Referer'] = self.getMainUrl()
-                httpParams['header']['Cookie'] = cookieHeader
+#                httpParams['header']['Cookie'] = cookieHeader
 
                 if 'data-sitekey' in data:
                     sitekey = self.cm.ph.getSearchGroups(data, 'data\-sitekey="([^"]+?)"')[0]
