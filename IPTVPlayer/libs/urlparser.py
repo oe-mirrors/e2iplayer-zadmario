@@ -493,6 +493,7 @@ class urlparser:
                        #s
                        'samaup.cc': self.pp.parserUPLOAD,
                        'sawlive.tv': self.pp.parserSAWLIVETV,
+                       'sbchill.com': self.pp.parserSTREAMSB,
                        'sbembed.com': self.pp.parserSTREAMSB,
                        'sbembed1.com': self.pp.parserSTREAMSB,
                        'sbfull.com': self.pp.parserSTREAMSB,
@@ -14662,7 +14663,7 @@ class pageParser(CaptchaHelper):
             x = '{0}||{1}||{2}||streamsb'.format(makeid(12), c2, makeid(12))
             c3 = hexlify(x.encode('utf8')).decode('utf8')
 #            return 'https://{0}/sources43/{1}/{2}'.format(urlparser.getDomain(baseUrl), c1, c3)
-            return 'https://{0}/sources49/{1}'.format(urlparser.getDomain(baseUrl), c1)
+            return 'https://{0}/sources50/{1}'.format(urlparser.getDomain(baseUrl), c1)
 
         eurl = get_embedurl(media_id)
         urlParams['header']['watchsb'] = 'sbstream'
