@@ -1465,6 +1465,10 @@ def byteify(inData, noneReplacement=None, baseTypesAsString=False):
 
 LASTExcMSG = ''
 
+def clearExcMSG():
+    global LASTExcMSG
+    LASTExcMSG = ''
+
 def getExcMSG(clearExcMSG = False):
     global LASTExcMSG
     retMSG = LASTExcMSG
