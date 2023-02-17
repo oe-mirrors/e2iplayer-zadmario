@@ -1929,9 +1929,9 @@ def checkWebSiteStatus(URL):
     req = urllib2_Request(URL)
     try:
         response = urllib2_urlopen(req)
-    except HTTPError as e:
-        return (False, "Website available but returned error code: %s" % e.code)
+    except urllib2_HTTPError as e:
+        return (False, "Website returned error: %s" % e.code)
     except urllib2_URLError as e:
-        return (False, 'Website NOT available, reason: %s' % e.reason)
+        return (False, 'Website NOT available (%s)' % e.reason)
     else:
         return (True, '')
