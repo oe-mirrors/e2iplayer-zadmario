@@ -258,10 +258,14 @@ class Kinomoc(CBaseHostClass):
         for item in tmp:
             id = self.cm.ph.getSearchGroups(item, '''id=['"]([^"^']+?)['"]''')[0]
             playerUrl = self.getFullUrl(self.cm.ph.getSearchGroups(item, '''src=['"]([^"^']+?)['"]''')[0])
-            name =  self.cleanHtmlStr(self.cm.ph.getDataBeetwenNodes(data, ('<li', '>', id), ('</li', '>'))[1])
-            if playerUrl == '':
+            tmp =  self.cm.ph.getDataBeetwenNodes(data, ('<li', '>', id), ('</li', '>'))[1]
+            name = self.cleanHtmlStr(tmp)
+            if playerUrl == '' or name == '':
                 continue
-            retTab.append({'name': name, 'url': strwithmeta(playerUrl, {'Referer': url}), 'need_resolve': 1})
+            if 'active' in tmp:
+                retTab.insert(0, {'name': name, 'url': strwithmeta(playerUrl, {'Referer': url}), 'need_resolve': 1})
+            else:
+                retTab.append({'name': name, 'url': strwithmeta(playerUrl, {'Referer': url}), 'need_resolve': 1})
 
         if len(retTab) < 1:
             retTab.append({'name': self.up.getDomain(url), 'url': strwithmeta(url, {'Referer': url}), 'need_resolve': 1})
