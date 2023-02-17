@@ -13,7 +13,7 @@ if not isPY2():
     basestring = str
     unicode = str
     from functools import cmp_to_key
-from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib2_urlopen
+from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib2_urlopen, urllib2_Request, urllib2_URLError, urllib2_HTTPError
 from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import strDecode, iterDictItems, ensure_str
 ###################################################
 
@@ -1463,8 +1463,17 @@ def byteify(inData, noneReplacement=None, baseTypesAsString=False):
     else:
         return inData
 
+LASTExcMSG = ''
+
+def getExcMSG(clearExcMSG = False):
+    global LASTExcMSG
+    retMSG = LASTExcMSG
+    if clearExcMSG:
+        LASTExcMSG = ''
+    return retMSG
 
 def printExc(msg='', WarnOnly = False):
+    global LASTExcMSG
     printDBG("===============================================")
     if WarnOnly or msg.startswith('WARNING'):
         printDBG("                    WARNING                    ")
@@ -1483,6 +1492,7 @@ def printExc(msg='', WarnOnly = False):
         retMSG = exc_formatted.splitlines()[-1]
     except Exception:
         retMSG = ''
+    LASTExcMSG = retMSG
     return retMSG #returns the error description to possibly use in main code. E.g. inform about failed login
 
 def GetIPTVPlayerVerstion():
@@ -1914,3 +1924,14 @@ def readCFG(cfgName, defVal = ''):
                             defVal = line.split('=')[1]
                             open(cfgPath, 'w').write(defVal)
     return defVal
+
+def checkWebSiteStatus(URL):
+    req = urllib2_Request(URL)
+    try:
+        response = urllib2_urlopen(req)
+    except HTTPError as e:
+        return (False, "Website available but returned error code: %s" % e.code)
+    except urllib2_URLError as e:
+        return (False, 'Website NOT available, reason: %s' % e.reason)
+    else:
+        return (True, '')
