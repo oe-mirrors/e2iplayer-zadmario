@@ -1925,8 +1925,13 @@ def readCFG(cfgName, defVal = ''):
                             open(cfgPath, 'w').write(defVal)
     return defVal
 
-def checkWebSiteStatus(URL):
-    req = urllib2_Request(URL)
+def checkWebSiteStatus(URL, HEADERS = None):
+    if HEADERS is None:
+        HEADERS = { 'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux i686; rv:88.0) Gecko/20100101 Firefox/88.0', 
+                        'Accept-Charset': 'utf-8', 
+                        'Content-Type': 'text/html; charset=utf-8'
+                      }
+    req = urllib2_Request(URL, headers=HEADERS)
     try:
         response = urllib2_urlopen(req)
     except urllib2_HTTPError as e:
