@@ -19,6 +19,10 @@ from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str
 import re
 import base64
 ###################################################
+# E2 GUI COMMPONENTS
+###################################################
+from Screens.MessageBox import MessageBox
+###################################################
 
 
 def gettytul():
@@ -53,18 +57,13 @@ class Kinomoc(CBaseHostClass):
     def listMainMenu(self, cItem):
         printDBG("Kinomoc.listMainMenu")
 
-        webState, MSG, ERR = checkWebSiteStatus(self.MAIN_URL, self.HTTP_HEADER)
-        
-        if webState == False:
-            MAIN_CAT_TAB = [{'category': 'list_items', 'title': "%s: %s" % (_(MSG), ERR) , 'url': self.MAIN_URL},]
-        else:
-            MAIN_CAT_TAB = [{'category': 'list_items', 'title': _('Movies'), 'url': self.getFullUrl('/filmy/')},
-#                        {'category': 'list_items', 'title': _('Movies') + ' ENG', 'url': self.getFullUrl('/quality/filmy-w-wersji-eng/')},
-#                        {'category': 'list_items', 'title': _('Children'), 'url': self.getFullUrl('/genre/anime-bajki/')},
+        MAIN_CAT_TAB = [{'category': 'list_items', 'title': _('Movies'), 'url': self.getFullUrl('/filmy/')},
+#                       {'category': 'list_items', 'title': _('Movies') + ' ENG', 'url': self.getFullUrl('/quality/filmy-w-wersji-eng/')},
+#                       {'category': 'list_items', 'title': _('Children'), 'url': self.getFullUrl('/genre/anime-bajki/')},
                         {'category': 'list_items', 'title': _('Series'), 'url': self.getFullUrl('/serials/')},
-#                        {'category': 'list_years', 'title': _('Filter By Year'), 'url': self.getFullUrl('/filmy-online-pl/')},
+#                       {'category': 'list_years', 'title': _('Filter By Year'), 'url': self.getFullUrl('/filmy-online-pl/')},
                         {'category': 'list_cats',  'title': _('Movies genres'), 'url': self.getFullUrl('/filmy/')},
-#                        {'category':'list_az',        'title': _('Alphabetically'),    'url':self.MAIN_URL},
+#                       {'category':'list_az',        'title': _('Alphabetically'),    'url':self.MAIN_URL},
                         {'category': 'search', 'title': _('Search'), 'search_item': True},
                         {'category': 'search_history', 'title': _('Search history')}, ]
         self.listsTab(MAIN_CAT_TAB, cItem)
@@ -335,7 +334,11 @@ class Kinomoc(CBaseHostClass):
     #MAIN MENU
         if name == None and category == '':
             rm(self.COOKIE_FILE)
-            self.listMainMenu({'name': 'category'})
+            webState, MSG, ERR = checkWebSiteStatus(self.MAIN_URL, self.HTTP_HEADER, 2)
+            if webState:
+                self.listMainMenu({'name': 'category'})
+            else:
+                self.sessionEx.open(MessageBox, "%s: %s" % (_(MSG), ERR), type=MessageBox.TYPE_INFO, timeout=10)
         elif 'list_cats' == category:
             self.listMovieFilters(self.currItem, 'list_items')
         elif 'list_years' == category:

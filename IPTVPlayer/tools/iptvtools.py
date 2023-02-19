@@ -1929,7 +1929,8 @@ def readCFG(cfgName, defVal = ''):
                             open(cfgPath, 'w').write(defVal)
     return defVal
 
-def checkWebSiteStatus(URL, HEADERS = None):
+def checkWebSiteStatus(URL, HEADERS = None, TIMEOUT = 1):
+    global LASTExcMSG
     if HEADERS is None:
         HEADERS = { 'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux i686; rv:88.0) Gecko/20100101 Firefox/88.0',
                         'Accept-Charset': 'utf-8',
@@ -1937,10 +1938,18 @@ def checkWebSiteStatus(URL, HEADERS = None):
                       }
     req = urllib2_Request(URL, headers=HEADERS)
     try:
-        response = urllib2_urlopen(req)
+        response = urllib2_urlopen(req, timeout=TIMEOUT)
     except urllib2_HTTPError as e:
-        return (False, "Website returned error", e.code)
+        LASTExcMSG = str(e)
+        return (False, "Website returned error", str(e.code))
     except urllib2_URLError as e:
-        return (False, 'Website NOT available', e.reason)
+        LASTExcMSG = str(e)
+        return (False, 'Website NOT available', str(e.reason))
+    except socket.timeout as e:
+        LASTExcMSG = str(e)
+        return (False, 'Website overloaded and dont respond timely', str('Timeout %ss' % TIMEOUT))
+    except Exception as e:
+        LASTExcMSG = str(e)
+        return (False, 'EXCEPTION', str(e))
     else:
         return (True, '', None)

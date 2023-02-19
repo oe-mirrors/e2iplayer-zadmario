@@ -50,7 +50,7 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvtools import FreeSpace as iptvtools
                                                           CMoviePlayerPerHost, GetFavouritesDir, CFakeMoviePlayerOption, GetAvailableIconSize, \
                                                           GetE2VideoModeChoices, GetE2VideoMode, SetE2VideoMode, TestTmpCookieDir, TestTmpJSCacheDir,\
                                                           ClearTmpCookieDir, ClearTmpJSCacheDir, SetTmpCookieDir, SetTmpJSCacheDir,\
-                                                          GetEnabledHostsList, SaveHostsOrderList, GetUpdateServerUri, GetHostsAliases, formatBytes
+                                                          GetEnabledHostsList, SaveHostsOrderList, GetUpdateServerUri, GetHostsAliases, formatBytes, getExcMSG
 from Plugins.Extensions.IPTVPlayer.tools.iptvhostgroups import IPTVHostsGroups
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdh import DMHelper
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvbuffui import E2iPlayerBufferingWidget
@@ -2129,6 +2129,9 @@ class E2iPlayerWidget(Screen):
             lastErrorMsg = GetIPTVPlayerLastHostError()
             if lastErrorMsg != '':
                 disMessage += "\n" + _('Last error: "%s"' % lastErrorMsg)
+            lastExcMSG =  getExcMSG(True)
+            if lastExcMSG != '':
+                disMessage += "\n" + _('Last Exception error: "%s"' % lastExcMSG)
 
             self.setStatusTex(disMessage)
             self["list"].hide()
