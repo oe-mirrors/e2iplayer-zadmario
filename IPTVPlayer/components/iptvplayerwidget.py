@@ -101,7 +101,7 @@ class E2iPlayerWidget(Screen):
                             <widget name="key_green_ext" position="425,9" size="300,32" zPosition="5" valign="center" halign="left" backgroundColor="black" font="Regular;32" transparent="1" foregroundColor="white" shadowColor="black" shadowOffset="-1,-1" />
                             <widget render="Label" source="key_blue" position="740,9" size="140,32" zPosition="5" valign="center" halign="left" backgroundColor="black" font="Regular;32" transparent="1" foregroundColor="white" shadowColor="black" shadowOffset="-1,-1" />
                             <widget name="headertext" position="15,55" zPosition="1" size="1080,30" font="Regular;30" transparent="1" backgroundColor="#00000000" />
-                            <widget name="statustext" position="15,148" zPosition="1" size="985,90" font="Regular;30" halign="center" valign="center" transparent="1" backgroundColor="#00000000" />
+                            <widget name="statustext" position="15,148" zPosition="1" size="985,120" font="Regular;30" halign="center" valign="center" transparent="1" backgroundColor="#00000000" />
                             <widget name="list" position="5,115" zPosition="2" size="860,690" enableWrapAround="1" scrollbarMode="showOnDemand" transparent="1" backgroundColor="#00000000" />
                             <widget name="console" position="1020,310" zPosition="1" size="500,630" font="Regular;26" transparent="1" backgroundColor="#00000000" />
                             <widget name="cover" zPosition="2" position="1020,80" size="244,280" alphatest="blend" />
@@ -126,7 +126,7 @@ class E2iPlayerWidget(Screen):
                             <widget render="Label" source="key_yellow" position="589,9" size="210,27" zPosition="5" valign="center" halign="left" backgroundColor="black" font="Regular;21" transparent="1" foregroundColor="white" shadowColor="black" shadowOffset="-1,-1" />
                             <widget render="Label" source="key_blue"   position="836,9" size="210,27" zPosition="5" valign="center" halign="left" backgroundColor="black" font="Regular;21" transparent="1" foregroundColor="white" shadowColor="black" shadowOffset="-1,-1" />
                             <widget name="headertext" position="5,47" zPosition="1" size="1080,23" font="Regular;20" transparent="1" backgroundColor="#00000000" />
-                            <widget name="statustext" position="5,140" zPosition="1" size="985,90" font="Regular;20" halign="center" valign="center" transparent="1" backgroundColor="#00000000" />
+                            <widget name="statustext" position="5,140" zPosition="1" size="985,120" font="Regular;20" halign="center" valign="center" transparent="1" backgroundColor="#00000000" />
                             <widget name="list" position="5,100" zPosition="2" size="1080,280" enableWrapAround="1" scrollbarMode="showOnDemand" transparent="1" backgroundColor="#00000000" />
                             <widget name="console" position="165,430" zPosition="1" size="935,140" font="Regular;20" transparent="1" backgroundColor="#00000000" />
                             <widget name="cover" zPosition="2" position="5,400" size="122,140" alphatest="blend" />
