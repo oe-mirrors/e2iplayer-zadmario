@@ -1614,6 +1614,9 @@ class E2iPlayerWidget(Screen):
                 lastErrorMsg = GetIPTVPlayerLastHostError()
                 if '' != lastErrorMsg:
                     message += "\n" + _('Last error: "%s"') % lastErrorMsg
+                lastExcMSG =  getExcMSG(True)
+                if lastExcMSG != '':
+                    message += "\n" + _('Last Exception error: "%s"' % lastExcMSG)
                 self.session.open(MessageBox, message, type=MessageBox.TYPE_INFO, timeout=10)
             return
         elif 1 == numOfLinks or self.autoPlaySeqStarted:
