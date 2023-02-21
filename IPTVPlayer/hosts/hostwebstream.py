@@ -1249,6 +1249,7 @@ class HasBahCa(CBaseHostClass):
                 params = {'name': "strims.top"}
                 params['url'] = urlparser.decorateUrl(linkVideo, {'Referer': url})
                 params['title'] = self.cleanHtmlStr(item) + ' - ' + self.up.getDomain(linkVideo)
+                printDBG("StrumykTvDir params [%s]" % params)
                 self.addVideo(params)
 
     def getStrumykTvLink(self, url):
