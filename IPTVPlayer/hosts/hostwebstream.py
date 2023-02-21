@@ -1210,6 +1210,8 @@ class HasBahCa(CBaseHostClass):
 
         for item in data:
             _url = self.cm.ph.getSearchGroups(item, '''\shref=['"]([^"^']+?)['"]''')[0]
+            if '?' in url:
+                url = url.split('?', 1)[0]
             if _url.startswith('?'):
                 _url = url + _url
             if not _url.startswith('http'):
