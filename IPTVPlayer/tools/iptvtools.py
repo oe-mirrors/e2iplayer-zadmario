@@ -685,7 +685,7 @@ def getDebugMode():
     return DBG
 
 
-def printDBG(DBGtxt):
+def printDBG(DBGtxt, writeMode = 'a'):
     DBG = getDebugMode()
     if DBG == '':
         return
@@ -697,7 +697,7 @@ def printDBG(DBGtxt):
         else:
             DBGfile = DBG
         try:
-            f = open(DBGfile, 'a')
+            f = open(DBGfile, writeMode)
             f.write(str(DBGtxt) + '\n')
             f.close
         except Exception:
@@ -706,7 +706,7 @@ def printDBG(DBGtxt):
             print("========================================================")
             try:
                 msg = '%s' % traceback.format_exc()
-                f = open(DBGfile, 'a')
+                f = open(DBGfile, writeMode)
                 f.write(str(DBGtxt) + '\n')
                 f.close
             except Exception:
