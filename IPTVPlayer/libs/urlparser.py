@@ -720,6 +720,7 @@ class urlparser:
                        'watchsb.com': self.pp.parserSTREAMSB,
                        'watchvideo.us': self.pp.parserWATCHVIDEO17US,
                        'watchvideo17.us': self.pp.parserWATCHVIDEO17US,
+                       'watchx.top': self.pp.parserCHILLXTOP,
                        'weakstreams.com': self.pp.parserLIVEONSCORETV,
                        'webcamera.mobi': self.pp.parserWEBCAMERAPL,
                        'webcamera.pl': self.pp.parserWEBCAMERAPL,
