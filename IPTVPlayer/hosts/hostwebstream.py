@@ -27,7 +27,6 @@ from Plugins.Extensions.IPTVPlayer.libs.karwantv import KarwanTvApi
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.libs.djingcom import DjingComApi
 from Plugins.Extensions.IPTVPlayer.libs.mlbstreamtv import MLBStreamTVApi, GetConfigList as MLBStreamTV_GetConfigList
-from Plugins.Extensions.IPTVPlayer.libs.beinmatch import BeinmatchApi
 from Plugins.Extensions.IPTVPlayer.libs.wiziwig1 import Wiziwig1Api
 ###################################################
 from Plugins.Extensions.IPTVPlayer.p2p3.pVer import isPY2
@@ -169,7 +168,6 @@ class HasBahCa(CBaseHostClass):
         self.weebTvApi = None
         self.djingComApi = None
         self.MLBStreamTVApi = None
-        self.BeinmatchApi = None
         self.Wiziwig1Api = None
 
         self.hasbahcaiptv = {}
@@ -526,26 +524,6 @@ class HasBahCa(CBaseHostClass):
     def getMLBStreamResolvedLink(self, url):
         printDBG("getMLBStreamResolvedLink start")
         return self.MLBStreamTVApi.getResolvedVideoLink(url)
-    #############################################################
-
-    #############################################################
-    def getBeinmatchList(self, cItem):
-        printDBG("getBeinmatchList start")
-        if None == self.BeinmatchApi:
-            self.BeinmatchApi = BeinmatchApi()
-        tmpList = self.BeinmatchApi.getList(cItem)
-        for item in tmpList:
-            if 'video' == item['type']:
-                self.addVideo(item)
-            elif 'audio' == item['type']:
-                self.addAudio(item)
-            else:
-                self.addDir(item)
-
-    def getBeinmatchLink(self, cItem):
-        printDBG("getBeinmatchLink start")
-        urlsTab = self.BeinmatchApi.getVideoLink(cItem)
-        return urlsTab
     #############################################################
 
     #############################################################
@@ -951,8 +929,6 @@ class HasBahCa(CBaseHostClass):
             self.getOthersList(self.currItem)
         elif name == 'mlbstream.tv':
             self.getMLBStreamTVList(self.currItem)
-        elif name == 'beinmatch.com':
-            self.getBeinmatchList(self.currItem)
         elif name == 'wiziwig1.eu':
             self.getWiziwig1List(self.currItem)
         elif name == 'nhl66.ir':
@@ -1027,8 +1003,6 @@ class IPTVHost(CHostBase):
             urlList = self.host.prognozaPogodyLink(url)
         elif name == "mlbstream.tv":
             urlList = self.host.getMLBStreamTVLink(cItem)
-        elif name == "beinmatch.com":
-            urlList = self.host.getBeinmatchLink(cItem)
         elif name == "wiziwig1.eu":
             urlList = self.host.getWiziwig1Link(cItem)
         elif name == "strims.top":
