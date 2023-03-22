@@ -15695,6 +15695,13 @@ class pageParser(CaptchaHelper):
 
         urlTab = []
         url = self.cm.ph.getSearchGroups(data, '''sources[^'^"]*?['"]([^'^"]+?)['"]''')[0]
+        if url == '':
+            url = self.cm.ph.getSearchGroups(data, '''<iframe[^>]*?src=["'](http[^"^']+?)["']''', 1, True)[0]
+            sts, data = self.cm.getPage(url, {'header': HTTP_HEADER})
+            if not sts:
+                return False
+            cUrl = self.cm.meta['url']
+            url = self.cm.ph.getSearchGroups(data, '''sources[^'^"]*?['"]([^'^"]+?)['"]''')[0]
         url = strwithmeta(url, {'Origin': urlparser.getDomain(cUrl, False), 'Referer': cUrl})
         if url != '':
             urlTab.extend(getDirectM3U8Playlist(url, checkContent=True, sortWithMaxBitrate=999999999))
@@ -15726,8 +15733,11 @@ class pageParser(CaptchaHelper):
             decryptor = pyaes.Decrypter(pyaes.AESModeOfOperationCBC(secret, iv))
             data = decryptor.feed(base64.b64decode(ct))
             data += decryptor.feed()
+            #printDBG("parserCHILLXTOP data[%s]" % data)
 
         url = self.cm.ph.getSearchGroups(data, '''source[^'^"]*?['"]([^'^"]+?)['"]''')[0]
+        if url == '':
+            url = self.cm.ph.getSearchGroups(data, '''file[^'^"]*?['"]([^'^"]+?)['"]''')[0]
         urlTab = []
         url = urlparser.decorateUrl(url, {'iptv_proto': 'm3u8', 'User-Agent': urlParams['header']['User-Agent'], 'Referer': cUrl, 'Origin': urlparser.getDomain(cUrl, False)})
         if url != '':
