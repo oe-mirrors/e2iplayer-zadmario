@@ -15748,7 +15748,6 @@ class pageParser(CaptchaHelper):
 
     def parserWIKISPORTCLICK(self, baseUrl):
         printDBG("parserWIKISPORTCLICK baseUrl[%s]" % baseUrl)
-
         HTTP_HEADER = self.cm.getDefaultHeader(browser='chrome')
         referer = baseUrl.meta.get('Referer')
         if referer:
@@ -15759,17 +15758,40 @@ class pageParser(CaptchaHelper):
             return []
 
         tmpUrl = self.cm.ph.getSearchGroups(data, '''<iframe[^>]+?src=['"]([^"^']+?)['"]''', 1, True)[0]
-        HTTP_HEADER['Referer'] = baseUrl
-        urlParams = {'header': HTTP_HEADER}
-        sts, data = self.cm.getPage(tmpUrl, urlParams)
-        if not sts:
-            return []
-
-        data = self.cm.ph.getSearchGroups(data, '''source[^'^"]*?['"]([^'^"]+?)['"]''')[0]
+        if tmpUrl == '':
+            tmp = self.cm.ph.getAllItemsBeetwenNodes(data, ('<script', '>'), ('</script', '>'), False)
+            tmp = '\n'.join(tmp)
+            scriptUrl = self.cm.ph.getSearchGroups(data, '''<script[^>]+?src=['"]([^'^"]+?wiki\.js[^'^"]*?)['"]''')[0]
+            if scriptUrl.startswith('//'):
+                scriptUrl = 'https:' + scriptUrl
+            sts, data = self.cm.getPage(scriptUrl, urlParams)
+            if not sts:
+                return []
+            if data != '' and tmp != '':
+                jscode = base64.b64decode('''dmFyIG5hdmlnYXRvcj17dXNlckFnZW50OiJkZXNrdG9wIn07d2luZG93PXRoaXM7ZG9jdW1lbnQ9e307ZG9jdW1lbnQud3JpdGU9ZnVuY3Rpb24oKXtwcmludChhcmd1bWVudHNbMF0pO307YXRvYj1mdW5jdGlvbihlKXtlLmxlbmd0aCU0PT0zJiYoZSs9Ij0iKSxlLmxlbmd0aCU0PT0yJiYoZSs9Ij09IiksZT1EdWt0YXBlLmRlYygiYmFzZTY0IixlKSxkZWNUZXh0PSIiO2Zvcih2YXIgdD0wO3Q8ZS5ieXRlTGVuZ3RoO3QrKylkZWNUZXh0Kz1TdHJpbmcuZnJvbUNoYXJDb2RlKGVbdF0pO3JldHVybiBkZWNUZXh0fTs=''')
+                jscode += tmp
+                jscode += data
+                ret = js_execute(jscode)
+                if ret['sts'] and 0 == ret['code']:
+                    tmp = ret['data'].strip()
+            tmpUrl = self.cm.ph.getSearchGroups(tmp, '''<iframe[^>]+?src=['"]([^"^']+?)['"]''', 1, True)[0]
+            HTTP_HEADER['Referer'] = baseUrl
+            urlParams = {'header': HTTP_HEADER}
+            sts, data = self.cm.getPage(tmpUrl, urlParams)
+            if not sts:
+                return []
+            data = eval(re.findall('return\((\[.+?\])', data)[0])
+            data = ''.join(data).replace('\/', '/')
+        else:
+            HTTP_HEADER['Referer'] = baseUrl
+            urlParams = {'header': HTTP_HEADER}
+            sts, data = self.cm.getPage(tmpUrl, urlParams)
+            if not sts:
+                return []
+            data = self.cm.ph.getSearchGroups(data, '''source[^'^"]*?['"]([^'^"]+?)['"]''')[0]
 
         urlTab = []
         if 'm3u8' in data:
             hlsUrl = strwithmeta(data, {'Origin': urlparser.getDomain(tmpUrl, False), 'Referer': tmpUrl})
             urlTab.extend(getDirectM3U8Playlist(hlsUrl, checkExt=False, variantCheck=True, checkContent=True, sortWithMaxBitrate=99999999))
-
         return urlTab
