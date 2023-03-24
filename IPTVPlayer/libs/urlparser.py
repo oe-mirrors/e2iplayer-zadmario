@@ -240,6 +240,7 @@ class urlparser:
                        'dailymotion.com': self.pp.parserDAILYMOTION,
                        'dailyuploads.net': self.pp.parserUPLOAD2,
                        'darkomplayer.com': self.pp.parserDARKOMPLAYER,
+                       'dartstreams.de.cool': self.pp.parserONLYSTREAMTV,
                        'deltatv.pw': self.pp.parserDELTATVPW,
                        'divxpress.com': self.pp.parserDIVEXPRESS,
                        'divxstage.eu': self.pp.parserDIVXSTAGE,
