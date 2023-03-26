@@ -536,9 +536,7 @@ class urlparser:
                        'stream.moe': self.pp.parserSTREAMMOE,
                        'stream4k.to': self.pp.parserSTREAM4KTO,
                        'streamable.com': self.pp.parserSTREAMABLECOM,
-#                       'streamango.com':       self.pp.parserSTREAMANGOCOM  ,
                        'streamatus.tk': self.pp.parserVIUCLIPS,
-#                       'streamcherry.com':     self.pp.parserSTREAMANGOCOM  ,
                        'streamcloud.eu': self.pp.parserSTREAMCLOUD,
                        'streamcrypt.net': self.pp.parserSTREAMCRYPTNET,
                        'streame.net': self.pp.parserSTREAMENET,
@@ -625,7 +623,6 @@ class urlparser:
                        'vcstream.to': self.pp.parserVCSTREAMTO,
                        'veehd.com': self.pp.parserVEEHDCOM,
                        'veoh.com': self.pp.parserVEOHCOM,
-#                       'verystream.com': self.pp.parserVERYSTREAM,
                        'veuclips.com': self.pp.parserVEUCLIPS,
                        'veuclips.com': self.pp.parserVIUCLIPS,
                        'veuclipstoday.tk': self.pp.parserVIUCLIPS,
@@ -724,7 +721,6 @@ class urlparser:
                        'wiiz.tv': self.pp.parserWIIZTV,
                        'wikisport.click': self.pp.parserWIKISPORTCLICK,
                        'wolfstream.tv': self.pp.parserCLIPWATCHINGCOM,
-#                       'woof.tube': self.pp.parserVERYSTREAM,
                        'wrzuta.pl': self.pp.parserWRZUTA,
                        'wstream.video': self.pp.parserWSTREAMVIDEO,
                        #x
@@ -9322,20 +9318,6 @@ class pageParser(CaptchaHelper):
                     return urls
         return False
 
-    def parserVERYSTREAM(self, baseUrl):
-        printDBG("parserVERYSTREAM baseUrl[%r]" % baseUrl)
-        HTTP_HEADER = MergeDicts(self.cm.getDefaultHeader('firefox'), {'Referer': baseUrl})
-        sts, data = self.cm.getPage(baseUrl, {'header': HTTP_HEADER})
-        if not sts:
-            return False
-        #printDBG("parserVERYSTREAM data: [%s]" % data )
-        id = ph.search(data, '''id\s*?=\s*?['"]videolink['"]>([^>]+?)<''')[0]
-        videoUrl = 'https://verystream.com/gettoken/{0}?mime=true'.format(id)
-        sts, data = self.cm.getPage(videoUrl, {'max_data_size': 0})
-        if not sts:
-            return False
-        return self.cm.meta['url']
-
     def parserRAPIDSTREAMCO(self, baseUrl):
         printDBG("parserRAPIDSTREAMCO baseUrl[%r]" % baseUrl)
         baseUrl = strwithmeta(baseUrl)
@@ -10699,90 +10681,6 @@ class pageParser(CaptchaHelper):
             url = strwithmeta(url, {'Referer': baseUrl})
             urlTab.append({'name': domain + ' {0} {1}'.format(lang, res), 'url': url})
         return urlTab
-
-    def parserSTREAMANGOCOM(self, baseUrl):
-        printDBG("parserSTREAMANGOCOM url[%s]\n" % baseUrl)
-        baseUrl = strwithmeta(baseUrl)
-        HTTP_HEADER = dict(pageParser.HTTP_HEADER)
-
-        videoTab = []
-        if '/embed/' not in baseUrl:
-            sts, data = self.cm.getPage(baseUrl)
-            if not sts:
-                return videoTab
-            url = self.cm.ph.getSearchGroups(data, '''<iframe[^>]+?src=["'](http[^"^']+?/embed/[^"^']+?)["']''', 1, True)[0]
-            if url == '':
-                data = self.cm.ph.getDataBeetwenMarkers(data, 'embedbox', '</textarea>')[1]
-                data = clean_html(self.cm.ph.getDataBeetwenMarkers(data, '<textarea', '</textarea>')[1])
-                url = self.cm.ph.getSearchGroups(data, '''<iframe[^>]+?src=["'](http[^"^']+?/embed/[^"^']+?)["']''', 1, True)[0]
-                HTTP_HEADER['Referer'] = baseUrl.meta.get('Referer', baseUrl)
-        else:
-            url = baseUrl
-
-        sts, data = self.cm.getPage(url, {'header': HTTP_HEADER})
-        if not sts:
-            return videoTab
-        cUrl = self.cm.meta['url']
-
-        timestamp = time.time()
-
-        errMsg = self.cm.ph.getDataBeetwenNodes(data, ('<', '>', 'important'), ('<', '>', 'div'))[1]
-        SetIPTVPlayerLastHostError(clean_html(errMsg))
-
-        # select valid section
-        data = self.cm.ph.getAllItemsBeetwenMarkers(data, '<script', '</script>')
-        for item in data:
-            if 'srces.push' in item:
-                data = item
-                break
-
-        #jscode = 'var document = {};\nvar window = this;\n' + self.cm.ph.getDataBeetwenReMarkers(data, re.compile('<script[^>]*?>'), re.compile('var\s*srces\s*=\s*\[\];'), False)[1]
-        #data = self.cm.ph.getAllItemsBeetwenMarkers(data, 'srces.push(', ');')
-        #jscode += '\nvar srces=[];\n' + '\n'.join(data) + '\nprint(JSON.stringify(srces));'
-        #ret = js_execute( jscode )
-
-        jscode = 'var document = {};\nvar window = this;\n' + self.cm.ph.getDataBeetwenReMarkers(data, re.compile('<script[^>]*?>'), re.compile('var\s*srces\s*=\s*\[\];'), False)[1]
-        js_params = [{'name': 'streamgo', 'code': jscode}]
-        data = self.cm.ph.getAllItemsBeetwenMarkers(data, 'srces.push(', ');')
-        jscode = '\nvar srces=[];\n' + '\n'.join(data) + '\nprint(JSON.stringify(srces));'
-        js_params.append({'code': jscode})
-        ret = js_execute_ext(js_params)
-        data = ret['data'].strip()
-        data = json_loads(data)
-
-        dashTab = []
-        hlsTab = []
-        mp4Tab = []
-        printDBG(data)
-        for tmp in data:
-            tmp = str(tmp).split('}')
-            for item in tmp:
-                item += ','
-                url = self.cm.ph.getSearchGroups(item, r'''['"]?src['"]?\s*:\s*['"]([^"^']+)['"]''')[0]
-                if url.startswith('//'):
-                    url = cUrl.split('//', 1)[0] + url
-                type = self.cm.ph.getSearchGroups(item, r'''['"]?type['"]?\s*:\s*['"]([^"^']+)['"]''')[0]
-                if not self.cm.isValidUrl(url):
-                    continue
-
-                url = strwithmeta(url, {'User-Agent': HTTP_HEADER['User-Agent'], 'Referer': self.cm.meta['url'], 'Range': 'bytes=0-'})
-                if 'dash' in type:
-                    dashTab.extend(getMPDLinksWithMeta(url, False))
-                elif 'hls' in type:
-                    hlsTab.extend(getDirectM3U8Playlist(url, checkExt=False, checkContent=True))
-                elif 'mp4' in type or 'mpegurl' in type:
-                    name = self.cm.ph.getSearchGroups(item, '''['"]?height['"]?\s*\:\s*([^\,]+?)[\,]''')[0]
-                    mp4Tab.append({'name': '[%s] %sp' % (type, name), 'url': url})
-
-        videoTab.extend(mp4Tab)
-        videoTab.extend(hlsTab)
-        videoTab.extend(dashTab)
-        if len(videoTab):
-            wait = time.time() - timestamp
-            if wait < 4:
-                printDBG(" time [%s]" % wait)
-                GetIPTVSleep().Sleep(3 - int(wait))
-        return videoTab
 
     def parserCASACINEMACC(self, baseUrl):
         printDBG("parserCASACINEMACC url[%s]\n" % baseUrl)
