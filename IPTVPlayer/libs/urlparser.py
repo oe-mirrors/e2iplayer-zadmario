@@ -15758,6 +15758,8 @@ class pageParser(CaptchaHelper):
             return []
 
         tmpUrl = self.cm.ph.getSearchGroups(data, '''<iframe[^>]+?src=['"]([^"^']+?)['"]''', 1, True)[0]
+        HTTP_HEADER['Referer'] = baseUrl
+        urlParams = {'header': HTTP_HEADER}
         if tmpUrl == '':
             tmp = self.cm.ph.getAllItemsBeetwenNodes(data, ('<script', '>'), ('</script', '>'), False)
             tmp = '\n'.join(tmp)
@@ -15775,16 +15777,12 @@ class pageParser(CaptchaHelper):
                 if ret['sts'] and 0 == ret['code']:
                     tmp = ret['data'].strip()
             tmpUrl = self.cm.ph.getSearchGroups(tmp, '''<iframe[^>]+?src=['"]([^"^']+?)['"]''', 1, True)[0]
-            HTTP_HEADER['Referer'] = baseUrl
-            urlParams = {'header': HTTP_HEADER}
             sts, data = self.cm.getPage(tmpUrl, urlParams)
             if not sts:
                 return []
             data = eval(re.findall('return\((\[.+?\])', data)[0])
             data = ''.join(data).replace('\/', '/')
         else:
-            HTTP_HEADER['Referer'] = baseUrl
-            urlParams = {'header': HTTP_HEADER}
             sts, data = self.cm.getPage(tmpUrl, urlParams)
             if not sts:
                 return []
