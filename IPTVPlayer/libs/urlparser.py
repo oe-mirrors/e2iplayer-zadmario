@@ -324,6 +324,7 @@ class urlparser:
                        'gounlimited.to': self.pp.parserGOUNLIMITEDTO,
                        'govid.me': self.pp.parserGOVIDME,
                        'govod.tv': self.pp.parserWIIZTV,
+                       'guccihide.com': self.pp.parserONLYSTREAMTV,
                        #h
                        'harpy.tv': self.pp.parserHARPYTV,
                        'haxhits.com': self.pp.parserHAXHITSCOM,
