@@ -325,6 +325,7 @@ class urlparser:
                        'govid.me': self.pp.parserGOVIDME,
                        'govod.tv': self.pp.parserWIIZTV,
                        'guccihide.com': self.pp.parserONLYSTREAMTV,
+                       'guerrillaforfight.com': self.pp.parserGUERRILLAFORFIGHTCOM,
                        #h
                        'harpy.tv': self.pp.parserHARPYTV,
                        'haxhits.com': self.pp.parserHAXHITSCOM,
@@ -13132,30 +13133,27 @@ class pageParser(CaptchaHelper):
         if not sts:
             return False
 
+        urlTab = []
         if "eval(function(p,a,c,k,e,d)" in data:
             printDBG('Host resolveUrl packed')
-            packed = re.compile('>eval\(function\(p,a,c,k,e,d\)(.+?)</script>', re.DOTALL).findall(data)
-            if packed:
-                data2 = packed[-1]
-            else:
-                return ''
-            printDBG('Host pack: [%s]' % data2)
-            try:
-                data = unpackJSPlayerParams(data2, TEAMCASTPL_decryptPlayerParams, 0, True, True)
-                printDBG('OK unpack: [%s]' % data)
-            except Exception:
-                pass
+            scripts = re.findall(r"(eval\s?\(function\(p,a,c,k,e,d.*?)</script>", data, re.S)
+            for packed in scripts:
+                data2 = packed
+                printDBG('Host pack: [%s]' % data2)
+                try:
+                    data = unpackJSPlayerParams(data2, TEAMCASTPL_decryptPlayerParams, 0, True, True)
+                    printDBG('OK unpack: [%s]' % data)
+                except Exception:
+                    pass
 
-        urlTab = self._findLinks(data, meta={'Referer': baseUrl})
-        if 0 == len(urlTab):
-            url = self.cm.ph.getSearchGroups(data, '''["'](https?://[^'^"]+?\.mp4(?:\?[^"^']+?)?)["']''', ignoreCase=True)[0]
-            if url != '':
-                url = strwithmeta(url, {'Origin': "https://" + urlparser.getDomain(baseUrl), 'Referer': baseUrl})
-                urlTab.append({'name': 'mp4', 'url': url})
-            hlsUrl = self.cm.ph.getSearchGroups(data, '''["'](https?://[^'^"]+?\.m3u8(?:\?[^"^']+?)?)["']''', ignoreCase=True)[0]
-            if hlsUrl != '':
-                hlsUrl = strwithmeta(hlsUrl, {'Origin': "https://" + urlparser.getDomain(baseUrl), 'Referer': baseUrl})
-                urlTab.extend(getDirectM3U8Playlist(hlsUrl, checkExt=False, variantCheck=True, checkContent=True, sortWithMaxBitrate=99999999))
+                url = self.cm.ph.getSearchGroups(data, '''["'](https?://[^'^"]+?\.mp4(?:\?[^"^']+?)?)["']''', ignoreCase=True)[0]
+                if url != '':
+                    url = strwithmeta(url, {'Origin': "https://" + urlparser.getDomain(baseUrl), 'Referer': baseUrl})
+                    urlTab.append({'name': 'mp4', 'url': url})
+                hlsUrl = self.cm.ph.getSearchGroups(data, '''["'](https?://[^'^"]+?\.m3u8(?:\?[^"^']+?)?)["']''', ignoreCase=True)[0]
+                if hlsUrl != '':
+                    hlsUrl = strwithmeta(hlsUrl, {'Origin': "https://" + urlparser.getDomain(baseUrl), 'Referer': baseUrl})
+                    urlTab.extend(getDirectM3U8Playlist(hlsUrl, checkExt=False, variantCheck=True, checkContent=True, sortWithMaxBitrate=99999999))
 
         return urlTab
 
