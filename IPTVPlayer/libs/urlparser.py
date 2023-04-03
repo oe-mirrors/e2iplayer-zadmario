@@ -325,7 +325,7 @@ class urlparser:
                        'govid.me': self.pp.parserGOVIDME,
                        'govod.tv': self.pp.parserWIIZTV,
                        'guccihide.com': self.pp.parserONLYSTREAMTV,
-                       'guerrillaforfight.com': self.pp.parserGUERRILLAFORFIGHTCOM,
+                       'guerrillaforfight.com': self.pp.parserONLYSTREAMTV,
                        #h
                        'harpy.tv': self.pp.parserHARPYTV,
                        'haxhits.com': self.pp.parserHAXHITSCOM,
