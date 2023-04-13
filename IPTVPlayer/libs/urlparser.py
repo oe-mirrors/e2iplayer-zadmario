@@ -728,6 +728,7 @@ class urlparser:
                        #x
                        'xage.pl': self.pp.parserXAGEPL,
                        'xstreamcdn.com': self.pp.parserXSTREAMCDNCOM,
+                       'xvideoshare.live': self.pp.parserVIDEOBIN,
                        'xvidstage.com': self.pp.parserXVIDSTAGECOM,
                        #y
                        'yocast.tv': self.pp.parserYOCASTTV,
@@ -13133,27 +13134,29 @@ class pageParser(CaptchaHelper):
         if not sts:
             return False
 
-        urlTab = []
         if "eval(function(p,a,c,k,e,d)" in data:
             printDBG('Host resolveUrl packed')
             scripts = re.findall(r"(eval\s?\(function\(p,a,c,k,e,d.*?)</script>", data, re.S)
+            data = ''
             for packed in scripts:
                 data2 = packed
                 printDBG('Host pack: [%s]' % data2)
                 try:
-                    data = unpackJSPlayerParams(data2, TEAMCASTPL_decryptPlayerParams, 0, True, True)
+                    data += unpackJSPlayerParams(data2, TEAMCASTPL_decryptPlayerParams, 0, True, True)
                     printDBG('OK unpack: [%s]' % data)
                 except Exception:
                     pass
 
-                url = self.cm.ph.getSearchGroups(data, '''["'](https?://[^'^"]+?\.mp4(?:\?[^"^']+?)?)["']''', ignoreCase=True)[0]
-                if url != '':
-                    url = strwithmeta(url, {'Origin': "https://" + urlparser.getDomain(baseUrl), 'Referer': baseUrl})
-                    urlTab.append({'name': 'mp4', 'url': url})
-                hlsUrl = self.cm.ph.getSearchGroups(data, '''["'](https?://[^'^"]+?\.m3u8(?:\?[^"^']+?)?)["']''', ignoreCase=True)[0]
-                if hlsUrl != '':
-                    hlsUrl = strwithmeta(hlsUrl, {'Origin': "https://" + urlparser.getDomain(baseUrl), 'Referer': baseUrl})
-                    urlTab.extend(getDirectM3U8Playlist(hlsUrl, checkExt=False, variantCheck=True, checkContent=True, sortWithMaxBitrate=99999999))
+        urlTab = self._findLinks(data, meta={'Referer': baseUrl})
+        if 0 == len(urlTab):
+            url = self.cm.ph.getSearchGroups(data, '''["'](https?://[^'^"]+?\.mp4(?:\?[^"^']+?)?)["']''', ignoreCase=True)[0]
+            if url != '':
+                url = strwithmeta(url, {'Origin': "https://" + urlparser.getDomain(baseUrl), 'Referer': baseUrl})
+                urlTab.append({'name': 'mp4', 'url': url})
+            hlsUrl = self.cm.ph.getSearchGroups(data, '''["'](https?://[^'^"]+?\.m3u8(?:\?[^"^']+?)?)["']''', ignoreCase=True)[0]
+            if hlsUrl != '':
+                hlsUrl = strwithmeta(hlsUrl, {'Origin': "https://" + urlparser.getDomain(baseUrl), 'Referer': baseUrl})
+                urlTab.extend(getDirectM3U8Playlist(hlsUrl, checkExt=False, variantCheck=True, checkContent=True, sortWithMaxBitrate=99999999))
 
         return urlTab
 
@@ -15562,6 +15565,5 @@ class pageParser(CaptchaHelper):
 
     def parserFILEMOONSX(self, baseUrl):
         printDBG("parserFILEMOONSX baseUrl[%s]" % baseUrl)
-        printDBG("parserFILEMOONSX baseUrl.meta[%s]" % baseUrl.meta)
 
         return self.parserONLYSTREAMTV(strwithmeta(baseUrl.replace('/d/', '/e/'), baseUrl.meta))
