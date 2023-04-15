@@ -703,7 +703,7 @@ class urlparser:
                        'vshare.eu': self.pp.parserVSHAREEU,
                        'vshare.io': self.pp.parserVSHAREIO,
                        'vsports.pt': self.pp.parserVSPORTSPT,
-                       'vtbe.net': self.pp.parserONLYSTREAM,
+                       'vtbe.net': self.pp.parserONLYSTREAMTV,
                        'vtube.to': self.pp.parserONLYSTREAMTV,
                        'vup.to': self.pp.parserONLYSTREAMTV,
                        #w
