@@ -523,12 +523,9 @@ class YoutubeIE(object):
         if not player_response:
             raise ExtractorError('Unable to get player response')
 
-        video_info = player_response['videoDetails']
+        video_info = player_response.get('videoDetails', {})
         # subtitles
-        if 'lengthSeconds' not in video_info:
-            video_duration = ''
-        else:
-            video_duration = video_info['lengthSeconds']
+        video_duration = video_info.get('lengthSeconds', '')
 
         url_map = {}
         video_url_list = {}
@@ -583,7 +580,7 @@ class YoutubeIE(object):
         except Exception:
             printExc()
 
-        if video_info.get('isLive') and not video_url_list:
+        if video_info.get('isLive', True) and not video_url_list: #j00zek needs verification if default value should be True or False, for now assuming yes
             is_m3u8 = 'yes'
             manifest_url = _unquote(player_response['streamingData']['hlsManifestUrl'], None)
             url_map = self._extract_from_m3u8(manifest_url, video_id)
