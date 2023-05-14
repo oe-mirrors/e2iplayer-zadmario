@@ -189,6 +189,7 @@ class urlparser:
                        #b
                        'bbc.co.uk': self.pp.parserBBC,
                        'bestnhl.com': self.pp.parserF1LIVEGPME,
+                       'bestx.stream': self.pp.parserCHILLXTOP,
                        'bestreams.net': self.pp.parserBESTREAMS,
                        'biggestplayer.me': self.pp.parserBIGGESTPLAYER,
                        'bitporno.com': self.pp.parserBITPORNOCOM,
@@ -254,6 +255,7 @@ class urlparser:
                        'dood.to': self.pp.parserDOOD,
                        'dood.watch': self.pp.parserDOOD,
                        'dood.ws': self.pp.parserDOOD,
+                       'dood.yt': self.pp.parserDOOD, 
                        'doodstream.com': self.pp.parserDOOD,
                        'dotstream.tv': self.pp.parserDOTSTREAMTV,
                        'droonws.xyz': self.pp.parserTXNEWSNETWORK,
@@ -376,6 +378,7 @@ class urlparser:
                        'liveonlinetv247.net': self.pp.parserLIVEONLINE247,
                        'liveonscore.to': self.pp.parserLIVEONSCORETV,
                        'lookhd.xyz': self.pp.parserTXNEWSNETWORK,
+                       'louishide.com': self.pp.parserONLYSTREAMTV,
                        #m
                        'mastarti.com': self.pp.parserMOONWALKCC,
                        'matchat.online': self.pp.parserMATCHATONLINE,
@@ -543,6 +546,7 @@ class urlparser:
                        'streamcrypt.net': self.pp.parserSTREAMCRYPTNET,
                        'streame.net': self.pp.parserSTREAMENET,
                        'streamhide.to': self.pp.parserONLYSTREAMTV,
+                       'streamhub.to': self.pp.parserONLYSTREAMTV,
                        'streamin.to': self.pp.parserSTREAMINTO,
                        'streamix.cloud': self.pp.parserSTREAMIXCLOUD,
                        'streamja.com': self.pp.parserSTREAMJACOM,
