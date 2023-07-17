@@ -5,7 +5,7 @@ from Screens.InfoBarGenerics import InfoBarSeek, InfoBarAudioSelection, InfoBarN
 from Screens.HelpMenu import HelpableScreen
 from Components.ActionMap import HelpableActionMap
 from Components.config import config
-from Components.AVSwitch import eAVSwitch
+from Components.AVSwitch import iAVSwitch
 from Screens.ChoiceBox import ChoiceBox
 from Components.ServiceEventTracker import ServiceEventTracker
 from enigma import iPlayableService, eTimer
@@ -120,16 +120,16 @@ class customMoviePlayer(InfoBarShowHide, InfoBarSeek, InfoBarAudioSelection, Inf
     def aspectChange(self):
         printDBG("Aspect Ratio [%r]" % self.aspectratiomode)
         if self.aspectratiomode == "1": #letterbox
-            eAVSwitch.getInstance().setAspectRatio(0)
+            iAVSwitch.setAspectRatio(0)
             self.aspectratiomode = "2"
             return
         elif self.aspectratiomode == "2": #nonlinear
             self.aspectratiomode = "3"
         elif self.aspectratiomode == "3": #nonlinear
-            eAVSwitch.getInstance().setAspectRatio(2)
+            iAVSwitch.setAspectRatio(2)
             self.aspectratiomode = "4"
         elif self.aspectratiomode == "4": #panscan
-            eAVSwitch.getInstance().setAspectRatio(3)
+            iAVSwitch.setAspectRatio(3)
             self.aspectratiomode = "1"
 
     def pauseBeforeClose(self):
