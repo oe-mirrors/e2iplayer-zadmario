@@ -164,6 +164,7 @@ class urlparser:
                        'abcast.net': self.pp.parserABCASTBIZ,
                        'abcvideo.cc': self.pp.parserABCVIDEO,
                        'aflamyz.com': self.pp.parserAFLAMYZCOM,
+                       'ahvsh.com': self.pp.parserONLYSTREAMTV,
                        'akvideo.stream': self.pp.parserAKVIDEOSTREAM,
                        'albfilm.com': self.pp.parserALBFILMCOM,
                        'albvid.com': self.pp.parserALBVIDCOM,
@@ -309,6 +310,7 @@ class urlparser:
                        'forstreams.com': self.pp.parserVIUCLIPS,
                        'freedisc.pl': self.pp.parserFREEDISC,
                        'freefeds.click': self.pp.parserASSIAORG,
+                       'furher.in': self.pp.parserONLYSTREAMTV,
                        'fxstream.biz': self.pp.parserFXSTREAMBIZ,
                        #g
                        'gametrailers.com': self.pp.parserGAMETRAILERS,
@@ -602,6 +604,7 @@ class urlparser:
                        'uefa.com': self.pp.parserUEFACOM,
                        'ufckhabib.com': self.pp.parserSPORTSONLINETO,
                        'ultimatedown.com': self.pp.parserULTIMATEDOWN,
+                       'unbiasedsenseevent.com': self.pp.parserONLYSTREAMTV,
                        'up2stream.com': self.pp.parserVIDEOMEGA,
                        'upclips.online': self.pp.parserVIUCLIPS,
                        'upfile.mobi': self.pp.parserUPFILEMOBI,
