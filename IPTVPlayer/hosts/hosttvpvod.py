@@ -3,7 +3,7 @@
 ###################################################
 # LOCAL import
 ###################################################
-from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
+from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, SetIPTVPlayerLastHostError
 from Plugins.Extensions.IPTVPlayer.components.ihost import CHostBase, CBaseHostClass
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import CSelOneLink, printDBG, printExc, MergeDicts, readCFG
 from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import getDirectM3U8Playlist, getMPDLinksWithMeta
@@ -673,6 +673,9 @@ class TvpVod(CBaseHostClass, CaptchaHelper):
             printDBG("getLinksForVideo data [%s]" % data)
             if not sts:
                 return []
+
+            if '"drm":' in data:
+                SetIPTVPlayerLastHostError(_("Video with DRM protection."))
 
             if config.plugins.iptvplayer.tvpVodPreferedformat.value == 'm3u8':
                 hlsUrl = self.cm.ph.getSearchGroups(data, '''['"](http[^'^"]*?\.m3u8[^'^"]*?)['"]''')[0].replace('\/', '/')

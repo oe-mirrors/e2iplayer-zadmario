@@ -190,7 +190,8 @@ class Twitch(CBaseHostClass):
         lang = '"%s"' % cItem['lang'].upper() if 'lang' in cItem else ''
         cursor = ',"cursor":"%s"' % cItem['cursor'] if 'cursor' in cItem else ''
         type = cItem.get('platform_type', 'all')
-        post_data = '[{"operationName":"BrowsePage_Popular","variables":{"limit":30,"platformType":"%s","tags":[%s],"isTagsExperiment":false%s},"extensions":{"persistedQuery":{"version":1,"sha256Hash":"4a3254b9537ad005b6fbc6e7a811a4045312d4a4b5c0541bea86df60383972fd"}}}]' % (type, lang, cursor)
+        #post_data = '[{"operationName":"BrowsePage_Popular","variables":{"limit":30,"platformType":"%s","tags":[%s],"isTagsExperiment":false%s},"extensions":{"persistedQuery":{"version":1,"sha256Hash":"4a3254b9537ad005b6fbc6e7a811a4045312d4a4b5c0541bea86df60383972fd"}}}]' % (type, lang, cursor)
+        post_data = '[{"operationName":"BrowsePage_Popular","variables":{"limit":30,"platformType":"%s","options":{"tags":[%s]},"sortTypeIsRecency":false%s},"extensions":{"persistedQuery":{"version":1,"sha256Hash":"b32fa28ffd43e370b42de7d9e6e3b8a7ca310035fdbb83932150443d6b693e4d"}}}]' % (type, lang, cursor)
         url = self.getFullUrl('/gql', self.API2_URL)
         sts, data = self.getPage(url, MergeDicts(self.defaultParams, {'raw_post_data': True}), post_data)
         if not sts:

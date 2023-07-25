@@ -185,6 +185,7 @@ class urlparser:
                        'assia22.com': self.pp.parserASSIAORG,
                        'assia23.com': self.pp.parserASSIAORG,
                        'assia24.com': self.pp.parserASSIAORG,
+                       'assia25.com': self.pp.parserASSIAORG,
                        'assia4.com': self.pp.parserASSIAORG,
                        'auroravid.to': self.pp.parserAURORAVIDTO,
                        #b
@@ -338,6 +339,7 @@ class urlparser:
                        'hdgo.cc': self.pp.parserHDGOCC,
                        'hdgo.cx': self.pp.parserHDGOCC,
                        'hdvid.tv': self.pp.parserHDVIDTV,
+                       'herokuapp.com': self.pp.parserANIMESHINDEN,
                        'hexupload.net': self.pp.parserJAWCLOUDCO,
                        'highload.to': self.pp.parserHIGHLOADTO,
                        'highstream.tv': self.pp.parserCLIPWATCHINGCOM,
