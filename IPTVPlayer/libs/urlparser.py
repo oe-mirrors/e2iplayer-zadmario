@@ -1787,6 +1787,7 @@ class pageParser(CaptchaHelper):
             if tmp == '':
                 tmp = self.cm.ph.getDataBeetwenMarkers(data, 'player_data="', '"', False)[1].strip()
             try:
+                tmp = clean_html(tmp).replace('&quot;', '"')
                 if tmp != '':
                     data = json_loads(tmp)
                     qualities = data['video']['qualities']
