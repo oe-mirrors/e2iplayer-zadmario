@@ -550,6 +550,7 @@ class urlparser:
                        'streamcrypt.net': self.pp.parserSTREAMCRYPTNET,
                        'streame.net': self.pp.parserSTREAMENET,
                        'streamhide.to': self.pp.parserONLYSTREAMTV,
+                       'streamhub.gg': self.pp.parserONLYSTREAMTV,
                        'streamhub.to': self.pp.parserONLYSTREAMTV,
                        'streamin.to': self.pp.parserSTREAMINTO,
                        'streamix.cloud': self.pp.parserSTREAMIXCLOUD,
@@ -563,6 +564,7 @@ class urlparser:
                        'streamplay.to': self.pp.parserSTREAMPLAYTO,
                        'streamsb.net': self.pp.parserSTREAMSB,
                        'streamtape.com': self.pp.parserSTREAMTAPE,
+                       'streamtape.to': self.pp.parserSTREAMTAPE,
                        'streamvid.net': self.pp.parserONLYSTREAMTV,
                        'streamwire.net': self.pp.parserONLYSTREAMTV,
                        'streamzz.to': self.pp.parserSTREAMZZ,
@@ -713,6 +715,7 @@ class urlparser:
                        'vshare.io': self.pp.parserVSHAREIO,
                        'vsports.pt': self.pp.parserVSPORTSPT,
                        'vtbe.net': self.pp.parserONLYSTREAMTV,
+                       'vtube.network': self.pp.parserONLYSTREAMTV,
                        'vtube.to': self.pp.parserONLYSTREAMTV,
                        'vup.to': self.pp.parserONLYSTREAMTV,
                        #w

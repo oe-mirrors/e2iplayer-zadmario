@@ -16,7 +16,7 @@ find $myAbsPath/IPTVPlayer/hosts -maxdepth 1 -iname "*.py" |
         echo "Page $MAIN_URL exists :)"
       else
         echo "Page $MAIN_URL DOES NOT exist, "$F" broken, renamed to OFF !!!"
-        mv "$F" "$F.OFF"
+        mv "$F" "OFF.$F.OFF"
       fi
     fi
   done
