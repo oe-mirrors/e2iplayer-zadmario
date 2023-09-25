@@ -275,6 +275,7 @@ class urlparser:
                        'embedsb.com': self.pp.parserSTREAMSB,
                        'embedstream.me': self.pp.parserEMBEDSTREAMME,
                        'embeducaster.com': self.pp.parserUCASTERCOM,
+                       'embedwish.com': self.pp.parserONLYSTREAMTV,
                        'estream.to': self.pp.parserESTREAMTO,
                        'evoload.io': self.pp.parserEVOLOADIO,
                        'exashare.com': self.pp.parserEXASHARECOM,
@@ -637,6 +638,7 @@ class urlparser:
                        #v
                        'vcstream.to': self.pp.parserVCSTREAMTO,
                        'veehd.com': self.pp.parserVEEHDCOM,
+                       'vembed.net': self.pp.parserVIDGUARDTO,
                        'veoh.com': self.pp.parserVEOHCOM,
                        'veuclips.com': self.pp.parserVEUCLIPS,
                        'veuclips.com': self.pp.parserVIUCLIPS,
@@ -741,6 +743,7 @@ class urlparser:
                        'widestream.io': self.pp.parserWIDESTREAMIO,
                        'wiiz.tv': self.pp.parserWIIZTV,
                        'wikisport.click': self.pp.parserWIKISPORTCLICK,
+                       'wishfast.top': self.pp.parserONLYSTREAMTV,
                        'wolfstream.tv': self.pp.parserCLIPWATCHINGCOM,
                        'wrzuta.pl': self.pp.parserWRZUTA,
                        'wstream.video': self.pp.parserWSTREAMVIDEO,
