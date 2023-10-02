@@ -46,19 +46,11 @@ class Obejrzyjto(CBaseHostClass):
         self.cacheLinks = {}
         self.defaultParams = {'header': self.HTTP_HEADER, 'with_metadata': True, 'use_cookie': True, 'load_cookie': True, 'save_cookie': True, 'cookiefile': self.COOKIE_FILE}
 
-    def getPage(self, baseUrl, addParams={}, post_data=None):
+    def getPage(self, url, addParams={}, post_data=None):
         if addParams == {}:
             addParams = dict(self.defaultParams)
-        origBaseUrl = baseUrl
-        baseUrl = self.cm.iriToUri(baseUrl)
-
-        def _getFullUrl(url):
-            if self.cm.isValidUrl(url):
-                return url
-            else:
-                return urlparse.urljoin(baseUrl, url)
-        addParams['cloudflare_params'] = {'domain': self.up.getDomain(baseUrl), 'cookie_file': self.COOKIE_FILE, 'User-Agent': self.USER_AGENT, 'full_url_handle': _getFullUrl}
-        return self.cm.getPageCFProtection(baseUrl, addParams, post_data)
+        baseUrl = self.cm.iriToUri(url)
+        return self.cm.getPage(baseUrl, addParams, post_data)
 
     def setMainUrl(self, url):
         if self.cm.isValidUrl(url):
@@ -68,12 +60,13 @@ class Obejrzyjto(CBaseHostClass):
         printDBG("Obejrzyjto.listMainMenu")
 
         MAIN_CAT_TAB = [{'category': 'list_sort', 'title': _('Movies'), 'url': self.API_URL + 'channel/movies?perPage=%d' % self.itemsPerPage},
+                        {'category': 'list_sort', 'title': _('Documentaries'), 'url': self.API_URL + 'channel/dokumentalne?perPage=%d' % self.itemsPerPage},
 #                        {'category': 'list_sort', 'title': _('Series'), 'url': self.API_URL + '?type=series&onlyStreamable=true&perPage=%d' % self.itemsPerPage},
 #                        {'category':'list_years',     'title': _('Filter By Year'),    'url':self.MAIN_URL},
 #                        {'category': 'list_cats', 'title': _('Movies genres'), 'url': self.API_URL + '?perPage=%d' % self.itemsPerPage},
 #                        {'category':'list_az',        'title': _('Alphabetically'),    'url':self.MAIN_URL},
-#                        {'category': 'search', 'title': _('Search'), 'search_item': True},
-#                        {'category': 'search_history', 'title': _('Search history')}, 
+                        {'category': 'search', 'title': _('Search'), 'search_item': True},
+                        {'category': 'search_history', 'title': _('Search history')}, 
                         ]
         self.listsTab(MAIN_CAT_TAB, cItem)
 
@@ -167,8 +160,18 @@ class Obejrzyjto(CBaseHostClass):
             printExc()
 
         for item in data:
-            printDBG("Obejrzyjto.listItems item %s" % item)
-            url = self.getFullUrl(self.API_URL + 'watch/%d' % item['primary_video']['id'])
+#            printDBG("Obejrzyjto.listItems item %s" % item)
+            if item.get('type', '') == '':
+                continue
+            try:
+                url = self.getFullUrl(self.API_URL + 'watch/%d' % item['primary_video']['id'])
+            except Exception:
+                url = self.getFullUrl(self.API_URL + 'titles/%d?load=primaryVideo' % item['id'])
+                sts, data = self.getPage(url)
+                if not sts:
+                    continue
+                data = json_loads(data)['title']
+                url = self.getFullUrl(self.API_URL + 'watch/%d' % data['primary_video']['id'])
             icon = self.getFullIconUrl(item.get('poster', ''))
             if 'original' in icon:
                 icon = icon.replace('/original/', '/w500/')
