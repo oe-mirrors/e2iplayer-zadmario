@@ -295,6 +295,7 @@ class urlparser:
                        'filefactory.com': self.pp.parserFILEFACTORYCOM,
                        'filehoot.com': self.pp.parserFILEHOOT,
                        'filelions.live': self.pp.parserONLYSTREAMTV,
+                       'filelions.online': self.pp.parserONLYSTREAMTV,
                        'filemoon.to': self.pp.parserFILEMOONSX,
                        'filemoon.sx': self.pp.parserFILEMOONSX,
                        'filenuke.com': self.pp.parserFILENUKE,
