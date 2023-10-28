@@ -297,8 +297,8 @@ class urlparser:
                        'filehoot.com': self.pp.parserFILEHOOT,
                        'filelions.live': self.pp.parserONLYSTREAMTV,
                        'filelions.online': self.pp.parserONLYSTREAMTV,
-                       'filemoon.to': self.pp.parserFILEMOONSX,
-                       'filemoon.sx': self.pp.parserFILEMOONSX,
+                       'filemoon.to': self.pp.parserFILEMOON,
+                       'filemoon.sx': self.pp.parserFILEMOON,
                        'filenuke.com': self.pp.parserFILENUKE,
                        'fileone.tv': self.pp.parserFILEONETV,
                        'filepup.net': self.pp.parserFILEPUPNET,
@@ -15590,11 +15590,6 @@ class pageParser(CaptchaHelper):
             hlsUrl = strwithmeta(data, {'Origin': urlparser.getDomain(tmpUrl, False), 'Referer': tmpUrl})
             urlTab.extend(getDirectM3U8Playlist(hlsUrl, checkExt=False, variantCheck=True, checkContent=True, sortWithMaxBitrate=99999999))
         return urlTab
-
-    def parserFILEMOONSX(self, baseUrl):
-        printDBG("parserFILEMOONSX baseUrl[%s]" % baseUrl)
-
-        return self.parserONLYSTREAMTV(strwithmeta(baseUrl.replace('/d/', '/e/'), baseUrl.meta))
 
     def parserVIDGUARDTO(self, baseUrl):
         printDBG("parserVIDGUARDTO baseUrl[%s]" % baseUrl)
