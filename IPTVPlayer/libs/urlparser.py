@@ -316,6 +316,7 @@ class urlparser:
                        'freedisc.pl': self.pp.parserFREEDISC,
                        'freefeds.click': self.pp.parserASSIAORG,
                        'furher.in': self.pp.parserONLYSTREAMTV,
+                       'fviplions.com': self.pp.parserONLYSTREAMTV,
                        'fxstream.biz': self.pp.parserFXSTREAMBIZ,
                        #g
                        'gametrailers.com': self.pp.parserGAMETRAILERS,
