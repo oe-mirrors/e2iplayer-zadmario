@@ -325,6 +325,7 @@ class urlparser:
                        'ginbig.com': self.pp.parserGINBIG,
                        'givemenbastreams.com': self.pp.parserASSIAORG,
                        'gloria.tv': self.pp.parserGLORIATV,
+                       'godzlive.com': self.pp.parserCASTFREEME,
                        'gogoanime.to': self.pp.parserGOGOANIMETO,
                        'goldvod.tv': self.pp.parserGOLDVODTV,
                        'goodcast.co': self.pp.parserGOODCASTCO,
@@ -358,6 +359,7 @@ class urlparser:
                        'i.vplay.ro': self.pp.parserVPLAY,
                        'ideoraj.ch': self.pp.parserCLOUDYEC,
                        'idtbox.com': self.pp.parserIDTBOXCOM,
+                       'istorm.live': self.pp.parser1L1LTO,
                        'indavideo.hu': self.pp.parserINDAVIDEOHU,
                        'interia.tv': self.pp.parserINTERIATV,
                        #j
@@ -432,6 +434,7 @@ class urlparser:
                        'neodrive.co': self.pp.parserNEODRIVECO,
                        'netu.tv': self.pp.parserNETUTV,
                        'newassia.com': self.pp.parserASSIAORG,
+                       'newtvassia.com': self.pp.parserASSIAORG,
                        'ninjastream.to': self.pp.parserNINJASTREAMTO,
                        'nonlimit.pl': self.pp.parserIITV,
                        'noob4cast.com': self.pp.parserCASTFREEME,
@@ -14923,7 +14926,7 @@ class pageParser(CaptchaHelper):
         cUrl = self.cm.meta['url']
 
         url = eval(re.findall('return\((\[.+?\])', data)[0])
-        url = ''.join(url).replace('\/', '/')
+        url = ''.join(url).replace('\/', '/').replace(':////', '://')
 
         urlTab = []
         if 'm3u' in url:
@@ -15404,7 +15407,7 @@ class pageParser(CaptchaHelper):
             return []
         urlTab = []
         videoUrl = eval(re.findall('return\((\[.+?\])', data)[0])
-        videoUrl = ''.join(videoUrl).replace('\/', '/')
+        videoUrl = ''.join(videoUrl).replace('\/', '/').replace(':////', '://')
         videoUrl = strwithmeta(videoUrl, {'Origin': "https://" + urlparser.getDomain(url), 'Referer': url})
         if videoUrl != '':
             urlTab.extend(getDirectM3U8Playlist(videoUrl, checkContent=True, sortWithMaxBitrate=999999999))
