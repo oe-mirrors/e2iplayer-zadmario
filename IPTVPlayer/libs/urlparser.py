@@ -727,6 +727,7 @@ class urlparser:
                        'vodlocker.com': self.pp.parserVODLOCKER,
                        'voe.sx': self.pp.parserMATCHATONLINE,
                        'voodaith7e.com': self.pp.parserYOUWATCH,
+                       'voodc.com': self.pp.parserVOODCCOM,
                        'vshare.eu': self.pp.parserVSHAREEU,
                        'vshare.io': self.pp.parserVSHAREIO,
                        'vsports.pt': self.pp.parserVSPORTSPT,
@@ -15637,5 +15638,30 @@ class pageParser(CaptchaHelper):
             for item in sources:
                 url = strwithmeta(sig_decode(item[1]), {'Origin': urlparser.getDomain(baseUrl, False), 'Referer': cUrl})
                 urlTab.append({'name': item[0], 'url': url})
+
+        return urlTab
+
+    def parserVOODCCOM(self, baseUrl):
+        printDBG("parserVOODCCOM baseUrl[%s]" % baseUrl)
+
+        HTTP_HEADER = self.cm.getDefaultHeader(browser='chrome')
+        referer = baseUrl.meta.get('Referer')
+        if referer:
+            HTTP_HEADER['Referer'] = referer
+        urlParams = {'header': HTTP_HEADER}
+        sts, data = self.cm.getPage(baseUrl, urlParams)
+        if not sts:
+            return []
+
+        urlTab = []
+        script = "https:" + re.findall(r'" src="(.+?)"', data)[0]
+        split = script.split("/")
+        embed_url = "https://voodc.com/player/d/%s/%s" % (split[-1], split[-2])
+        sts, data = self.cm.getPage(embed_url, urlParams)
+        if not sts:
+            return []
+        m3u8 = re.findall(r'"file": \'(.+?)\'',  data)[0]
+        if 'm3u8' in data:
+            urlTab.extend(getDirectM3U8Playlist(m3u8, checkExt=False, variantCheck=True, checkContent=True, sortWithMaxBitrate=99999999))
 
         return urlTab
