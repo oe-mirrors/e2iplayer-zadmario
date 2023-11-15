@@ -396,6 +396,7 @@ class urlparser:
                        'maxupload.tv': self.pp.parserTOPUPLOAD,
                        'mazystreams.xyz': self.pp.parserASSIAORG,
                        'mcloud.to': self.pp.parserMYCLOUDTO,
+                       'mdy48tn97.com': self.pp.parserMIXDROP,
                        'mediafire.com': self.pp.parserMEDIAFIRECOM,
                        'mediasetplay.mediaset.it': self.pp.parserMEDIASET,
                        'megadrive.co': self.pp.parserMEGADRIVECO,
