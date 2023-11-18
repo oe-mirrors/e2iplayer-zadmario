@@ -418,7 +418,7 @@ class EkinoTv(CBaseHostClass, CaptchaHelper):
                 break
 
             printDBG(">>>\n%s\n<<<" % data)
-            if 'hcaptcha' in data:
+            if '#gcaptcha' in data:
                 SetIPTVPlayerLastHostError(_('Link protected with hCaptcha.'))
                 sitekey = self.cm.ph.getSearchGroups(data, 'data-sitekey="([^"]+?)"')[0]
                 if sitekey == '':
