@@ -59,14 +59,12 @@ hostgamatocom
 hostgamatotvme
 hostgledalica
 hostgreekdocumentaries3
-hostguardaserie
 hosthdfilmetv
 hosthdfull
 hosthdpopcornscom
 hosthdseanspl
 hosthdstreams
 hosthoofootcom
-hosticefilmsinfo
 hostinteriatv
 hostipla
 hostiptvplayerinfo
@@ -89,14 +87,12 @@ hostmediasetplay
 hostmediayou
 hostmooviecc
 hostmovienightws
-hostmovierulzsx
 hostmovizlandcom
 hostmozicsillag
 hostmrpiracy
 hostmusicbox
 hostmusicmp3ru
 hostmyfreemp3
-hostmythewatchseries
 hostngolos
 hostninateka
 hostnuteczki
@@ -164,7 +160,6 @@ hostwatchwrestlinguno
 hostwebstream
 hostwgrane
 hostwolnelekturypl
-hostworldfree4u
 hostwpolscepl
 hostwptv
 hostxrysoise
