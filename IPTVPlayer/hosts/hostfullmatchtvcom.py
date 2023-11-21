@@ -74,7 +74,7 @@ class Fullmatchtv(CBaseHostClass):
         sts, data = self.getPage(cItem['url'])
         if not sts:
             return
-        printDBG("fullmatchtv.listItems data[%s]" % data)
+
         if page == 1:
             data = self.cm.ph.getDataBeetwenNodes(data, ('jQuery(window)', '{'), '});')[1]
             self.categoryId = self.cm.ph.getSearchGroups(data, '''['"]category_id['"]\s*?:?\s*?([0-9]+?)[^0-9]''')[0]
