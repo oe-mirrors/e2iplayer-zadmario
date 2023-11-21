@@ -311,6 +311,7 @@ class urlparser:
                        'flashx.net': self.pp.parserFLASHXTV,
                        'flashx.pw': self.pp.parserFLASHXTV,
                        'flashx.tv': self.pp.parserFLASHXTV,
+                       'flaswish.com': self.pp.parserCLIPWATCHINGCOM,
                        'flix555.com': self.pp.parserFLIX555COM,
                        'forstreams.com': self.pp.parserVIUCLIPS,
                        'freedisc.pl': self.pp.parserFREEDISC,
