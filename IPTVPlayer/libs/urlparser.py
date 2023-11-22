@@ -469,6 +469,7 @@ class urlparser:
                        'p2pcast.tv': self.pp.parserP2PCASTTV,
                        'partners.nettvplus.com': self.pp.parserNETTVPLUSCOM,
                        'picasaweb.google.com': self.pp.parserPICASAWEB,
+                       'planetfastidious.net': self.pp.parserONLYSTREAMTV,
                        'playbb.me': self.pp.parserEASYVIDEOME,
                        'played.to': self.pp.parserPLAYEDTO,
                        'playedto.me': self.pp.parserPLAYEDTO,
