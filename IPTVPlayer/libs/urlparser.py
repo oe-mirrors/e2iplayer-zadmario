@@ -268,7 +268,7 @@ class urlparser:
                        'easyvid.org': self.pp.parserEASYVIDORG,
                        'easyvideo.me': self.pp.parserEASYVIDEOME,
                        'ebd.cda.pl': self.pp.parserCDA,
-                       'edwardarriveoften.com': self.pp.parserVOE,
+                       'edwardarriveoften.com': self.pp.parserMATCHATONLINE,
                        'ekstraklasa.tv': self.pp.parserEKSTRAKLASATV,
                        'emb.aliez.tv': self.pp.parserALIEZ,
                        'embed.mystream.to': self.pp.parserMSTREAMICU,
