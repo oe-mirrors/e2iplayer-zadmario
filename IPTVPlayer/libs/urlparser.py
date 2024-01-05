@@ -15647,8 +15647,15 @@ class pageParser(CaptchaHelper):
             r = r.replace('\\"', '"')
             aa_decoded = aadecode.decode(r, alt=True)
             stream_url = json_loads(aa_decoded[11:]).get('stream')
-            url = strwithmeta(sig_decode(stream_url), {'Origin': urlparser.getDomain(baseUrl, False), 'Referer': cUrl})
-            urlTab.append({'name': 'mp4', 'url': url})
+            if stream_url:
+                if isinstance(stream_url, list):
+                    sources = [(x.get('Label'), x.get('URL')) for x in stream_url]
+                    for item in sources:
+                        url = strwithmeta(sig_decode(item[1]), {'Origin': urlparser.getDomain(baseUrl, False), 'Referer': cUrl})
+                        urlTab.append({'name': item[0], 'url': url})
+                else:
+                    url = strwithmeta(sig_decode(stream_url), {'Origin': urlparser.getDomain(baseUrl, False), 'Referer': cUrl})
+                    urlTab.append({'name': 'mp4', 'url': url})
 
         return urlTab
 
