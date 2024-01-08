@@ -320,6 +320,7 @@ class urlparser:
                        'forstreams.com': self.pp.parserVIUCLIPS,
                        'freedisc.pl': self.pp.parserFREEDISC,
                        'freefeds.click': self.pp.parserASSIAORG,
+                       'fslinks.org': self.pp.parserVIDGUARDTO,
                        'furher.in': self.pp.parserONLYSTREAMTV,
                        'fviplions.com': self.pp.parserONLYSTREAMTV,
                        'fxstream.biz': self.pp.parserFXSTREAMBIZ,
@@ -15651,7 +15652,10 @@ class pageParser(CaptchaHelper):
                 if isinstance(stream_url, list):
                     sources = [(x.get('Label'), x.get('URL')) for x in stream_url]
                     for item in sources:
-                        url = strwithmeta(sig_decode(item[1]), {'Origin': urlparser.getDomain(baseUrl, False), 'Referer': cUrl})
+                        url = item[1]
+                        if not url.startswith('https://'):
+                            url = re.sub(':/*', '://', url)
+                        url = strwithmeta(sig_decode(url), {'Origin': urlparser.getDomain(baseUrl, False), 'Referer': cUrl})
                         urlTab.append({'name': item[0], 'url': url})
                 else:
                     url = strwithmeta(sig_decode(stream_url), {'Origin': urlparser.getDomain(baseUrl, False), 'Referer': cUrl})
