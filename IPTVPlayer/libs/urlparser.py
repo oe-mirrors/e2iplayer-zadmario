@@ -1789,7 +1789,7 @@ class pageParser(CaptchaHelper):
                     printDBG(">> \t%s \t%s \t%s \t%s" % (cookie.domain, cookie.path, cookie.name, cookie.value))
 
             # prepare extended link
-            retUrl = strwithmeta(inUrl.replace('0"d.','.'))
+            retUrl = strwithmeta(inUrl)
             retUrl.meta['User-Agent'] = HTTP_HEADER['User-Agent']
             retUrl.meta['Referer'] = referer
             retUrl.meta['Cookie'] = ' '.join(cookies)
@@ -1874,7 +1874,7 @@ class pageParser(CaptchaHelper):
                         dat = 'https://' + str(dat) + '.mp4'
                     if not dat.endswith('.mp4'):
                         dat += '.mp4'
-                    dat = dat.replace("0)sss", "")
+                    dat = dat.replace("0)sss", "").replace('0"d.','.')
                 except Exception:
                     dat = ''
                     printExc()
@@ -1889,7 +1889,8 @@ class pageParser(CaptchaHelper):
             jsdata = self.jscode.get('data', '')
             jscode = self.cm.ph.getSearchGroups(jsdata, '''var\s([a-zA-Z]+?,[a-zA-Z]+?,[a-zA-Z]+?,[a-zA-Z]+?,[a-zA-Z]+?,.*?);''')[0]
             tmp = jscode.split(',')
-            jscode = self.cm.ph.getSearchGroups(jsdata, '''(var\s[a-zA-Z]+?,[a-zA-Z]+?,[a-zA-Z]+?,[a-zA-Z]+?,[a-zA-Z]+?,.*?;)''')[0]
+            jscode = base64.b64decode('''ZnVuY3Rpb24gbGEoYSl7fTs=''')
+            jscode += self.cm.ph.getSearchGroups(jsdata, '''(var\s[a-zA-Z]+?,[a-zA-Z]+?,[a-zA-Z]+?,[a-zA-Z]+?,[a-zA-Z]+?,.*?;)''')[0]
             for item in tmp:
                 jscode += self.cm.ph.getSearchGroups(jsdata, '(%s=function\(.*?};)' % item)[0]
             jscode += "file = '%s';" % dat
