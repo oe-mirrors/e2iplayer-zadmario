@@ -398,6 +398,7 @@ class urlparser:
                        'liveonscore.to': self.pp.parserLIVEONSCORETV,
                        'lookhd.xyz': self.pp.parserTXNEWSNETWORK,
                        'louishide.com': self.pp.parserONLYSTREAMTV,
+                       'lulustream.com': self.pp.parserONLYSTREAMTV,
                        #m
                        'mastarti.com': self.pp.parserMOONWALKCC,
                        'matchat.online': self.pp.parserMATCHATONLINE,
@@ -650,6 +651,7 @@ class urlparser:
                        'upvid.mobi': self.pp.parserUPFILEMOBI,
                        'upvideo.cc': self.pp.parserONLYSTREAMTV,
                        'upzone.cc': self.pp.parserUPZONECC,
+                       'uqload.io': self.pp.parserASSIAORG,
                        'userload.co': self.pp.parserUSERLOADCO,
                        'userscloud.com': self.pp.parserUSERSCLOUDCOM,
                        'ustream.tv': self.pp.parserUSTREAMTV,
@@ -14094,10 +14096,13 @@ class pageParser(CaptchaHelper):
 
         urlTab = []
         data = self.cm.ph.getDataBeetwenMarkers(data, 'Clappr.Player', ';', False)[1]
-        url = self.cm.ph.getSearchGroups(data, '''source:\s?['"]([^"^']+?)['"]''')[0]
+        url = self.cm.ph.getSearchGroups(data, '''sources?:.*?['"]([^"^']+?)['"]''')[0]
         url = strwithmeta(url, {'Origin': urlparser.getDomain(baseUrl, False), 'Referer': baseUrl, 'User-Agent': 'Wget/1.20.3 (linux-gnu)'})
         if url != '':
-            urlTab.extend(getDirectM3U8Playlist(url, checkContent=True, sortWithMaxBitrate=999999999))
+            if 'm3u8' in url:
+                urlTab.extend(getDirectM3U8Playlist(url, checkExt=False, variantCheck=True, checkContent=True, sortWithMaxBitrate=99999999))
+            else:
+                urlTab.append({'name': 'mp4', 'url': url})
 
         return urlTab
 
