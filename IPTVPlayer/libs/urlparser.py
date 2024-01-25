@@ -392,13 +392,14 @@ class urlparser:
                        'live.bvbtotal.de': self.pp.parserLIVEBVBTOTALDE,
                        'liveall.tv': self.pp.paserLIVEALLTV,
                        'liveleak.com': self.pp.parserLIVELEAK,
-                       'liveonlinetv247.info': self.pp.parserLIVEONLINE247,
+                       #'liveonlinetv247.info': self.pp.parserLIVEONLINE247, < duplicate, next line used by python
                        'liveonlinetv247.info': self.pp.parserLIVEONLINETV247,
                        'liveonlinetv247.net': self.pp.parserLIVEONLINE247,
                        'liveonscore.to': self.pp.parserLIVEONSCORETV,
                        'lookhd.xyz': self.pp.parserTXNEWSNETWORK,
                        'louishide.com': self.pp.parserONLYSTREAMTV,
                        'lulustream.com': self.pp.parserONLYSTREAMTV,
+                       'lylxan.com': self.pp.parserONLYSTREAMTV,
                        #m
                        'mastarti.com': self.pp.parserMOONWALKCC,
                        'matchat.online': self.pp.parserMATCHATONLINE,
@@ -1891,7 +1892,7 @@ class pageParser(CaptchaHelper):
             jsdata = self.jscode.get('data', '')
             jscode = self.cm.ph.getSearchGroups(jsdata, '''var\s([a-zA-Z]+?,[a-zA-Z]+?,[a-zA-Z]+?,[a-zA-Z]+?,[a-zA-Z]+?,.*?);''')[0]
             tmp = jscode.split(',')
-            jscode = base64.b64decode('''ZnVuY3Rpb24gbGEoYSl7fTs=''')
+            jscode = ensure_str(base64.b64decode('''ZnVuY3Rpb24gbGEoYSl7fTs='''))
             jscode += self.cm.ph.getSearchGroups(jsdata, '''(var\s[a-zA-Z]+?,[a-zA-Z]+?,[a-zA-Z]+?,[a-zA-Z]+?,[a-zA-Z]+?,.*?;)''')[0]
             for item in tmp:
                 jscode += self.cm.ph.getSearchGroups(jsdata, '(%s=function\(.*?};)' % item)[0]
