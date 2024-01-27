@@ -37,7 +37,7 @@ class TantiFilmOrg(CBaseHostClass):
         self.defaultParams = {'header': self.HEADER, 'use_cookie': True, 'load_cookie': True, 'save_cookie': True, 'cookiefile': self.COOKIE_FILE}
 
         self.MAIN_URL = 'https://tantifilm.mba/'
-        self.DEFAULT_ICON_URL = 'https://www.tantifilm.mba/wp-content/uploads/2019/09/favicon.png'
+        self.DEFAULT_ICON_URL = 'https://raw.githubusercontent.com/Zanzibar82/images/master/posters/tantifilm.png'
 
         self.MAIN_CAT_TAB = [{'category': 'list_categories', 'title': _('Categories'), 'url': self.MAIN_URL},
                              {'category': 'search', 'title': _('Search'), 'search_item': True, },
