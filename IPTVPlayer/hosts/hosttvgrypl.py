@@ -22,15 +22,15 @@ except Exception:
 ###################################################
 # Config options for HOST
 ###################################################
-config.plugins.iptvplayer.tvgrypl_default_quality = ConfigSelection(default="SD", choices=[("MOB", "MOB: niska"), ("SD", "SD: standardowa"), ("HD", "HD: wysoka")]) #, ("FHD", "FHD: bardzo wysoka")
-config.plugins.iptvplayer.tvgrypl_use_dq = ConfigYesNo(default=True)
+#config.plugins.iptvplayer.tvgrypl_default_quality = ConfigSelection(default="SD", choices=[("MOB", "MOB: niska"), ("SD", "SD: standardowa"), ("HD", "HD: wysoka")]) #, ("FHD", "FHD: bardzo wysoka")
+#config.plugins.iptvplayer.tvgrypl_use_dq = ConfigYesNo(default=True)
 config.plugins.iptvplayer.tvgrypl_date_of_birth = ConfigText(default="2017-01-31", fixed_size=False)
 
 
 def GetConfigList():
     optionList = []
-    optionList.append(getConfigListEntry("Domyślna jakość wideo:", config.plugins.iptvplayer.tvgrypl_default_quality))
-    optionList.append(getConfigListEntry("Używaj domyślnej jakości wideo:", config.plugins.iptvplayer.tvgrypl_use_dq))
+#    optionList.append(getConfigListEntry("Domyślna jakość wideo:", config.plugins.iptvplayer.tvgrypl_default_quality))
+#    optionList.append(getConfigListEntry("Używaj domyślnej jakości wideo:", config.plugins.iptvplayer.tvgrypl_use_dq))
     optionList.append(getConfigListEntry("Wprowadź datę urodzenia [RRRRR-MM-DD]:", config.plugins.iptvplayer.tvgrypl_date_of_birth))
     return optionList
 ###################################################
