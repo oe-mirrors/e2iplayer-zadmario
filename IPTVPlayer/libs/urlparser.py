@@ -411,6 +411,7 @@ class urlparser:
                        'mcloud.to': self.pp.parserMYCLOUDTO,
                        'mdbekjwqa.pw': self.pp.parserMIXDROP,
                        'mdy48tn97.com': self.pp.parserMIXDROP,
+                       'mdzsmutpcvykb.net': self.pp.parserMIXDROP,
                        'mediafire.com': self.pp.parserMEDIAFIRECOM,
                        'mediasetplay.mediaset.it': self.pp.parserMEDIASET,
                        'megadrive.co': self.pp.parserMEGADRIVECO,
