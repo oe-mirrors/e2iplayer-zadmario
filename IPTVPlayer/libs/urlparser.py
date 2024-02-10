@@ -15717,14 +15717,18 @@ class pageParser(CaptchaHelper):
             return []
 
         data = self.cm.ph.getSearchGroups(data, '''selector:.+?(\{.*?)\)''')[0]
+#        printDBG("parserVIDSRCPRO data [%s]" % data)
 
         urlsTab = []
 
-        url = self.cm.ph.getSearchGroups(data, '''['"]url['"]:['"]([^'^"]+?)['"]''')[0]
-        url = 'https://vidsrc.pro/e/%s?token=' % url
-        sts, data = self.cm.getPage(url, urlParams)
-        if not sts:
-            return []
+        data = self.cm.ph.getAllItemsBeetwenMarkers(data, '{', '}')
+        for item in data:
+            url = self.cm.ph.getSearchGroups(item, '''['"]url['"]:['"]([^'^"]+?)['"]''')[0]
+            url = 'https://vidsrc.pro/e/%s?token=' % url
+            sts, data = self.cm.getPage(url, urlParams)
+            if '"source":' in data:
+                break
+
         data = json_loads(data)
         hlsUrl = data.get('source', '')
 
@@ -15738,7 +15742,7 @@ class pageParser(CaptchaHelper):
             srtLabel = track.get('label', '')
             srtFormat = srtUrl[-3:]
             params = {'title': srtLabel, 'url': srtUrl, 'lang': srtLabel.lower()[:3], 'format': srtFormat}
-            printDBG(str(params))
+#            printDBG(str(params))
             subTracks.append(params)
 
         if hlsUrl != '':
