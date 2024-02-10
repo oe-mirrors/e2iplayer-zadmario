@@ -523,6 +523,7 @@ class urlparser:
                        'rumble.com': self.pp.parserRUMBLECOM,
                        'rutube.ru': self.pp.parserRUTUBE,
                        #s
+                       's2watch.link': self.pp.parserGOUNLIMITEDTO,
                        'samaup.cc': self.pp.parserUPLOAD,
                        'sawlive.tv': self.pp.parserSAWLIVETV,
                        'sbchill.com': self.pp.parserSTREAMSB,
