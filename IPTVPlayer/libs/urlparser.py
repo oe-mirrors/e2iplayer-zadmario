@@ -725,6 +725,7 @@ class urlparser:
                        'vidshare.tv': self.pp.parserVIDSHARETV,
                        'vidspace.io': self.pp.parserVIDEOSPACE,
                        'vidspot.net': self.pp.parserVIDSPOT,
+                       'vidsrc.pro': self.pp.parserVIDSRCPRO,
                        'vidsso.com': self.pp.parserVIDSSO,
                        'vidstodo.me': self.pp.parserVIDSTODOME,
                        'vidstream.in': self.pp.parserVIDSTREAM,
@@ -15702,3 +15703,52 @@ class pageParser(CaptchaHelper):
             urlTab.extend(getDirectM3U8Playlist(m3u8, checkExt=False, variantCheck=True, checkContent=True, sortWithMaxBitrate=99999999))
 
         return urlTab
+
+    def parserVIDSRCPRO(self, baseUrl):
+        printDBG("parserVIDSRCPRO baseUrl [%s]" % baseUrl)
+
+        HTTP_HEADER = self.cm.getDefaultHeader(browser='chrome')
+        referer = baseUrl.meta.get('Referer')
+        if referer:
+            HTTP_HEADER['Referer'] = referer
+        urlParams = {'header': HTTP_HEADER}
+        sts, data = self.cm.getPage(baseUrl, urlParams)
+        if not sts:
+            return []
+
+        data = self.cm.ph.getSearchGroups(data, '''selector:.+?(\{.*?)\)''')[0]
+        printDBG("parserVIDSRCPRO data 1 [%s]" % data)
+
+        urlsTab = []
+
+        url = self.cm.ph.getSearchGroups(data, '''['"]url['"]:['"]([^'^"]+?)['"]''')[0]
+        url = 'https://vidsrc.pro/e/%s?token=' % url
+        sts, data = self.cm.getPage(url, urlParams)
+        if not sts:
+            return []
+        data = json_loads(data)
+        printDBG("parserVIDSRCPRO data 3 [%s]" % data)
+        hlsUrl = data.get('source', '')
+        printDBG("parserVIDSRCPRO hlsUrl [%s]" % hlsUrl)
+        printDBG("parserVIDSRCPRO data subtitles [%s]" % data.get('subtitles', ''))
+
+        subTracks = []
+        tracks = data.get('subtitles', '')
+        for track in tracks:
+#            printDBG("parserVIDSRCPRO track [%s]" % track)
+            srtUrl = track.get('file', '')
+            if srtUrl == '':
+                continue
+            srtLabel = track.get('label', '')
+            srtFormat = srtUrl[-3:]
+            params = {'title': srtLabel, 'url': srtUrl, 'lang': srtLabel.lower()[:3], 'format': srtFormat}
+            printDBG(str(params))
+            subTracks.append(params)
+
+        if hlsUrl != '':
+            params = {'iptv_proto': 'm3u8', 'Referer': baseUrl, 'Origin': urlparser.getDomain(baseUrl, False)}
+            params['external_sub_tracks'] = subTracks
+            hlsUrl = urlparser.decorateUrl(hlsUrl, params)
+            urlsTab.extend(getDirectM3U8Playlist(hlsUrl, checkExt=False, checkContent=True, sortWithMaxBitrate=999999999))
+
+        return urlsTab
