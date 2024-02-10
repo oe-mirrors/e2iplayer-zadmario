@@ -15717,7 +15717,6 @@ class pageParser(CaptchaHelper):
             return []
 
         data = self.cm.ph.getSearchGroups(data, '''selector:.+?(\{.*?)\)''')[0]
-        printDBG("parserVIDSRCPRO data 1 [%s]" % data)
 
         urlsTab = []
 
@@ -15727,10 +15726,7 @@ class pageParser(CaptchaHelper):
         if not sts:
             return []
         data = json_loads(data)
-        printDBG("parserVIDSRCPRO data 3 [%s]" % data)
         hlsUrl = data.get('source', '')
-        printDBG("parserVIDSRCPRO hlsUrl [%s]" % hlsUrl)
-        printDBG("parserVIDSRCPRO data subtitles [%s]" % data.get('subtitles', ''))
 
         subTracks = []
         tracks = data.get('subtitles', '')
