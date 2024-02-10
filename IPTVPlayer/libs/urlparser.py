@@ -774,6 +774,7 @@ class urlparser:
                        'widestream.io': self.pp.parserWIDESTREAMIO,
                        'wiiz.tv': self.pp.parserWIIZTV,
                        'wikisport.click': self.pp.parserWIKISPORTCLICK,
+                       'wikisport.se': self.pp.parserWIKISPORTCLICK,
                        'wishfast.top': self.pp.parserONLYSTREAMTV,
                        'wolfstream.tv': self.pp.parserCLIPWATCHINGCOM,
                        'wrzuta.pl': self.pp.parserWRZUTA,
@@ -15620,6 +15621,8 @@ class pageParser(CaptchaHelper):
 
         urlTab = []
         if 'm3u8' in data:
+            if ':////' in data:
+                data = data.replace(':////', '://')
             hlsUrl = strwithmeta(data, {'Origin': urlparser.getDomain(tmpUrl, False), 'Referer': tmpUrl})
             urlTab.extend(getDirectM3U8Playlist(hlsUrl, checkExt=False, variantCheck=True, checkContent=True, sortWithMaxBitrate=99999999))
         return urlTab
