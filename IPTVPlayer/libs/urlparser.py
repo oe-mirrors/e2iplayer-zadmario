@@ -231,6 +231,7 @@ class urlparser:
                        'cloudyfiles.me': self.pp.parserUPLOAD,
                        'cloudyfiles.org': self.pp.parserUPLOAD,
                        'cloudyvideos.com': self.pp.parserCLOUDYVIDEOS,
+                       'compensationcoincide.net': self.pp.parserONLYSTREAMTV,
                        'content.peteava.ro': self.pp.parserPETEAVA,
                        'coolcast.eu': self.pp.parserCOOLCASTEU,
                        'crichd.tv': self.pp.parserCRICHDTV,
