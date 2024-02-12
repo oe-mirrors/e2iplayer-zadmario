@@ -154,7 +154,7 @@ class Seezsu(CBaseHostClass):
             imedia_type = item.get('media_type', '')
             if imedia_type != '':
                 media_type = imedia_type
-            url = self.VIDEO_URL % (media_type, id)
+            url = self.VIDEO_URL % (media_type.replace('discover/', ''), id)
             icon = item.get('poster_path', '')
             if isinstance(icon, str) and icon != '':
                 icon = self.getFullIconUrl('https://image.tmdb.org/t/p/w300/' + icon)
