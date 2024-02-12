@@ -1560,9 +1560,10 @@ def IsSubtitlesParserExtensionCanBeUsed():
         if config.plugins.iptvplayer.useSubtitlesParserExtension.value:
             from Plugins.Extensions.IPTVPlayer.libs.iptvsubparser import _subparser as subparser
             if '' != subparser.version():
+                printDBG('Subtitles Parser Extension available')
                 return True
     except Exception:
-        printExc('WARNING')
+        printExc('WARNING - Subtitles Parser Extension NOT available')
     return False
 
 

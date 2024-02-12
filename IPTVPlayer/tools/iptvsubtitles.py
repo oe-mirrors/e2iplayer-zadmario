@@ -167,7 +167,8 @@ class IPTVSubtitlesHandler:
     def removeCacheFile(self, filePath):
         cacheFile = self._getCacheFileName(filePath)
         try:
-            os_remove(cacheFile)
+            if os_path.exists(cacheFile):
+                os_remove(cacheFile)
         except Exception:
             printExc()
 
@@ -176,7 +177,7 @@ class IPTVSubtitlesHandler:
         return GetSubtitlesDir(tmp + '.iptv')
 
     def _loadFromCache(self, orgFilePath, encoding='utf-8'):
-        printDBG("OpenSubOrg._loadFromCache")
+        printDBG("OpenSubOrg._loadFromCache>>>")
         sts = False
         try:
             filePath = self._getCacheFileName(orgFilePath)
@@ -193,7 +194,7 @@ class IPTVSubtitlesHandler:
         return sts
 
     def _saveToCache(self, orgFilePath, encoding='utf-8'):
-        printDBG("OpenSubOrg._saveToCache")
+        printDBG("OpenSubOrg._saveToCache >>>")
         try:
             filePath = self._getCacheFileName(orgFilePath)
             with codecs.open(filePath, 'w', encoding) as fp:
