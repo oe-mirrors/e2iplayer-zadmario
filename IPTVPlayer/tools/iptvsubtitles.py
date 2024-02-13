@@ -44,6 +44,7 @@ class IPTVSubtitlesHandler:
         self.subAtoms = []
         self.pailsOfAtoms = {}
         self.CAPACITY = 10 * 1000 # 10s
+        printDBG("IPTVSubtitlesHandler.__init__ self.CAPACITY = %s" % self.CAPACITY )
 
     def _srtClearText(self, text):
         return re.sub('<[^>]*>', '', text)
@@ -73,29 +74,27 @@ class IPTVSubtitlesHandler:
 
     def _srtToAtoms(self, srtText):
         subAtoms = []
-        srtText = srtText.replace('\r\n', '\n').split('\n\n')
+        srtText = srtText.replace('\r\n', '\n') #win EOL 2 linux EOL
+        srtText = srtText.split('\n\n')
 
         line = 0
         for idx in range(len(srtText)):
             line += 1
             st = srtText[idx].split('\n')
-            #printDBG("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-            #printDBG(st)
-            #printDBG("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+            if 0:
+                printDBG("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+                printDBG(st)
+                printDBG("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+            if st[0] ==  '':
+                st.pop(0) #remove empty line before sub number
             if len(st) >= 2:
                 try:
-                    try:
-                        tmp = int(st[0].strip())
-                        i = 1
-                    except Exception:
-                        if '' == st[0]:
-                            i = 1
-                        else:
-                            i = 0
-                    if len(st) < (i + 2):
-                        continue
-                    split = st[i].split(' --> ')
-                    subAtoms.append({'start': self._srtTc2ms(split[0].strip()), 'end': self._srtTc2ms(split[1].strip()), 'text': self._srtClearText('\n'.join(j for j in st[i + 1:len(st)]))})
+                    subNr = st[0]
+                    subtimes = st[1].split(' --> ')
+                    subStartTime = subtimes[0].strip()
+                    subEndTime = subtimes[1].strip()
+                    subText = st[2:]
+                    subAtoms.append({'start': self._srtTc2ms(subStartTime), 'end': self._srtTc2ms(subEndTime), 'text': self._srtClearText('\n'.join(j for j in subText))})
                 except Exception:
                     printExc("Sub line number: %d, content:\n>>>>>\n%s\n<<<<<" % (line, st))
         return subAtoms
@@ -140,10 +139,11 @@ class IPTVSubtitlesHandler:
     '''
 
     def getSubtitles(self, currTimeMS, prevMarker):
-        #printDBG("OpenSubOrg.getSubtitles [%s]" % currTimeMS)
+        printDBG("OpenSubOrg.getSubtitles(currTimeMS = %s, prevMarker = %s)" % (currTimeMS, prevMarker))
         #time1 = time.time()
         subsText = []
         tmp = currTimeMS / self.CAPACITY
+        printDBG("OpenSubOrg.getSubtitles tmp = %s" % tmp)
         tmp = self.pailsOfAtoms.get(tmp, [])
 
         ret = None
@@ -154,7 +154,7 @@ class IPTVSubtitlesHandler:
                 validAtomsIdexes.append(idx)
 
         marker = validAtomsIdexes
-        #printDBG("OpenSubOrg.getSubtitles marker[%s] prevMarker[%s] %.1fs" % (marker, prevMarker, currTimeMS/1000.0))
+        printDBG("OpenSubOrg.getSubtitles marker[%s] prevMarker[%s] %.1fs" % (marker, prevMarker, currTimeMS/1000.0))
         if prevMarker != marker:
             for idx in validAtomsIdexes:
                 item = self.subAtoms[idx]
@@ -218,6 +218,11 @@ class IPTVSubtitlesHandler:
                 self.pailsOfAtoms[tmp] = [idx]
             elif idx not in self.pailsOfAtoms[tmp]:
                 self.pailsOfAtoms[tmp].append(idx)
+        if 1: #for tests
+            with codecs.open('/tmp/pailsOfAtoms.json', 'w', 'utf-8') as fp:
+                  fp.write(json.dumps(self.pailsOfAtoms))
+            with codecs.open('/tmp/subAtoms.json', 'w', 'utf-8') as fp:
+                  fp.write(json.dumps(self.subAtoms))
 
     def loadSubtitles(self, filePath, encoding='utf-8', fps=0):
         printDBG("OpenSubOrg.loadSubtitles filePath[%s]" % filePath)
@@ -256,8 +261,8 @@ class IPTVSubtitlesHandler:
                     self.subAtoms = subsObj['list']
                     # Workaround start
                     try:
-                        printDBG('Workaround for subtitles from Das Erste: %s' % self.subAtoms[0]['start'])
                         if len(self.subAtoms) and self.subAtoms[0]['start'] >= 36000000:
+                            printDBG('Workaround for subtitles from Das Erste: %s' % self.subAtoms[0]['start'])
                             for idx in range(len(self.subAtoms)):
                                 for key in ['start', 'end']:
                                     if key not in self.subAtoms[idx]:
@@ -268,6 +273,9 @@ class IPTVSubtitlesHandler:
                         printExc()
                     # workaround end
                     self._fillPailsOfAtoms()
+                    if 0:
+                        if saveCache and len(self.subAtoms):
+                            self._saveToCache(filePath)
                     return True
                 else:
                     return False
@@ -362,7 +370,7 @@ class IPTVEmbeddedSubtitlesHandler:
                 validAtomsIdexes.append(idx)
 
         marker = validAtomsIdexes
-        #printDBG("OpenSubOrg.getSubtitles marker[%s] prevMarker[%s] %.1fs" % (marker, prevMarker, currTimeMS/1000.0))
+        printDBG("OpenSubOrg.getSubtitles marker[%s] prevMarker[%s] %.1fs" % (marker, prevMarker, currTimeMS/1000.0))
         if prevMarker != marker:
             for idx in validAtomsIdexes:
                 item = self.subAtoms[idx]
