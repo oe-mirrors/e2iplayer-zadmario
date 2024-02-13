@@ -1479,11 +1479,16 @@ def getExcMSG(clearExcMSG = True):
 def printExc(msg='', WarnOnly = False):
     global LASTExcMSG
     printDBG("===============================================")
-    if WarnOnly or msg.startswith('WARNING'):
-        printDBG("                    WARNING                    ")
-        msg = ''
+    if WarnOnly:
+        printDBG("                    WARNING")
+    elif msg.startswith('WARNING'):
+        printDBG("                    WARNING")
+        msg = msg[7:]
+    elif msg.startswith('EXCEPTION'):
+        printDBG("                    EXCEPTION")
+        msg = msg[9:]
     else:
-        printDBG("                   EXCEPTION                   ")
+        printDBG("                   EXCEPTION")
     printDBG("===============================================")
     exc_formatted = traceback.format_exc()
     if msg == '' or msg == 'WARNING':

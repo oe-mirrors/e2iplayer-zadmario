@@ -97,7 +97,7 @@ class IPTVSubtitlesHandler:
                     split = st[i].split(' --> ')
                     subAtoms.append({'start': self._srtTc2ms(split[0].strip()), 'end': self._srtTc2ms(split[1].strip()), 'text': self._srtClearText('\n'.join(j for j in st[i + 1:len(st)]))})
                 except Exception:
-                    printExc("Line number [%d]" % line)
+                    printExc("Sub line number: %d, content:\n>>>>>\n%s\n<<<<<" % (line, st))
         return subAtoms
 
     def _mplClearText(self, text):
@@ -177,31 +177,32 @@ class IPTVSubtitlesHandler:
         return GetSubtitlesDir(tmp + '.iptv')
 
     def _loadFromCache(self, orgFilePath, encoding='utf-8'):
-        printDBG("OpenSubOrg._loadFromCache>>>")
         sts = False
         try:
             filePath = self._getCacheFileName(orgFilePath)
-            try:
+            if os_path.exists(filePath):
                 with codecs.open(filePath, 'r', encoding, 'replace') as fp:
                     self.subAtoms = byteify(json.loads(fp.read()))
                 if len(self.subAtoms):
                     sts = True
-                    printDBG("IPTVSubtitlesHandler._loadFromCache orgFilePath[%s] --> cacheFile[%s]" % (orgFilePath, filePath))
-            except Exception:
-                printExc()
+                    printDBG("IPTVSubtitlesHandler._loadFromCache orgFilePath[%s] --> cacheFile[%s], loaded %s subs" % (orgFilePath, filePath, len(self.subAtoms)))
         except Exception:
-            printExc()
+            printExc('EXCEPTION in OpenSubOrg._loadFromCache')
         return sts
 
     def _saveToCache(self, orgFilePath, encoding='utf-8'):
-        printDBG("OpenSubOrg._saveToCache >>>")
         try:
-            filePath = self._getCacheFileName(orgFilePath)
-            with codecs.open(filePath, 'w', encoding) as fp:
-                fp.write(json.dumps(self.subAtoms))
-            printDBG("IPTVSubtitlesHandler._saveToCache orgFilePath[%s] --> cacheFile[%s]" % (orgFilePath, filePath))
+            if len(self.subAtoms):
+                filePath = self._getCacheFileName(orgFilePath)
+                with codecs.open(filePath, 'w', encoding) as fp:
+                    fp.write(json.dumps(self.subAtoms))
+                printDBG("IPTVSubtitlesHandler._saveToCache orgFilePath[%s] --> cacheFile[%s]" % (orgFilePath, filePath))
+            else:
+                printDBG("IPTVSubtitlesHandler._saveToCache subtitles list empty - nothing to save")
+                removeCacheFile(orgFilePath) #just in case we have garbage cached
+                    
         except Exception:
-            printExc()
+            printExc('EXCEPTION in OpenSubOrg._saveToCache')
 
     def _fillPailsOfAtoms(self):
         self.pailsOfAtoms = {}
@@ -275,7 +276,7 @@ class IPTVSubtitlesHandler:
         return self._loadSubtitles(filePath, encoding)
 
     def _loadSubtitles(self, filePath, encoding):
-        printDBG("OpenSubOrg._loadSubtitles filePath[%s]" % filePath)
+        #printDBG("OpenSubOrg._loadSubtitles filePath[%s]" % filePath)
         saveCache = True
         self.subAtoms = []
         #time1 = time.time()
@@ -293,8 +294,9 @@ class IPTVSubtitlesHandler:
                     elif filePath.endswith('.mpl'):
                         self.subAtoms = self._mplToAtoms(subText)
                         sts = True
+                    printDBG("OpenSubOrg._loadSubtitles loaded %s subs" % len(self.subAtoms))
             except Exception:
-                printExc()
+                printExc('EXCEPTION in OpenSubOrg._loadSubtitles')
         else:
             saveCache = False
 
