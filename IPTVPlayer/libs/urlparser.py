@@ -15717,6 +15717,14 @@ class pageParser(CaptchaHelper):
         if not sts:
             return []
 
+        sitekey = ph.search(data, '''grecaptcha.execute\(['"]([^"^']+?)['"]''')[0]
+        if sitekey != '':
+            token, errorMsgTab = self.processCaptcha(sitekey, baseUrl, captchaType="INVISIBLE")
+            if token == '':
+                SetIPTVPlayerLastHostError('\n'.join(errorMsgTab))
+                return False
+        else:
+            token = ''
         data = self.cm.ph.getSearchGroups(data, '''selector:.+?(\{.*?)\)''')[0]
 #        printDBG("parserVIDSRCPRO data [%s]" % data)
 
@@ -15725,8 +15733,11 @@ class pageParser(CaptchaHelper):
         data = self.cm.ph.getAllItemsBeetwenMarkers(data, '{', '}')
         for item in data:
             url = self.cm.ph.getSearchGroups(item, '''['"]url['"]:['"]([^'^"]+?)['"]''')[0]
-            url = 'https://vidsrc.pro/e/%s?token=' % url
+            HTTP_HEADER['Referer'] = baseUrl
+            urlParams = {'header': HTTP_HEADER}
+            url = 'https://vidsrc.pro/api/e/%s?token=undefined&captcha=%s' % (url, token)
             sts, data = self.cm.getPage(url, urlParams)
+#            printDBG("parserVIDSRCPRO data e [%s]" % data)
             if '"source":' in data:
                 break
 
