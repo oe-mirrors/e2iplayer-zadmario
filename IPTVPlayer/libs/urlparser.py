@@ -747,7 +747,7 @@ class urlparser:
                        'vkprime.com': self.pp.parserONLYSTREAMTV,
                        'vod-share.com': self.pp.parserVODSHARECOM,
                        'vodlocker.com': self.pp.parserVODLOCKER,
-                       'voe.sx': self.pp.parserMATCHATONLINE,
+                       'voe.sx': self.pp.parserVOESX,
                        'voodaith7e.com': self.pp.parserYOUWATCH,
                        'voodc.com': self.pp.parserVOODCCOM,
                        'vshare.eu': self.pp.parserVSHAREEU,
@@ -15764,3 +15764,23 @@ class pageParser(CaptchaHelper):
             urlsTab.extend(getDirectM3U8Playlist(hlsUrl, checkExt=False, checkContent=True, sortWithMaxBitrate=999999999))
 
         return urlsTab
+
+    def parserVOESX(self, baseUrl):
+        printDBG("parserVOESX baseUrl[%r]" % baseUrl)
+        sts, data = self.cm.getPage(baseUrl)
+        if not sts:
+            return False
+
+        r = re.search(r"let\s[^']*'([^']+)", data)
+        if r:
+            r = json_loads(base64.b64decode(r.group(1)))
+            hlsUrl = r.get('file')
+            if hlsUrl.startswith('//'):
+                hlsUrl = 'http:' + hlsUrl
+            if self.cm.isValidUrl(hlsUrl):
+                params = {'iptv_proto': 'm3u8', 'Referer': baseUrl, 'Origin': urlparser.getDomain(baseUrl, False)}
+                hlsUrl = urlparser.decorateUrl(hlsUrl, params)
+                return getDirectM3U8Playlist(hlsUrl, checkExt=False, checkContent=True, sortWithMaxBitrate=999999999)
+
+        return False
+
