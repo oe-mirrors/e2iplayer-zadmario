@@ -72,6 +72,7 @@ def gettytul():
 class TvpVod(CBaseHostClass, CaptchaHelper):
     DEFAULT_ICON_URL = 'https://s.tvp.pl/files/vod.tvp.pl/img/menu/logo_vod.png' #'http://sd-xbmc.org/repository/xbmc-addons/tvpvod.png'
     PAGE_SIZE = 12
+    SPORT_PAGE_SIZE = 30
     ALL_FORMATS = [{"video/mp4": "mp4"}, {"application/x-mpegurl": "m3u8"}, {"video/x-ms-wmv": "wmv"}]
     REAL_FORMATS = {'m3u8': 'ts', 'mp4': 'mp4', 'wmv': 'wmv'}
     MAIN_VOD_URL = "https://vod.tvp.pl/"
@@ -316,7 +317,7 @@ class TvpVod(CBaseHostClass, CaptchaHelper):
                 if icon == '':
                     icon = self.cm.ph.getSearchGroups(json_dumps(item.get('image_logo', '')), '''['"](http[^'^"]+?\.png)['"]''')[0]
                 icon = icon.format(width = '300', height = '0')
-                printDBG("TvpVod.listTVP3Streams icon [%s]" % icon)
+#                printDBG("TvpVod.listTVP3Streams icon [%s]" % icon)
                 title = item.get('title', '').replace('EPG - ', '')
                 params = dict(cItem)
                 params.update({'title': title, 'url': 'https://stream.tvp.pl/sess/TVPlayer2/embed.php?ID=%s' % video_id, 'icon': icon, 'desc': desc})
@@ -426,6 +427,7 @@ class TvpVod(CBaseHostClass, CaptchaHelper):
         printDBG("TvpVod.listTVPSportVideos")
 
         page = cItem.get('page', 1)
+        videosNum = cItem.get('videosNum', 0)
 
         url = cItem['url']
         url += '&page=%d' % (page)
@@ -441,6 +443,7 @@ class TvpVod(CBaseHostClass, CaptchaHelper):
                 title = item['title']
                 icon = item['image']['url'].format(width='480', height='360')
                 if url.startswith('http'):
+                    videosNum += 1
                     params = dict(cItem)
                     params.update({'title': title, 'icon': icon, 'url': url, 'desc': desc})
                     self.addVideo(params)
@@ -448,9 +451,14 @@ class TvpVod(CBaseHostClass, CaptchaHelper):
             printExc()
 
         params = dict(cItem)
-        params.update({'page': page + 1})
-        params['title'] = _('Next page')
-        self.addDir(params)
+        params.update({'page': page + 1, 'videosNum': videosNum})
+        if videosNum >= self.SPORT_PAGE_SIZE:
+            params['title'] = _('Next page')
+            params.update({'videosNum': 0})
+            self.addDir(params)
+        else:
+            params['title'] = _('More')
+            self.addMore(params)
 
     def listCatalogApi(self, cItem, nextCategory):
         printDBG("TvpVod.listCatalogApi")
@@ -481,7 +489,7 @@ class TvpVod(CBaseHostClass, CaptchaHelper):
         nextPageUrl = ''
         itemsTab = []
         for item in tmp:
-            #printDBG("TvpVod.exploreApiItem item %s" % item)
+#            printDBG("TvpVod.exploreApiItem item %s" % item)
             icon = self.cm.ph.getSearchGroups(json_dumps(item.get('images', '')), '''['"]([^'^"]+?\.jpg)['"]''')[0]
             if icon == '':
                 icon = self.cm.ph.getSearchGroups(json_dumps(item.get('images', '')), '''['"]([^'^"]+?\.png)['"]''')[0]
@@ -502,7 +510,7 @@ class TvpVod(CBaseHostClass, CaptchaHelper):
             if item.get('payable', ''):
                 title = title + ' [$]'
             desc = item.get('lead', '')
-            #printDBG("TvpVod.exploreApiItem desc %s" % desc)
+#            printDBG("TvpVod.exploreApiItem desc %s" % desc)
             if self.cm.isValidUrl(url) and title != '':
                 params = dict(cItem)
                 params.update({'good_for_fav': False, 'title': title, 'url': url, 'icon': icon, 'desc': desc})
