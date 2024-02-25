@@ -15773,10 +15773,10 @@ class pageParser(CaptchaHelper):
 
         r = re.search(r"let\s[^']*'([^']+)", data)
         if r:
-            r = base64.b64decode(r.group(1))
+            r = ensure_str(base64.b64decode(r.group(1)))
             if r.startswith('}'):
                 data = ''
-                for item in reversed(range(len(r))): 
+                for item in reversed(range(len(r))):
                     data += r[item]
                 r = data
             r = json_loads(r)

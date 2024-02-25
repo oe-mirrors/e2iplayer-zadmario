@@ -400,7 +400,15 @@ class TvpVod(CBaseHostClass, CaptchaHelper):
 
     def listTVPSportCategories(self, cItem, nextCategory):
         printDBG("TvpVod.listTVPSportCategories")
-        sts, data = self._getPage('https://sport.tvp.pl/api/sport/www/directory/list?direct=true&sort=position,1&limit=30&id=548369', self.defaultParams)
+        sts, data = self._getPage(cItem['url'], self.defaultParams)
+        if not sts:
+            return
+
+        data = self.cm.ph.getDataBeetwenMarkers(data, '__directoryData ', '</script>', False)[1]
+        data = self.cm.ph.getDataBeetwenMarkers(data, '{', '}', True)[1]
+        data = json_loads(data.replace(';', ''))
+
+        sts, data = self._getPage('https://sport.tvp.pl/api/sport/www/directory/list?direct=true&sort=position,1&limit=30&id=%s' % data.get('_id', '548369'), self.defaultParams)
         if not sts:
             return []
 
