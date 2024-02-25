@@ -15773,7 +15773,13 @@ class pageParser(CaptchaHelper):
 
         r = re.search(r"let\s[^']*'([^']+)", data)
         if r:
-            r = json_loads(base64.b64decode(r.group(1)))
+            r = base64.b64decode(r.group(1))
+            if r.startswith('}'):
+                data = ''
+                for item in reversed(range(len(r))): 
+                    data += r[item]
+                r = data
+            r = json_loads(r)
             hlsUrl = r.get('file')
             if hlsUrl.startswith('//'):
                 hlsUrl = 'http:' + hlsUrl

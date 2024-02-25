@@ -493,6 +493,8 @@ class TvpVod(CBaseHostClass, CaptchaHelper):
             icon = self.cm.ph.getSearchGroups(json_dumps(item.get('images', '')), '''['"]([^'^"]+?\.jpg)['"]''')[0]
             if icon == '':
                 icon = self.cm.ph.getSearchGroups(json_dumps(item.get('images', '')), '''['"]([^'^"]+?\.png)['"]''')[0]
+            if icon == '':
+                icon = cItem['icon']
             if icon.startswith('//'):
                 icon = 'https:' + icon
             id = item.get('id', '')
