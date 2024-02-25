@@ -45,7 +45,7 @@ config.plugins.iptvplayer.tvpVodDefaultformat = ConfigSelection(default="590000"
                                                                                                ("9100000", "1920x1080")])
 config.plugins.iptvplayer.tvpVodUseDF = ConfigYesNo(default=True)
 config.plugins.iptvplayer.tvpVodNextPage = ConfigYesNo(default=True)
-config.plugins.iptvplayer.tvpVodPreferedformat = ConfigSelection(default="mp4", choices=[("mp4", "MP4"), ("m3u8", "HLS/m3u8")])
+config.plugins.iptvplayer.tvpVodPreferedformat = ConfigSelection(default="mp4", choices=[("mp4", "MP4"), ("m3u8", "HLS/m3u8"), ("mpd", "MPD")])
 
 ###################################################
 # Config options for HOST
@@ -89,7 +89,7 @@ class TvpVod(CBaseHostClass, CaptchaHelper):
                     {'category': 'tvp_api', 'title': 'Programy', 'id': '88'},
                     {'category': 'tvp_api', 'title': 'Dokumenty', 'id': '163'},
                     {'category': 'tvp_api', 'title': 'Teatr', 'id': '202'},
-#                    {'category': 'tvp_api', 'title': 'News', 'id': '205'},
+                    {'category': 'tvp_api', 'title': 'News', 'id': '205'},
                     {'category': 'tvp_api', 'title': 'Dla dzieci', 'id': '24'},
                     {'category': 'tvp_sport', 'title': 'TVP Sport', 'url': 'http://sport.tvp.pl/wideo'},
                     {'category': 'streams', 'title': 'TVP na żywo', 'url': 'http://tvpstream.tvp.pl/'},
@@ -631,6 +631,8 @@ class TvpVod(CBaseHostClass, CaptchaHelper):
             asset_id = self.cm.ph.getSearchGroups(data, "object_id:'([0-9]+?)'")[0]
         if '' == asset_id:
             asset_id = self.cm.ph.getSearchGroups(data, 'data\-object\-id="([0-9]+?)"')[0]
+        if '' == asset_id:
+            asset_id = self.cm.ph.getSearchGroups(data, "videoID:\s*'([0-9]+?)'")[0]
 
         return asset_id
 
@@ -645,7 +647,11 @@ class TvpVod(CBaseHostClass, CaptchaHelper):
                 bitrate = self.getBitrateFromFormat('%sx%s' % (itemLink['width'], itemLink['height']))
                 if bitrate != 0:
                     return bitrate
-            return int(itemLink['bitrate'])
+            else:
+                try:
+                    return int(itemLink['bitrate'])
+                except Exception:
+                    return int(itemLink['bandwitch'])
 
         if 'stream.tvp.pl' in url:
             sts, data = self.cm.getPage(url)
@@ -688,10 +694,19 @@ class TvpVod(CBaseHostClass, CaptchaHelper):
                         videoTab = oneLink.getOneLink()
                     else:
                         videoTab = oneLink.getSortedLinks()
-            else:
+            if config.plugins.iptvplayer.tvpVodPreferedformat.value == 'mpd':
                 mpdLink = self.cm.ph.getSearchGroups(data, '''['"](http[^'^"]*?\.mpd[^'^"]*?)['"]''')[0].replace('\/', '/')
                 if '' != mpdLink:
                     videoTab = getMPDLinksWithMeta(mpdLink, False, sortWithMaxBandwidth=999999999)
+                    if 1 < len(videoTab):
+                        max_bitrate = int(config.plugins.iptvplayer.tvpVodDefaultformat.value)
+                    oneLink = CSelOneLink(videoTab, __getLinkQuality, max_bitrate)
+                    if config.plugins.iptvplayer.tvpVodUseDF.value:
+                        videoTab = oneLink.getOneLink()
+                    else:
+                        videoTab = oneLink.getSortedLinks()
+            if config.plugins.iptvplayer.tvpVodPreferedformat.value == 'mp4':
+                asset_id = self.cm.ph.getSearchGroups(data, '''['"]externalUid['"]:['"]([^'^"]*?)['"]''')[0]
 
             if 1 <= len(videoTab):
                 return videoTab
