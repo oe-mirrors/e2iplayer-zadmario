@@ -22,6 +22,7 @@ try:
     import json
 except Exception:
     import simplejson as json
+from Components.config import config, ConfigText
 ###################################################
 
 def GetConfigList():
@@ -37,7 +38,8 @@ class Obejrzyjto(CBaseHostClass):
 
     def __init__(self):
         CBaseHostClass.__init__(self, {'history': 'obejrzyj.to', 'cookie': 'obejrzyj.to.cookie'})
-        self.USER_AGENT = 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.0'
+        config.plugins.iptvplayer.cloudflare_user = ConfigText(default='Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.0', fixed_size=False)
+        self.USER_AGENT = config.plugins.iptvplayer.cloudflare_user.value
         self.MAIN_URL = 'http://obejrzyj.to/'
         self.API_URL = self.getFullUrl('api/v1/')
         self.DEFAULT_ICON_URL = 'https://obejrzyj.to/storage/branding_media/cbd06244-e15a-4f95-9df0-9c6be3fb83c8.png'
@@ -50,11 +52,16 @@ class Obejrzyjto(CBaseHostClass):
         self.cacheLinks = {}
         self.defaultParams = {'header': self.HTTP_HEADER, 'with_metadata': True, 'use_cookie': True, 'load_cookie': True, 'save_cookie': True, 'cookiefile': self.COOKIE_FILE}
 
-    def getPage(self, url, addParams={}, post_data=None):
+    def getPage(self, baseUrl, addParams={}, post_data=None):
         if addParams == {}:
             addParams = dict(self.defaultParams)
-        baseUrl = self.cm.iriToUri(url)
-        return self.cm.getPage(baseUrl, addParams, post_data)
+        origBaseUrl = baseUrl
+        baseUrl = self.cm.iriToUri(baseUrl)
+
+        sts, data = self.cm.getPageCFProtection(baseUrl, addParams, post_data)
+        if data.meta.get('cf_user', self.USER_AGENT) != self.USER_AGENT:
+            self.__init__()
+        return sts, data
 
     def setMainUrl(self, url):
         if self.cm.isValidUrl(url):
