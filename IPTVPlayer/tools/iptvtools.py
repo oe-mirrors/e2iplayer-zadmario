@@ -1889,6 +1889,13 @@ def isOPKGinstall():
     else:
         return False
 
+def hasCDM():
+    try:
+        from pywidevinecdm.checkCDMvalidity import testDevice
+        return testDevice()
+    except Exception:
+        return False
+
 def getIPTVplayerOPKGVersion():
     global CACHED_DATA_DICT
     if None == CACHED_DATA_DICT.get('IPTVplayerOPKGVersion', None):
