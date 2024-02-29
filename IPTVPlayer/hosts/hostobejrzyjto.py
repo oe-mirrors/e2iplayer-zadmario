@@ -72,7 +72,7 @@ class Obejrzyjto(CBaseHostClass):
 
         MAIN_CAT_TAB = [{'category': 'list_sort', 'title': _('Movies'), 'url': self.API_URL + 'channel/movies?perPage=%d' % self.itemsPerPage},
                         {'category': 'list_sort', 'title': _('Documentaries'), 'url': self.API_URL + 'channel/dokumentalne?perPage=%d' % self.itemsPerPage},
-#                        {'category': 'list_sort', 'title': _('Series'), 'url': self.API_URL + '?type=series&onlyStreamable=true&perPage=%d' % self.itemsPerPage},
+                        {'category': 'list_sort', 'title': _('Series'), 'url': self.API_URL + 'channel/series?perPage=%d' % self.itemsPerPage},
 #                        {'category':'list_years',     'title': _('Filter By Year'),    'url':self.MAIN_URL},
 #                        {'category': 'list_cats', 'title': _('Movies genres'), 'url': self.API_URL + '?perPage=%d' % self.itemsPerPage},
 #                        {'category':'list_az',        'title': _('Alphabetically'),    'url':self.MAIN_URL},
@@ -175,23 +175,31 @@ class Obejrzyjto(CBaseHostClass):
             if item.get('type', '') == '':
                 continue
             try:
-                url = self.getFullUrl(self.API_URL + 'watch/%d' % item['primary_video']['id'])
+                if item['is_series']:
+                    video_id = item['primary_video']['title_id']
+                else:
+                    video_id = item['primary_video']['id']
             except Exception:
                 url = self.getFullUrl(self.API_URL + 'titles/%d?load=primaryVideo' % item['id'])
                 sts, data = self.getPage(url)
                 if not sts:
                     continue
                 data = json_loads(data)['title']
-                url = self.getFullUrl(self.API_URL + 'watch/%d' % data['primary_video']['id'])
+                try:
+                    video_id = data['primary_video']['id']
+                except Exception:
+                    continue
             icon = self.getFullIconUrl(item.get('poster', ''))
             if 'original' in icon:
                 icon = icon.replace('/original/', '/w500/')
             title = item.get('name', '')
             desc = item.get('description', '')
             if item['is_series']:
+                url = self.getFullUrl(self.API_URL + 'titles/%d/seasons' % video_id)
                 params = {'good_for_fav': True, 'category': 'list_seasons', 'url': url, 'title': title, 'desc': desc, 'icon': icon}
                 self.addDir(params)
             else:
+                url = self.getFullUrl(self.API_URL + 'watch/%d' % video_id)
                 params = {'good_for_fav': True, 'url': url, 'title': title, 'desc': desc, 'icon': icon}
                 self.addVideo(params)
 
@@ -206,24 +214,22 @@ class Obejrzyjto(CBaseHostClass):
         if not sts:
             return
 
-        try:
-            data = json_loads(data)['title']
-        except Exception:
-            printExc()
+        data = json_loads(data)
 
-        for sItem in data['seasons']:
+        for sItem in data['pagination']['data']:
 #            printDBG("Obejrzyjto.listSeriesSeasons sItem [%s]" % sItem)
-            sts, sdata = self.getPage(self.getFullUrl(cItem['url'] + '?seasonNumber=%d' % sItem['number']))
+            sts, sdata = self.getPage(self.getFullUrl(cItem['url'] + '/%d/episodes' % sItem['number']))
             if not sts:
                 return
             sTitle = 'Sezon %d' % sItem['number']
-            sdata = json_loads(sdata)['title']['season']['episodes']
+            sdata = json_loads(sdata)['pagination']['data']
             tabItems = []
             for item in sdata:
 #                printDBG("Obejrzyjto.listSeriesSeasons item [%s]" % item)
-                if item['stream_videos_count'] == 0:
+                try:
+                    url = self.getFullUrl(self.API_URL + 'watch/%d' % item['primary_video']['id'])
+                except Exception:
                     continue
-                url = self.getFullUrl(cItem['url'] + '?seasonNumber=%d&episodeNumber=%d' % (item['season_number'], item['episode_number']))
                 icon = self.getFullIconUrl(item.get('poster', ' '))
                 if 'original' in icon:
                     icon = icon.replace('/original/', '/w500/')
