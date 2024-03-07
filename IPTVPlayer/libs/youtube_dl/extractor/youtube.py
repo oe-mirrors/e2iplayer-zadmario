@@ -20,8 +20,7 @@ from Plugins.Extensions.IPTVPlayer.tools.e2ijs import js_execute_ext, is_js_cach
 from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str
 
 class CYTSignAlgoExtractor:
-    # MAX RECURSION Depth for security
-    MAX_REC_DEPTH = 5
+    MAX_REC_DEPTH = 5 # MAX RECURSION Depth for security
     RE_FUNCTION_NAMES = re.compile('[ =(,]([a-zA-Z$]+?)\([a-z0-9,]*?\)')
     RE_OBJECTS = re.compile('[ =(,;]([a-zA-Z$]+?)\.([a-zA-Z$]+?)\(')
     RE_MAIN = re.compile('([a-zA-Z0-9$]+)\(')
@@ -424,6 +423,10 @@ class YoutubeIE(object):
             player_response = webpage
         try:
             player_captions = player_response['captions']['playerCaptionsTracklistRenderer']['captionTracks']
+        except Exception:
+            printDBG('youtube - _get_automatic_captions(): [captionTracks] NOT found in player_response')
+            return sub_tracks
+        try:
             for lang in player_captions:
                 printDBG("_get_automatic_captions %s" % lang)
                 sub_url = urllib_unquote_plus(lang['baseUrl'])
