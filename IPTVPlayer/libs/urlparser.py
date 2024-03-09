@@ -521,6 +521,7 @@ class urlparser:
                        'redload.co': self.pp.parserTUBELOADCO,
                        'rockfile.co': self.pp.parserROCKFILECO,
                        'room905.com': self.pp.parserONLYSTREAMTV,
+                       'rubystm.com': self.pp.parserRUBYSTMCOM,
                        'rumble.com': self.pp.parserRUMBLECOM,
                        'rutube.ru': self.pp.parserRUTUBE,
                        #s
@@ -15790,3 +15791,23 @@ class pageParser(CaptchaHelper):
 
         return False
 
+    def parserRUBYSTMCOM(self, baseUrl):
+        printDBG("parserRUBYSTMCOM baseUrl[%s]" % baseUrl)
+
+        HTTP_HEADER = self.cm.getDefaultHeader(browser='chrome')
+        HTTP_HEADER['Referer'] = baseUrl
+        HTTP_HEADER['Accept-Language'] = 'en-US,en;q=0.5'
+        urlParams = {'header': HTTP_HEADER}
+
+        sts, data = self.cm.getPage(baseUrl, urlParams)
+        if not sts:
+            return False
+
+        urlTab = []
+        data = self.cm.ph.getDataBeetwenReMarkers(data, re.compile('''jwplayer\([^\)]+?player[^\)]+?\)\.setup'''), re.compile(';'))[1]
+        hlsUrl = self.cm.ph.getSearchGroups(data, '''["'](https?://[^'^"]+?\.m3u8(?:\?[^"^']+?)?)["']''', ignoreCase=True)[0]
+        if hlsUrl != '':
+            hlsUrl = strwithmeta(hlsUrl, HTTP_HEADER)
+            urlTab.extend(getDirectM3U8Playlist(hlsUrl, checkExt=False, variantCheck=True, checkContent=True, sortWithMaxBitrate=99999999))
+
+        return urlTab
