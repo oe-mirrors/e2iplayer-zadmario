@@ -403,6 +403,7 @@ class urlparser:
                        'lookhd.xyz': self.pp.parserTXNEWSNETWORK,
                        'louishide.com': self.pp.parserONLYSTREAMTV,
                        'lulustream.com': self.pp.parserONLYSTREAMTV,
+                       'luluvdo.com': self.pp.parserRUBYSTMCOM,
                        'lylxan.com': self.pp.parserONLYSTREAMTV,
                        #m
                        'mastarti.com': self.pp.parserMOONWALKCC,
@@ -15796,12 +15797,26 @@ class pageParser(CaptchaHelper):
 
         HTTP_HEADER = self.cm.getDefaultHeader(browser='chrome')
         HTTP_HEADER['Referer'] = baseUrl
+        HTTP_HEADER['Origin'] = urlparser.getDomain(baseUrl, False)
         HTTP_HEADER['Accept-Language'] = 'en-US,en;q=0.5'
         urlParams = {'header': HTTP_HEADER}
 
         sts, data = self.cm.getPage(baseUrl, urlParams)
         if not sts:
             return False
+
+        if "eval(function(p,a,c,k,e,d)" in data:
+            printDBG('Host resolveUrl packed')
+            scripts = re.findall(r"(eval\s?\(function\(p,a,c,k,e,d.*?)</script>", data, re.S)
+            data = ''
+            for packed in scripts:
+                data2 = packed
+                printDBG('Host pack: [%s]' % data2)
+                try:
+                    data += unpackJSPlayerParams(data2, TEAMCASTPL_decryptPlayerParams, 0, True, True)
+                    printDBG('OK unpack: [%s]' % data)
+                except Exception:
+                    pass
 
         urlTab = []
         data = self.cm.ph.getDataBeetwenReMarkers(data, re.compile('''jwplayer\([^\)]+?player[^\)]+?\)\.setup'''), re.compile(';'))[1]
