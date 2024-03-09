@@ -749,7 +749,7 @@ class urlparser:
                        'vkprime.com': self.pp.parserONLYSTREAMTV,
                        'vod-share.com': self.pp.parserVODSHARECOM,
                        'vodlocker.com': self.pp.parserVODLOCKER,
-                       'voe.sx': self.pp.parserVOESX,
+                       'voe.sx': self.pp.parserMATCHATONLINE,
                        'voodaith7e.com': self.pp.parserYOUWATCH,
                        'voodc.com': self.pp.parserVOODCCOM,
                        'vshare.eu': self.pp.parserVSHAREEU,
