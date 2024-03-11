@@ -30,8 +30,8 @@ import time
 from Screens.MessageBox import MessageBox
 ###################################################
 config.plugins.iptvplayer.tvpvod_premium = ConfigYesNo(default=False)
-config.plugins.iptvplayer.tvpvod_login = ConfigText(default=readCFG('tvpvod_login',""), fixed_size=False)
-config.plugins.iptvplayer.tvpvod_password = ConfigText(default=readCFG('tvpvod_password',""), fixed_size=False)
+config.plugins.iptvplayer.tvpvod_login = ConfigText(default=readCFG('tvpvod_login', ""), fixed_size=False)
+config.plugins.iptvplayer.tvpvod_password = ConfigText(default=readCFG('tvpvod_password', ""), fixed_size=False)
 
 config.plugins.iptvplayer.tvpVodProxyEnable = ConfigYesNo(default=False)
 config.plugins.iptvplayer.tvpVodDefaultformat = ConfigSelection(default="590000", choices=[("360000", "320x180"),
@@ -316,7 +316,7 @@ class TvpVod(CBaseHostClass, CaptchaHelper):
                 icon = self.cm.ph.getSearchGroups(json_dumps(item.get('image_logo', '')), '''['"](http[^'^"]+?\.jpg)['"]''')[0]
                 if icon == '':
                     icon = self.cm.ph.getSearchGroups(json_dumps(item.get('image_logo', '')), '''['"](http[^'^"]+?\.png)['"]''')[0]
-                icon = icon.format(width = '300', height = '0')
+                icon = icon.format(width='300', height='0')
 #                printDBG("TvpVod.listTVP3Streams icon [%s]" % icon)
                 title = item.get('title', '').replace('EPG - ', '')
                 params = dict(cItem)
