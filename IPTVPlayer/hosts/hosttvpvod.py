@@ -655,11 +655,14 @@ class TvpVod(CBaseHostClass, CaptchaHelper):
                 bitrate = self.getBitrateFromFormat('%sx%s' % (itemLink['width'], itemLink['height']))
                 if bitrate != 0:
                     return bitrate
-            else:
-                try:
+            try:
+                if 'bitrate' in itemLink:
                     return int(itemLink['bitrate'])
-                except Exception:
-                    return int(itemLink['bandwitch'])
+                elif 'bandwidth' in itemLink:
+                    return int(itemLink['bandwidth'])
+            except Exception:
+                printExc()
+            return 0
 
         if 'stream.tvp.pl' in url:
             sts, data = self.cm.getPage(url)
@@ -690,6 +693,7 @@ class TvpVod(CBaseHostClass, CaptchaHelper):
 
             if '"drm":' in data:
                 SetIPTVPlayerLastHostError(_("Video with DRM protection."))
+                return []
 
             if config.plugins.iptvplayer.tvpVodPreferedformat.value == 'm3u8':
                 hlsUrl = self.cm.ph.getSearchGroups(data, '''['"](http[^'^"]*?\.m3u8[^'^"]*?)['"]''')[0].replace('\/', '/')
