@@ -40,6 +40,7 @@ config.plugins.iptvplayer.tvpVodDefaultformat = ConfigSelection(default="590000"
                                                                                                ("1250000", "640x360"),
                                                                                                ("1750000", "800x450"),
                                                                                                ("2850000", "960x540"),
+                                                                                               ("3032000", "1024x576"),
                                                                                                ("5420000", "1280x720"),
                                                                                                ("6500000", "1600x900"),
                                                                                                ("9100000", "1920x1080")])
@@ -651,18 +652,10 @@ class TvpVod(CBaseHostClass, CaptchaHelper):
         videoTab = []
 
         def __getLinkQuality(itemLink):
-            if 'width' in itemLink and 'height' in itemLink:
-                bitrate = self.getBitrateFromFormat('%sx%s' % (itemLink['width'], itemLink['height']))
-                if bitrate != 0:
-                    return bitrate
-            try:
-                if 'bitrate' in itemLink:
-                    return int(itemLink['bitrate'])
-                elif 'bandwidth' in itemLink:
-                    return int(itemLink['bandwidth'])
-            except Exception:
-                printExc()
-            return 0
+            bitrate = int(itemLink.get('bitrate',itemLink.get('bandwitch',0)))
+            if bitrate == 0:
+                bitrate = self.getBitrateFromFormat('%sx%s' % (itemLink.get('width',0), itemLink.get('height',0)))
+            return bitrate
 
         if 'stream.tvp.pl' in url:
             sts, data = self.cm.getPage(url)
