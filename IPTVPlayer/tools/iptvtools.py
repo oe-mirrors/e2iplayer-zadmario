@@ -585,7 +585,11 @@ class CSelOneLink():
     def _cmpLinks(self, item1, item2):
         val1 = self.getQualiyFun(item1)
         val2 = self.getQualiyFun(item2)
-        if val1 < val2:
+
+        if val1 is None or val2 is None:
+            printDBG('iptvtools.CSelOneLink()_cmpLinks <host>__getLinkQuality() returned None value(s) which is an error(val1=%s, val2=%s)\n\t CORRECT <host>!!!' % (str(val1),str(val2)))
+            ret = 0
+        elif val1 < val2:
             ret = -1
         elif val1 > val2:
             ret = 1
