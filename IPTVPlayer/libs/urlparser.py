@@ -48,7 +48,7 @@ if not isPY2():
     xrange = range
     from functools import cmp_to_key
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_unquote, urllib_quote_plus, urllib_urlencode, urllib_quote
-from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str
+from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str, ensure_binary
 ###################################################
 # FOREIGN import
 ###################################################
@@ -15558,13 +15558,13 @@ class pageParser(CaptchaHelper):
 
         def cryptoJS_AES_decrypt(encrypted, password, salt):
             def derive_key_and_iv(password, salt, key_length, iv_length):
-                d = d_i = ''
+                d = d_i = b''
                 while len(d) < key_length + iv_length:
                     d_i = md5(d_i + password + salt).digest()
                     d += d_i
                 return d[:key_length], d[key_length:key_length + iv_length]
             bs = 16
-            key, iv = derive_key_and_iv(password, salt, 32, 16)
+            key, iv = derive_key_and_iv(ensure_binary(password), ensure_binary(salt), 32, 16)
             cipher = AES_CBC(key=key, keySize=32)
             return cipher.decrypt(encrypted, iv)
 
