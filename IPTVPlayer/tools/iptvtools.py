@@ -1925,6 +1925,7 @@ def getIPTVplayerOPKGVersion():
             CACHED_DATA_DICT['IPTVplayerOPKGVersion'] = ''
         else:
             for controlFile in ('/var/lib/opkg/info/enigma2-plugin-extensions--j00zeks-e2iplayer-mod-zadmario.control',
+                                '/var/lib/opkg/info/enigma2-plugin-extensions--j00zeks-e2iplayer-zadmario-fork.control',
                                 '/var/lib/opkg/info/enigma2-plugin-extensions-e2iplayer.control'):
                 if os.path.exists(controlFile):
                     lines = []
