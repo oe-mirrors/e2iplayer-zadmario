@@ -606,6 +606,7 @@ class urlparser:
                        'streamvid.net': self.pp.parserONLYSTREAMTV,
                        'streamwire.net': self.pp.parserONLYSTREAMTV,
                        'streamzz.to': self.pp.parserSTREAMZZ,
+                       'strwish.com': self.pp.parserONLYSTREAMTV,
                        'superfastvideos.xyz': self.pp.parserTXNEWSNETWORK,
                        'superfilm.pl': self.pp.parserSUPERFILMPL,
                        'supergoodtvlive.com': self.pp.parserTXNEWSNETWORK,
