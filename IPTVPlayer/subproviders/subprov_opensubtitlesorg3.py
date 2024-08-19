@@ -10,6 +10,7 @@ from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import hex_md5
 ###################################################
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote
 from Plugins.Extensions.IPTVPlayer.p2p3.pVer import isPY2
+from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import strEncode
 ###################################################
 # FOREIGN import
 ###################################################
@@ -292,7 +293,7 @@ class OpenSubtitlesRest(CBaseSubProviderClass):
             if isPY2():
                 buf = StringIO(data)
             else:
-                buf = BytesIO(data)
+                buf = BytesIO(strEncode(data))
             f = gzip.GzipFile(fileobj=buf)
             data = f.read()
         except Exception:
