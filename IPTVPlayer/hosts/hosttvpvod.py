@@ -391,10 +391,11 @@ class TvpVod(CBaseHostClass, CaptchaHelper):
                 title = str(item['title'])
                 desc = self.cleanHtmlStr(str(item['lead']))
                 asset_id = str(item['asset_id'])
-                asset_id = str(item['video_id'])
+                video_id = str(item['video_id'])
                 icon = self.getImageUrl(item)
                 desc = item['release_date_hour'] + ' - ' + item['broadcast_end_date_hour'] + '[/br]' + desc
-                self.addVideo({'title': title, 'url': '', 'object_id': asset_id, 'icon': icon, 'desc': desc})
+#                self.addVideo({'title': title, 'url': '', 'object_id': asset_id, 'icon': icon, 'desc': desc})
+                self.addVideo({'title': title, 'url': 'https://api.tvp.pl/tokenizer/token/%s' % video_id, 'icon': icon, 'desc': desc})
             printDBG(data)
         except Exception:
             printExc()
