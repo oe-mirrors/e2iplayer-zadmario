@@ -321,7 +321,7 @@ class TvpVod(CBaseHostClass, CaptchaHelper):
 #                printDBG("TvpVod.listTVP3Streams icon [%s]" % icon)
                 title = item.get('title', '').replace('EPG - ', '')
                 params = dict(cItem)
-                params.update({'title': title, 'url': 'https://stream.tvp.pl/sess/TVPlayer2/embed.php?ID=%s' % video_id, 'icon': icon, 'desc': desc})
+                params.update({'title': title, 'url': 'https://api.tvp.pl/tokenizer/token/%s' % video_id, 'icon': icon, 'desc': desc})
                 self.addVideo(params)
 
     def listTVPSportStreams(self, cItem, nextCategory):
@@ -657,7 +657,7 @@ class TvpVod(CBaseHostClass, CaptchaHelper):
                 bitrate = self.getBitrateFromFormat('%sx%s' % (itemLink.get('width',0), itemLink.get('height',0)))
             return bitrate
 
-        if 'stream.tvp.pl' in url:
+        if 'api.tvp.pl' in url:
             sts, data = self.cm.getPage(url)
             if not sts:
                 return []
