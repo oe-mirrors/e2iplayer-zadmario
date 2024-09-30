@@ -60,6 +60,13 @@ class Zaluknij(CBaseHostClass):
             self.__init__()
         return sts, data
 
+    def getFullIconUrl(self, url):
+        url = CBaseHostClass.getFullIconUrl(self, url.strip())
+        if url == '':
+            return ''
+        cookieHeader = self.cm.getCookieHeader(self.COOKIE_FILE, ['cf_clearance'])
+        return strwithmeta(url, {'Cookie': cookieHeader, 'User-Agent': self.USER_AGENT})
+
     def setMainUrl(self, url):
         if self.cm.isValidUrl(url):
             self.MAIN_URL = self.cm.getBaseUrl(url)
