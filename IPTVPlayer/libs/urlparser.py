@@ -678,6 +678,7 @@ class urlparser:
                        'v6embed.xyz': self.pp.parserVIDGUARDTO,
                        'vcstream.to': self.pp.parserVCSTREAMTO,
                        'veehd.com': self.pp.parserVEEHDCOM,
+                       'veev.to': self.pp.parserVEEVTO,
                        'vembed.net': self.pp.parserVIDGUARDTO,
                        'veoh.com': self.pp.parserVEOHCOM,
                        'veuclips.com': self.pp.parserVEUCLIPS,
@@ -15894,3 +15895,85 @@ class pageParser(CaptchaHelper):
                 urlTab.append({'name': 'mp4', 'url': url})
 
         return urlTab
+
+    def parserVEEVTO(self, baseUrl):
+        printDBG("parserVEEVTO baseUrl[%s]" % baseUrl)
+
+        HTTP_HEADER = self.cm.getDefaultHeader(browser='chrome')
+        HTTP_HEADER['Referer'] = baseUrl
+        HTTP_HEADER['Origin'] = urlparser.getDomain(baseUrl, False)
+        HTTP_HEADER['Accept-Language'] = 'en-US,en;q=0.5'
+        urlParams = {'header': HTTP_HEADER}
+
+        def veev_decode(etext):
+            result = []
+            lut = {}
+            n = 256
+            c = etext[0]
+            result.append(c)
+            for char in etext[1:]:
+                code = ord(char)
+                nc = char if code < 128 else lut.get(code, c + c[0])
+                result.append(nc)
+                lut[n] = c + nc[0]
+                n += 1
+                c = nc
+
+            return ''.join(result)
+
+        def js_int(x):
+            return int(x) if x.isdigit() else 0
+
+        def build_array(encoded_string):
+            d = []
+            c = list(encoded_string)
+            count = js_int(c.pop(0))
+            while count:
+                current_array = []
+                for _ in range(count):
+                    current_array.insert(0, js_int(c.pop(0)))
+                d.append(current_array)
+                count = js_int(c.pop(0))
+
+            return d
+
+        def decode_url(etext, tarray):
+            ds = etext
+            for t in tarray:
+                if t == 1:
+                    ds = ds[::-1]
+                ds = unhexlify(ds).decode('utf8')
+                ds = ds.replace('dXRmOA==', '')
+
+            return ds
+
+        urlTab = []
+        sts, data = self.cm.getPage(baseUrl, urlParams)
+        if not sts:
+            return False
+        media_id = self.cm.ph.getSearchGroups(baseUrl + '/', '(?:e|d)[/-]([A-Za-z0-9]+)[^A-Za-z0-9]')[0]
+        items = re.findall(r'''[\.\s]fc\s*[:=]\s*['"]([^'"]+)''', data)
+        if items:
+            for f in items[::-1]:
+                ch = veev_decode(ensure_binary(f).decode('utf8'))
+                if ch != f:
+                    params = {
+                        'op': 'player_api',
+                        'cmd': 'gi',
+                        'file_code': media_id,
+                        'ch': ch,
+                        'ie': 1
+                    }
+                    durl = self.cm.getFullUrl('/dl', baseUrl) + '?' + urllib_urlencode(params)
+                    sts, jresp = self.cm.getPage(durl, urlParams)
+                    if not sts:
+                        return False
+                    jresp = json_loads(jresp).get('file')
+                    if jresp and jresp.get('file_status') == 'OK':
+                        str_url = decode_url(veev_decode(ensure_binary(jresp.get('dv')[0].get('s')).decode('utf8')), build_array(ch)[0])
+                        if str_url != '':
+                            str_url = strwithmeta(str_url, HTTP_HEADER)
+                            urlTab.append({'name': 'mp4', 'url': str_url})
+                            return urlTab
+
+        return False
