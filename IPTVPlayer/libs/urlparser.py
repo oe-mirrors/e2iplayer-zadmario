@@ -13286,7 +13286,7 @@ class pageParser(CaptchaHelper):
                     video_url = "https:" + link
                 else:
                     video_url = link
-                video_url = urlparser.decorateUrl(video_url, {'Referer': baseUrl, 'external_sub_tracks': sub_tracks})
+                video_url = urlparser.decorateUrl(video_url, {'external_sub_tracks': sub_tracks, 'User-Agent': urlParams['header']['User-Agent'], 'Referer': baseUrl, 'Origin': urlparser.getDomain(baseUrl, False)})
                 params = {'name': 'link', 'url': video_url}
                 printDBG(params)
                 urlsTab.append(params)
@@ -15380,6 +15380,13 @@ class pageParser(CaptchaHelper):
         sts, data = self.cm.getPage(baseUrl, urlParams)
         if not sts:
             return []
+
+        if 'file_code' not in data:
+            url = self.cm.ph.getSearchGroups(data, '''<iframe[^>]+?src=['"]([^"^']+?)['"]''', 1, True)[0]
+            if url != '':
+                sts, data = self.cm.getPage(url, urlParams)
+                if not sts:
+                    return []
 
         if "eval(function(p,a,c,k,e,d)" in data:
             printDBG('Host resolveUrl packed')
