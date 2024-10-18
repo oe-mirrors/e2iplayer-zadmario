@@ -327,7 +327,7 @@ class urlparser:
                        'freefeds.click': self.pp.parserASSIAORG,
                        'fslinks.org': self.pp.parserVIDGUARDTO,
                        'fullassia.com': self.pp.parserASSIAORG,
-                       'furher.in': self.pp.parserONLYSTREAMTV,
+                       'furher.in': self.pp.parserGOUNLIMITEDTO,
                        'fviplions.com': self.pp.parserONLYSTREAMTV,
                        'fxstream.biz': self.pp.parserFXSTREAMBIZ,
                        #g
