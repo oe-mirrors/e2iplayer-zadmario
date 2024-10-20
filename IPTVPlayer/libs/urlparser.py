@@ -198,6 +198,8 @@ class urlparser:
                        'bitporno.com': self.pp.parserBITPORNOCOM,
                        'bitvid.sx': self.pp.parserVIDEOWEED,
                        'bojem3a.info': self.pp.parserEXASHARECOM,
+                       'boosteradx.online': self.pp.parserBOOSTERADXONLINE,
+                       'boosterx.stream': self.pp.parserBOOSTERADXONLINE,
                        'bro.adca.st': self.pp.parserBROADCAST,
                        'bro.adcast.tech': self.pp.parserBROADCAST,
                        'byetv.org': self.pp.parserBYETVORG,
@@ -494,6 +496,7 @@ class urlparser:
                        'played.to': self.pp.parserPLAYEDTO,
                        'playedto.me': self.pp.parserPLAYEDTO,
                        'playersb.com': self.pp.parserSTREAMSB,
+                       'playerwish.com': self.pp.parserONLYSTREAMTV,
                        'playpanda.net': self.pp.parserPLAYPANDANET,
                        'playreplay.net': self.pp.parserPLAYEREPLAY,
                        'playtube.ws': self.pp.parserONLYSTREAMTV,
@@ -15984,3 +15987,58 @@ class pageParser(CaptchaHelper):
                             return urlTab
 
         return False
+
+    def parserBOOSTERADXONLINE(self, baseUrl):
+        printDBG("parserBOOSTERADXONLINE baseUrl[%s]" % baseUrl)
+
+        HTTP_HEADER = self.cm.getDefaultHeader(browser='chrome')
+        referer = baseUrl.meta.get('Referer')
+        if referer:
+            HTTP_HEADER['Referer'] = referer
+        urlParams = {'header': HTTP_HEADER}
+        sts, data = self.cm.getPage(baseUrl, urlParams)
+        if not sts:
+            return []
+        cUrl = self.cm.meta['url']
+
+        def cryptoJS_AES_decrypt(encrypted, password, salt):
+            def derive_key_and_iv(password, salt, key_length, iv_length):
+                d = d_i = b''
+                while len(d) < key_length + iv_length:
+                    d_i = md5(d_i + password + salt).digest()
+                    d += d_i
+                return d[:key_length], d[key_length:key_length + iv_length]
+            bs = 16
+            key, iv = derive_key_and_iv(ensure_binary(password), ensure_binary(salt), 32, 16)
+            cipher = AES_CBC(key=key, keySize=32)
+            return cipher.decrypt(encrypted, iv)
+
+        key = '1FHuaQhhcsKgpTRB'
+        edata = re.search("const\sContents\s*=\s*'([^']+)", data)
+        if edata:
+            edata = json_loads(edata.group(1))
+            ciphertext = base64.b64decode(edata.get('ct', False))
+            iv = a2b_hex(edata.get('iv'))
+            salt = a2b_hex(edata.get('s'))
+            data = cryptoJS_AES_decrypt(ciphertext, key, salt).replace('\\t', '').replace('\\n', '').replace('\\', '')
+#            printDBG("parserBOOSTERADXONLINE data[%s]" % data)
+
+        subTracks = []
+        srtUrl = self.cm.ph.getSearchGroups(data, '''tracks:\s?\[(.+?)\]''')[0]
+        if srtUrl != '':
+            printDBG("parserBOOSTERADXONLINE srtUrl[%s]" % srtUrl)
+            srtLabel = self.cm.ph.getSearchGroups(srtUrl, '''label['"]:\s?['"]([^"^']+?)['"]''')[0]
+            srtUrl = self.cm.ph.getSearchGroups(srtUrl, '''["'](https?://[^'^"]+?\.srt)["']''', ignoreCase=True)[0]
+            srtUrl = strwithmeta(srtUrl, {'Referer': cUrl})
+            if srtLabel == '':
+                srtLabel = 'UNK'
+            params = {'title': srtLabel, 'url': srtUrl, 'lang': srtLabel.lower()[:3], 'format': srtUrl[-3:]}
+            subTracks.append(params)
+
+        hlsUrl = self.cm.ph.getSearchGroups(data, '''["'](https?://[^'^"]+?\.m3u8(?:\?[^"^']+?)?)["']''', ignoreCase=True)[0]
+        urlTab = []
+        hlsUrl = urlparser.decorateUrl(hlsUrl, {'iptv_proto': 'm3u8', 'external_sub_tracks': subTracks, 'User-Agent': urlParams['header']['User-Agent'], 'Referer': cUrl, 'Origin': urlparser.getDomain(cUrl, False)})
+        if hlsUrl != '':
+            urlTab.extend(getDirectM3U8Playlist(hlsUrl))
+
+        return urlTab
