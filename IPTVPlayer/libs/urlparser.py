@@ -223,6 +223,7 @@ class urlparser:
                        'clickopen.win': self.pp.parserCLICKOPENWIN,
                        'clipwatching.com': self.pp.parserCLIPWATCHINGCOM,
                        'clooud.cc': self.pp.parserCLOOUDCC,
+                       'closedjelly.net': self.pp.parserONLYSTREAMTV,
                        'cloud.mail.ru': self.pp.parserCOUDMAILRU,
                        'cloudcartel.net': self.pp.parserCLOUDCARTELNET,
                        'cloudemb.com': self.pp.parserSTREAMSB,
