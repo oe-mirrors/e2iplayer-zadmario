@@ -792,6 +792,7 @@ class urlparser:
                        'wholecloud.net': self.pp.parserWHOLECLOUD,
                        'widestream.io': self.pp.parserWIDESTREAMIO,
                        'wiiz.tv': self.pp.parserWIIZTV,
+                       'wikisport.best': self.pp.parserWIKISPORTCLICK,
                        'wikisport.click': self.pp.parserWIKISPORTCLICK,
                        'wikisport.se': self.pp.parserWIKISPORTCLICK,
                        'wishfast.top': self.pp.parserONLYSTREAMTV,
