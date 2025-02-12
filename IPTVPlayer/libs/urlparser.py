@@ -195,6 +195,7 @@ class urlparser:
                        'bestx.stream': self.pp.parserCHILLXTOP,
                        'bestreams.net': self.pp.parserBESTREAMS,
                        'biggestplayer.me': self.pp.parserBIGGESTPLAYER,
+                       'bigwarp.io': self.pp.parserCLIPWATCHINGCOM,
                        'bitporno.com': self.pp.parserBITPORNOCOM,
                        'bitvid.sx': self.pp.parserVIDEOWEED,
                        'bojem3a.info': self.pp.parserEXASHARECOM,
@@ -15550,6 +15551,9 @@ class pageParser(CaptchaHelper):
         if not sts:
             return False
         cUrl = self.cm.meta['url']
+
+        if '<title>Please wait</title>' in data:
+            sts, data = self.cm.getPage(baseUrl.replace('.me/', '.to/'), {'header': HTTP_HEADER})
 
         urlTab = []
         url = self.cm.ph.getSearchGroups(data, '''sources[^'^"]*?['"]([^'^"]+?)['"]''')[0]
