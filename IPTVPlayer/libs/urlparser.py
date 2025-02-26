@@ -203,6 +203,7 @@ class urlparser:
                        'boosterx.stream': self.pp.parserBOOSTERADXONLINE,
                        'bro.adca.st': self.pp.parserBROADCAST,
                        'bro.adcast.tech': self.pp.parserBROADCAST,
+                       'browncrossing.net': self.pp.parserONLYSTREAMTV,
                        'byetv.org': self.pp.parserBYETVORG,
                        #c
                        'casacinema.cc': self.pp.parserCASACINEMACC,
