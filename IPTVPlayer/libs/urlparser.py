@@ -327,6 +327,7 @@ class urlparser:
                        'flashx.tv': self.pp.parserFLASHXTV,
                        'flaswish.com': self.pp.parserCLIPWATCHINGCOM,
                        'flix555.com': self.pp.parserFLIX555COM,
+                       'foothubhd.live': self.pp.parserSHOWSPORTXYZ,
                        'forstreams.com': self.pp.parserVIUCLIPS,
                        'freedisc.pl': self.pp.parserFREEDISC,
                        'freefeds.click': self.pp.parserASSIAORG,
@@ -14101,7 +14102,9 @@ class pageParser(CaptchaHelper):
         urlTab = []
         url = self.cm.ph.getSearchGroups(data, '''\swindow.atob\(['"]([^"^']+?)['"]''')[0]
         if url != '':
-            urlTab.extend(getDirectM3U8Playlist(urllib_unquote(base64.b64decode(url).replace("playoutengine.sinclairstoryline", "playoutengine-v2.sinclairstoryline")), checkContent=True, sortWithMaxBitrate=999999999))
+            url = urllib_unquote(base64.b64decode(url).replace("playoutengine.sinclairstoryline", "playoutengine-v2.sinclairstoryline"))
+            url = strwithmeta(url, {'Referer': baseUrl})
+            urlTab.extend(getDirectM3U8Playlist(url, checkContent=True, sortWithMaxBitrate=999999999))
 
         return urlTab
 
