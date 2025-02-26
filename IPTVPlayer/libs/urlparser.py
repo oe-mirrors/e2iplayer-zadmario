@@ -15998,6 +15998,7 @@ class pageParser(CaptchaHelper):
         printDBG("parserBOOSTERADXONLINE baseUrl[%s]" % baseUrl)
 
         HTTP_HEADER = self.cm.getDefaultHeader(browser='chrome')
+
         referer = baseUrl.meta.get('Referer')
         if referer:
             HTTP_HEADER['Referer'] = referer
@@ -16007,39 +16008,29 @@ class pageParser(CaptchaHelper):
             return []
         cUrl = self.cm.meta['url']
 
-        def cryptoJS_AES_decrypt(encrypted, password, salt):
-            def derive_key_and_iv(password, salt, key_length, iv_length):
-                d = d_i = b''
-                while len(d) < key_length + iv_length:
-                    d_i = md5(d_i + password + salt).digest()
-                    d += d_i
-                return d[:key_length], d[key_length:key_length + iv_length]
-            bs = 16
-            key, iv = derive_key_and_iv(ensure_binary(password), ensure_binary(salt), 32, 16)
-            cipher = AES_CBC(key=key, keySize=32)
-            return cipher.decrypt(encrypted, iv)
-
-        key = '1FHuaQhhcsKgpTRB'
-        edata = re.search("const\sContents\s*=\s*'([^']+)", data)
+        edata = re.search(r'''(?:const|var|let|window\.)\s*\w*\s*=\s*'([^']+)''', data)
         if edata:
-            edata = json_loads(edata.group(1))
-            ciphertext = base64.b64decode(edata.get('ct', False))
-            iv = a2b_hex(edata.get('iv'))
-            salt = a2b_hex(edata.get('s'))
-            data = cryptoJS_AES_decrypt(ciphertext, key, salt).replace('\\t', '').replace('\\n', '').replace('\\', '')
+            data = base64.b64decode(edata.group(1))
+            key = unhexlify(base64.b64decode('ZmJlYTcyMGU5MDY0NDE3Mzg1MDc0MjMzOThiYTcwMjg5ZTQwNjJmZTU2NGFhNTU5OTY5OWZhNjA2NDVmNzdjZA=='))
+            decryptor = pyaes.Decrypter(pyaes.AESModeOfOperationCBC(key, data[:16]))
+            ddata = decryptor.feed(data[16:])
+            ddata += decryptor.feed()
+            data =  ddata.decode('utf-8')
 #            printDBG("parserBOOSTERADXONLINE data[%s]" % data)
 
         subTracks = []
-        srtUrl = self.cm.ph.getSearchGroups(data, '''tracks:\s?\[(.+?)\]''')[0]
-        if srtUrl != '':
-            printDBG("parserBOOSTERADXONLINE srtUrl[%s]" % srtUrl)
-            srtLabel = self.cm.ph.getSearchGroups(srtUrl, '''label['"]:\s?['"]([^"^']+?)['"]''')[0]
-            srtUrl = self.cm.ph.getSearchGroups(srtUrl, '''["'](https?://[^'^"]+?\.srt)["']''', ignoreCase=True)[0]
-            srtUrl = strwithmeta(srtUrl, {'Referer': cUrl})
-            if srtLabel == '':
-                srtLabel = 'UNK'
-            params = {'title': srtLabel, 'url': srtUrl, 'lang': srtLabel.lower()[:3], 'format': srtUrl[-3:]}
-            subTracks.append(params)
+        srtData = self.cm.ph.getSearchGroups(data, '''tracks:\s?\[(.+?)\]''')[0]
+        if '"kind":"captions"' in srtData:
+            printDBG("parserBOOSTERADXONLINE srtData[%s]" % srtData)
+            srtData = self.cm.ph.getAllItemsBeetwenNodes(srtData, '"file"', '"captions"', False)
+            for item in srtData:
+                srtLabel = self.cm.ph.getSearchGroups(item, '''label['"]:\s?['"]([^"^']+?)['"],''')[0]
+                srtUrl = self.cm.ph.getSearchGroups(item, '''["'](https?://[^'^"]+?\.srt)["']''', ignoreCase=True)[0]
+                srtUrl = strwithmeta(srtUrl, {'Referer': cUrl})
+                if srtLabel == '':
+                    srtLabel = 'UNK'
+                params = {'title': srtLabel, 'url': srtUrl, 'lang': srtLabel.lower()[:3], 'format': srtUrl[-3:]}
+                subTracks.append(params)
 
         hlsUrl = self.cm.ph.getSearchGroups(data, '''["'](https?://[^'^"]+?\.m3u8(?:\?[^"^']+?)?)["']''', ignoreCase=True)[0]
         urlTab = []
