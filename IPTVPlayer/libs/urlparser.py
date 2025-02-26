@@ -175,6 +175,7 @@ class urlparser:
                        'allocine.fr': self.pp.parserALLOCINEFR,
                        'allvid.ch': self.pp.parserALLVIDCH,
                        'anime-shinden.info': self.pp.parserANIMESHINDEN,
+                       'antenasport.online': self.pp.parserZVISIONLINK,
                        'anyvideo.org': self.pp.parserONLYSTREAMTV,
                        'aparat.cam': self.pp.parserONLYSTREAMTV,
                        'aparat.com': self.pp.parserAPARATCOM,
@@ -821,6 +822,7 @@ class urlparser:
                        'zalaa.com': self.pp.parserZALAACOM,
                        'zerocast.tv': self.pp.parserZEROCASTTV,
                        'zstream.to': self.pp.parserZSTREAMTO,
+                       'zvision.link': self.pp.parserZVISIONLINK,
                     }
         return
 
@@ -16039,6 +16041,51 @@ class pageParser(CaptchaHelper):
         hlsUrl = self.cm.ph.getSearchGroups(data, '''["'](https?://[^'^"]+?\.m3u8(?:\?[^"^']+?)?)["']''', ignoreCase=True)[0]
         urlTab = []
         hlsUrl = urlparser.decorateUrl(hlsUrl, {'iptv_proto': 'm3u8', 'external_sub_tracks': subTracks, 'User-Agent': urlParams['header']['User-Agent'], 'Referer': cUrl, 'Origin': urlparser.getDomain(cUrl, False)})
+        if hlsUrl != '':
+            urlTab.extend(getDirectM3U8Playlist(hlsUrl))
+
+        return urlTab
+
+    def parserZVISIONLINK(self, baseUrl):
+        printDBG("parserZVISIONLINK baseUrl[%s]" % baseUrl)
+
+        HTTP_HEADER = self.cm.getDefaultHeader(browser='chrome')
+
+        referer = baseUrl.meta.get('Referer')
+        if referer:
+            HTTP_HEADER['Referer'] = referer
+        urlParams = {'header': HTTP_HEADER}
+        sts, data = self.cm.getPage(baseUrl, urlParams)
+        if not sts:
+            return []
+        cUrl = self.cm.meta['url']
+
+        tmpUrl = self.cm.ph.getSearchGroups(data, '''<iframe[^>]+?src=['"]([^"^']+?)['"]''', 1, True)[0]
+        HTTP_HEADER['Referer'] = baseUrl
+        urlParams = {'header': HTTP_HEADER}
+        sts, data = self.cm.getPage(tmpUrl, urlParams)
+        if not sts:
+            return []
+
+        data = self.cm.ph.getDataBeetwenNodes(data, ('<script>', 'var player'), ('</script', '>'))[1]
+        idUrl = self.cm.ph.getSearchGroups(data, '''fetch\(['"]([^"^']+?)['"]''', 1, True)[0]
+        channelKey = self.cm.ph.getSearchGroups(data, '''var\schannelKey\s*=\s*['"]([^"^']+?)['"]''')[0]
+        idUrl += channelKey
+        sts, tdata = self.cm.getPage(self.cm.getFullUrl(idUrl, tmpUrl), urlParams)
+        if not sts:
+            return []
+
+        tdata = json_loads(tdata)
+        jscode = 'var channelKey = "' + channelKey + '";'
+        jscode = jscode + 'var serverKey = "' + tdata.get('server_key', '') + '";'
+        jscode += self.cm.ph.getDataBeetwenMarkers(data, 'var m3u8Url', ('console.log', ';'), True)[1]
+        ret = js_execute(jscode)
+        if ret['sts'] and 0 == ret['code']:
+            data = ret['data'].strip()
+
+        hlsUrl = self.cm.ph.getSearchGroups(data, '''(https?://[^'^"]+?\.m3u8(?:\?[^"^']+?)?)''', ignoreCase=True)[0]
+        urlTab = []
+        hlsUrl = urlparser.decorateUrl(hlsUrl, {'iptv_proto': 'm3u8', 'User-Agent': urlParams['header']['User-Agent'], 'Referer': tmpUrl, 'Origin': urlparser.getDomain(tmpUrl, False)})
         if hlsUrl != '':
             urlTab.extend(getDirectM3U8Playlist(hlsUrl))
 
