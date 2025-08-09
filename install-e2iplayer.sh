@@ -4,9 +4,9 @@
 cd /tmp
 [ -e /tmp/e2iplayer-master.zip ] && rm -f /tmp/e2iplayer-master.zip
 [ -e /tmp/e2iplayer-master ] && rm -fr /tmp/e2iplayer-master
-wget -q https://gitlab.com/zadmario/e2iplayer/-/archive/master/e2iplayer-master.tar.gz -O /tmp/e2iplayer-master.zip
+wget -q https://github.com/oe-mirrors/e2iplayer-zadmario/archive/refs/heads/master.tar.gz -O /tmp/e2iplayer-master.zip
 if [ $? -gt 0 ] ;then
-  wget -q "--no-check-certificate" https://gitlab.com/zadmario/e2iplayer/-/archive/master/e2iplayer-master.tar.gz -O /tmp/e2iplayer-master.zip
+  wget -q "--no-check-certificate" https://github.com/oe-mirrors/e2iplayer-zadmario/archive/refs/heads/master.tar.gz -O /tmp/e2iplayer-master.zip
   if [ $? -gt 0 ] ;then
     [ $isPL -eq 1 ] && echo "błąd pobierania archiwum, koniec" || echo "error downloading archive, end"
     exit 1
