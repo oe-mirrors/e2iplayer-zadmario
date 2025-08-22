@@ -1,82 +1,54 @@
 # -*- coding: utf-8 -*-
-###################################################
-# LOCAL import
-###################################################
-from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, SetIPTVPlayerLastHostError
-from Plugins.Extensions.IPTVPlayer.components.ihost import CHostBase, CBaseHostClass
+import re
+from copy import deepcopy
+
+from Components.config import ConfigSelection, ConfigText, config, getConfigListEntry
 from Plugins.Extensions.IPTVPlayer.components.captcha_helper import CaptchaHelper
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, GetCookieDir, MergeDicts, ReadTextFile, WriteTextFile, GetTmpDir, rm
-from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
+from Plugins.Extensions.IPTVPlayer.components.ihost import CBaseHostClass, CHostBase
+from Plugins.Extensions.IPTVPlayer.components.iptvmultipleinputbox import IPTVMultipleInputBox
+from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import SetIPTVPlayerLastHostError
+from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
 from Plugins.Extensions.IPTVPlayer.libs import ph
 from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads
 from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import hex_md5
-###################################################
 from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str
 from Plugins.Extensions.IPTVPlayer.p2p3.pVer import isPY2
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import GetCookieDir, GetTmpDir, MergeDicts, ReadTextFile, WriteTextFile, printDBG, printExc, rm
+from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
+from Screens.MessageBox import MessageBox
+
 if not isPY2():
     from functools import cmp_to_key
-###################################################
-# FOREIGN import
-###################################################
-import re
-from binascii import hexlify
-from hashlib import md5
-from copy import deepcopy
-from Components.config import config, ConfigSelection, ConfigText, getConfigListEntry
-###################################################
-
-
-###################################################
-# E2 GUI COMMPONENTS
-###################################################
-from Plugins.Extensions.IPTVPlayer.components.iptvmultipleinputbox import IPTVMultipleInputBox
-from Screens.MessageBox import MessageBox
-###################################################
-
-###################################################
-# Config options for HOST
-###################################################
-DEFAULTHOST = "http://186.2.175.5/"
-config.plugins.iptvplayer.serienstreamto_langpreference = ConfigSelection(default="de,de_sub,en", choices=[("de,de_sub,en", "de,sub,en"),
-                                                                                                               ("de,en,de_sub", "de,en,sub"),
-                                                                                                               ("de_sub,de,en", "sub,de,en"),
-                                                                                                               ("de_sub,en,de", "sub,en,de"),
-                                                                                                               ("en,de_sub,de", "en,sub,de"),
-                                                                                                               ("en,de,de_sub", "en,de,sub")])
+config.plugins.iptvplayer.serienstreamto_langpreference = ConfigSelection(default="de,de_sub,en", choices=[("de,de_sub,en", "de,sub,en"), ("de,en,de_sub", "de,en,sub"), ("de_sub,de,en", "sub,de,en"), ("de_sub,en,de", "sub,en,de"), ("en,de_sub,de", "en,sub,de"), ("en,de,de_sub", "en,de,sub")])
 config.plugins.iptvplayer.serienstreamto_login = ConfigText(default="", fixed_size=False)
 config.plugins.iptvplayer.serienstreamto_password = ConfigText(default="", fixed_size=False)
-config.plugins.iptvplayer.serienstreamto_host = ConfigText(default=DEFAULTHOST, fixed_size=False)
+config.plugins.iptvplayer.serienstreamto_hosts = ConfigSelection(default="http://186.2.175.5/", choices=[("http://186.2.175.5/", "http://186.2.175.5/"), ("https://s.to/", "https://s.to/"), ("https://serienstream.to/", "https://serienstream.to/")])
 
 
 def GetConfigList():
     optionList = []
     optionList.append(getConfigListEntry(_("Your language preference:"), config.plugins.iptvplayer.serienstreamto_langpreference))
-
     optionList.append(getConfigListEntry(_("e-mail") + ":", config.plugins.iptvplayer.serienstreamto_login))
     optionList.append(getConfigListEntry(_("password") + ":", config.plugins.iptvplayer.serienstreamto_password))
-    optionList.append(getConfigListEntry(_("host") + ":", config.plugins.iptvplayer.serienstreamto_host))
+    optionList.append(getConfigListEntry(_("host") + ":", config.plugins.iptvplayer.serienstreamto_hosts))
     return optionList
-###################################################
 
 
 def gettytul():
-    return config.plugins.iptvplayer.serienstreamto_host.value
+    return config.plugins.iptvplayer.serienstreamto_hosts.value
 
 
 class SerienStreamTo(CBaseHostClass, CaptchaHelper):
 
     def __init__(self):
         CBaseHostClass.__init__(self, {'history': 'SerienStreamTo.tv', 'cookie': 'serienstreamto.cookie'})
-        self.USER_AGENT = 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36'
+        self.USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:138.0) Gecko/20100101 Firefox/138.0'
         self.HEADER = {'User-Agent': self.USER_AGENT, 'Accept': 'text/html'}
         self.AJAX_HEADER = dict(self.HEADER)
         self.AJAX_HEADER.update({'X-Requested-With': 'XMLHttpRequest'})
-
         self.defaultParams = {'header': self.HEADER, 'use_cookie': True, 'load_cookie': True, 'save_cookie': True, 'cookiefile': self.COOKIE_FILE}
-
         self.MAIN_URL = gettytul()
         self.DEFAULT_ICON_URL = gettytul() + '/public/img/facebook.jpg'
-
         self.MAIN_CAT_TAB = [{'category': 'all_series', 'title': 'Alle Serien', 'url': self.getFullUrl('/serien-alphabet')},
                              {'category': 'list_abc', 'title': _('A-Z'), 'url': self.MAIN_URL},
                              {'category': 'list_genres', 'title': _('Genres'), 'url': self.MAIN_URL},
@@ -84,18 +56,15 @@ class SerienStreamTo(CBaseHostClass, CaptchaHelper):
                              {'category': 'list_items', 'title': _('Popular'), 'url': self.getFullUrl('/beliebte-serien')},
                              {'category': 'search', 'title': _('Search'), 'search_item': True, },
                              {'category': 'search_history', 'title': _('Search history'), }
-                            ]
-
+                             ]
+        self.ALL_SERIES_TAB = [{'category': 'all_letters', 'title': 'Alphabet', 'url': self.getFullUrl('/serien-alphabet')},
+                               {'category': 'all_genres', 'title': 'Genres', 'url': self.getFullUrl('/serien-genres')}, ]
         self.cacheLinks = {}
         self.cacheFilters = {}
         self.cookieHeader = ''
         self.login = ''
         self.password = ''
         self.loggedIn = None
-
-        self.ALL_SERIES_TAB = [{'category': 'all_letters', 'title': 'Alphabet', 'url': self.getFullUrl('/serien-alphabet')},
-                               {'category': 'all_genres', 'title': 'Genres', 'url': self.getFullUrl('/serien-genres')}, ]
-
         self.allCache = {'genres_list': [], 'genres_keys': {}, 'letters_list': [], 'letters_keys': {}}
 
     def getPage(self, baseUrl, params={}, post_data=None):
@@ -160,14 +129,14 @@ class SerienStreamTo(CBaseHostClass, CaptchaHelper):
             for item in data:
                 url = self.getFullUrl(self.cm.ph.getSearchGroups(item, '''href=['"]([^'^"]+?)['"]''')[0])
                 title = self.cleanHtmlStr(item)
-                letter = title.decode('utf-8')[0].upper()
-                if not letter.isalpha():
-                    letter = '#'
+                letter = ensure_str(title)[0].upper()
+                letter = letter if letter.isalpha() else '#'
                 letter = ensure_str(letter)
                 if letter not in self.allCache['letters_list']:
                     self.allCache['letters_list'].append(letter)
                     self.allCache['letters_keys'][letter] = []
                 self.allCache['letters_keys'][letter].append({'url': url, 'title': title})
+            self.allCache['letters_list'].sort()
 
         for letter in self.allCache['letters_list']:
             params = dict(cItem)
@@ -298,13 +267,13 @@ class SerienStreamTo(CBaseHostClass, CaptchaHelper):
                 continue
             title = self.cleanHtmlStr(tmp[1])
             try:
-                episodeNum = str(int(self.cm.ph.getSearchGroups(item, '''episode\-([0-9]+?)[^0-9]''')[0]))
+                episodeNum = str(int(self.cm.ph.getSearchGroups(item, r'''episode\-([0-9]+?)[^0-9]''')[0]))
             except Exception:
                 episodeNum = ''
             if '' != episodeNum and '' != seasonNum:
                 title = 's%se%s' % (seasonNum.zfill(2), episodeNum.zfill(2)) + ' - ' + title
 
-            langs = re.compile('/public/img/([a-z]+?)\.png').findall(item)
+            langs = re.compile(r'/public/img/([a-z]+?)\.png').findall(item)
             desc = '[{0}]'.format(' | '.join(langs)) + '[/br]' + cItem.get('desc', '')
             params = dict(cItem)
             params.update({'good_for_fav': True, 'title': '{0}: {1}'.format(seriesTitle, title), 'url': url, 'desc': desc})
@@ -366,7 +335,7 @@ class SerienStreamTo(CBaseHostClass, CaptchaHelper):
                 tmp = self.cm.ph.getAllItemsBeetwenMarkers(tmp, '<img ', '>')
                 for item in tmp:
                     key = self.cm.ph.getSearchGroups(item, '''data-lang-key=['"]([^'^"]+?)['"]''')[0]
-                    title = self.cm.ph.getSearchGroups(item, '''title=['"]([^'^"]+?)['"]''')[0] #self.cm.ph.getSearchGroups(item, '''src=['"]([^'^"]+?)['"]''')[0].split('/')[-1].repace('.png', '')
+                    title = self.cm.ph.getSearchGroups(item, '''title=['"]([^'^"]+?)['"]''')[0]  #self.cm.ph.getSearchGroups(item, '''src=['"]([^'^"]+?)['"]''')[0].split('/')[-1].repace('.png', '')
                     langMap[key] = title
 
                 data = self.cm.ph.getDataBeetwenMarkers(data, '<div class="changeLanguageBox"', '</ul>')[1]
@@ -376,7 +345,7 @@ class SerienStreamTo(CBaseHostClass, CaptchaHelper):
                     title = self.cleanHtmlStr(self.cm.ph.getDataBeetwenMarkers(item, '<h4>', '</h4>', withMarkers=False)[1])
                     url = strwithmeta(self.getFullUrl(self.cm.ph.getSearchGroups(item, '''href=['"]([^'^"]+?)['"]''')[0]), {'base_url': cItem['url']})
                     if url == '':
-                        url = strwithmeta(self.getFullUrl(self.cm.ph.getSearchGroups(item, '''data\-link\-target=['"]([^'^"]+?)['"]''')[0]), {'base_url': cItem['url']})
+                        url = strwithmeta(self.getFullUrl(self.cm.ph.getSearchGroups(item, r'''data\-link\-target=['"]([^'^"]+?)['"]''')[0]), {'base_url': cItem['url']})
                     urlTab.append({'name': '[{0}] {1}'.format(langMap.get(langId, _('Unknown')), title), 'lang_id': langId, 'url': url, 'need_resolve': 1})
 
                 if len(urlTab):
@@ -461,8 +430,8 @@ class SerienStreamTo(CBaseHostClass, CaptchaHelper):
         printDBG('tryTologin start')
 
         if self.login == config.plugins.iptvplayer.serienstreamto_login.value and \
-           self.password == config.plugins.iptvplayer.serienstreamto_password.value:
-           return
+            self.password == config.plugins.iptvplayer.serienstreamto_password.value:
+            return
 
         self.cm.clearCookie(self.COOKIE_FILE, ['__cfduid', 'cf_clearance'])
         self.login = config.plugins.iptvplayer.serienstreamto_login.value

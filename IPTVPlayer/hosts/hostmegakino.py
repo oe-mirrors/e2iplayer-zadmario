@@ -7,32 +7,35 @@ from Plugins.Extensions.IPTVPlayer.p2p3.UrlParse import urlparse
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 
+
 def GetConfigList():
     return []
 
-def gettytul():
-    return 'https://kkiste-to.me'
 
-class KKisteAG(CBaseHostClass):
+def gettytul():
+    return 'https://megakino.world'
+
+
+class MegaKino(CBaseHostClass):
 
     def __init__(self):
-        CBaseHostClass.__init__(self, {'history': 'kkiste.ag', 'cookie': 'kkiste.ag.cookie'})
+        CBaseHostClass.__init__(self, {'history': 'megakino', 'cookie': 'megakino.cookie'})
         self.USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:137.0) Gecko/20100101 Firefox/137.0'
         self.HEADER = {'User-Agent': self.USER_AGENT, 'Accept': 'text/html'}
         self.defaultParams = {'header': self.HEADER, 'use_cookie': True, 'load_cookie': True, 'save_cookie': True, 'cookiefile': self.COOKIE_FILE}
-        self.DEFAULT_ICON_URL = 'https://tarnkappe.info/wp-content/uploads/kkiste-logo.jpg'
         self.MAIN_URL = None
 
     def menu(self):
-        self.MAIN_URL = 'https://kkiste-to.me'
-        self.MAIN_CAT_TAB = [
-                            {'category': 'list_items', 'title': _("Movies"), 'link': self.getFullUrl('/kinofilme-online/')},
-                            {'category': 'list_items', 'title': _("Series"), 'link': self.getFullUrl('/serienstream-deutsch/')},
-                            {'category': 'list_items', 'title': _("Animation"), 'link': self.getFullUrl('/animation/')},
-                            {'category': 'list_year', 'title': _("Year"), 'link': self.MAIN_URL},
-                            {'category': 'list_genres', 'title': 'Genres', 'link': self.MAIN_URL},
-                            {'category': 'search', 'title': _('Search'), 'search_item': True, },
-                            {'category': 'search_history', 'title': _('Search history'), }]
+        self.MAIN_URL = 'https://megakino.world'
+        self.MENU = [
+                    {'category': 'list_items', 'title': _("Movies"), 'link': self.getFullUrl('/films')},
+                    {'category': 'list_items', 'title': "Kino Filme", 'link': self.getFullUrl('/kinofilme')},
+                    {'category': 'list_items', 'title': _("Series"), 'link': self.getFullUrl('/serials')},
+                    {'category': 'list_items', 'title': _("Animation"), 'link': self.getFullUrl('/multfilm')},
+                    {'category': 'list_items', 'title': "Dokumentationen", 'link': self.getFullUrl('/documentary')},
+                    {'category': 'list_genres', 'title': 'Genres'},
+                    {'category': 'search', 'title': _('Search'), 'search_item': True, },
+                    {'category': 'search_history', 'title': _('Search history'), }]
 
     def getPage(self, baseUrl, addParams={}, post_data=None):
         if addParams == {}:
@@ -48,22 +51,21 @@ class KKisteAG(CBaseHostClass):
         return strwithmeta(url, {'Cookie': cookieHeader, 'User-Agent': self.USER_AGENT})
 
     def listItems(self, cItem, nextCategory):
-        printDBG("KKisteAG.listItems |%s|" % cItem)
+        printDBG("MegaKino.listItems |%s|" % cItem)
         url = cItem['link']
         sts, data = self.getPage(url)
         if not sts:
             return
-        nextPage = self.cm.ph.getSearchGroups(data, 'next"><a href="([^"]+)')[0]
-        data = self.cm.ph.getAllItemsBeetwenMarkers(data, 'class="short">', '</article>')
-
+        nextPage = self.cm.ph.getSearchGroups(data, 'class="pagination.*?href="([^"]+)">\D')[0]
+        data = self.cm.ph.getAllItemsBeetwenMarkers(data, 'class="poster grid-item', '</a>')
         for item in data:
             url = self.getFullUrl(self.cm.ph.getSearchGroups(item, 'href="([^"]+)')[0])
-            icon = self.getFullIconUrl(self.cm.ph.getSearchGroups(item, r'img src="([^"]+)')[0])
-            title = self.cleanHtmlStr(self.cm.ph.getSearchGroups(item, 'href="[^"]+">([^<]+)')[0])
-            desc = self.cleanHtmlStr(self.cm.ph.getSearchGroups(item, 'st-desc">([^<]+)')[0])
+            # icon = self.getFullIconUrl(self.cm.ph.getSearchGroups(item, r'src="([^"]+)')[0]) webp
+            title = self.cleanHtmlStr(self.cm.ph.getSearchGroups(item, 'alt="([^"]+)')[0])
+            desc = self.cleanHtmlStr(self.cm.ph.getSearchGroups(item, 'line-clamp">([^<]+)')[0])
             params = dict(cItem)
-            params.update({'good_for_fav': True, 'category': nextCategory, 'title': title, 'link': url, 'icon': icon, 'desc': desc})
-            if 'taffel' in title or 'serie' in title:
+            params.update({'good_for_fav': True, 'category': nextCategory, 'title': title, 'link': url, 'desc': desc})
+            if 'taffel' in title or 'documentary' in url:
                 params.update({'category': 'list_episodes'})
                 self.addDir(params)
             else:
@@ -74,95 +76,76 @@ class KKisteAG(CBaseHostClass):
             self.addDir(params)
 
     def listEpisodes(self, cItem):
-        printDBG("KKisteAG.listEpisodes")
+        printDBG("MegaKino.listEpisodes")
         url = cItem['link']
-        icon = cItem['icon']
         sts, data = self.getPage(url)
         if not sts:
             return
         desc = self.cleanHtmlStr(self.cm.ph.getSearchGroups(data, '<meta name="description" content="([^"]+)')[0])
-        data = self.cm.ph.getAllItemsBeetwenMarkers(data, '<li id="serie', '</ul>')
+        data = self.cm.ph.getAllItemsBeetwenMarkers(data, '<option value="e', '</option>')
         for item in data:
-            episode = self.cleanHtmlStr(self.cm.ph.getSearchGroups(item, '><a href="#">([^<]+)')[0])
+            episode = self.cleanHtmlStr(self.cm.ph.getSearchGroups(item, 'value="[^"]+">([^<]+)')[0])
+            ep = self.cleanHtmlStr(self.cm.ph.getSearchGroups(item, 'value="([^"]+)')[0])
             title = cItem['title'] + " - " + episode
             params = dict(cItem)
-            params.update({'good_for_fav': True, 'title': title, 'link': url, 'icon': icon, 'desc': desc, 'episode': episode})
+            params.update({'good_for_fav': True, 'title': title, 'link': url, 'desc': desc, 'episode': ep})
             self.addVideo(params)
 
-    def listGenres(self, cItem, t):
-        printDBG("KKisteAG.Genres")
-        url = cItem['link']
-        sts, data = self.getPage(url)
+    def listGenres(self, cItem):
+        printDBG("MegaKino.Genres")
+        sts, data = self.getPage(self.MAIN_URL)
         if not sts:
             return
-        data = self.cm.ph.getAllItemsBeetwenMarkers(data, '>%s<' % t, '</ul>')[0]
-        data = re.compile('href="([^"]+).*?>([^<]+)', re.DOTALL).findall(data)
-
+        data = self.cm.ph.getAllItemsBeetwenMarkers(data, 'side-block__title">Genres</div>', '</ul>')[0]
+        data = re.compile('href="([^"]+)">([^<]+)</a>', re.DOTALL).findall(data)
         for url, title in data:
             params = dict(cItem)
-            params.update({'good_for_fav': True, 'category': 'list_items', 'title': title.replace(' stream', ''), 'link': self.getFullUrl(url), 'icon': '', 'desc': ''})
+            params.update({'good_for_fav': True, 'category': 'list_items', 'title': title, 'link': self.getFullUrl(url)})
             self.addDir(params)
 
     def listSearchResult(self, cItem, searchPattern, searchType):
-        printDBG("KKisteAG.listSearchResult cItem[%s], searchPattern[%s] searchType[%s]" % (cItem, searchPattern, searchType))
+        printDBG("MegaKino.listSearchResult cItem[%s], searchPattern[%s] searchType[%s]" % (cItem, searchPattern, searchType))
         cItem = dict(cItem)
         cItem['link'] = self.getFullUrl('index.php?do=search&subaction=search&story=%s' % urllib_quote(searchPattern))
         self.listItems(cItem, 'video')
 
     def getLinksForVideo(self, cItem):
-        printDBG("KKisteAG.getLinksForVideo [%s]" % cItem)
+        printDBG("MegaKino.getLinksForVideo [%s]" % cItem)
         linksTab = []
         sts, data = self.getPage(cItem['link'], self.defaultParams)
         if not sts:
             return []
         if cItem.get('episode'):
-            data = self.cm.ph.getAllItemsBeetwenMarkers(data, cItem.get('episode'), '</ul>')[0]
-        data = re.compile('link="([^"]+)', re.DOTALL).findall(data)
-
+            data = self.cm.ph.getAllItemsBeetwenMarkers(data, 'id="%s' % cItem.get('episode'), '</select>')[0]
+            data = re.compile('value="([^"]+)', re.DOTALL).findall(data)
+        else:
+            data = re.compile('film_main" data-src="([^"]+)', re.DOTALL).findall(data)
         for url in data:
-            if "vod/mega" in url or "youtube" in url:
-                continue
             if url.startswith('//'):
                 url = "https:" + url
             title = urlparse(url).netloc.split('.')[0]
-            if 'mdy48tn97' in title.lower(): 
-                title = title.replace('mdy48tn97', 'Mixdrop').lower()
-            
             linksTab.append({'name': title.capitalize(), 'url': url, 'need_resolve': 1})
         if linksTab:
             cItem['url'] = linksTab
         return linksTab
 
     def getVideoLinks(self, videoUrl):
-        printDBG("KKisteAG.getVideoLinks [%s]" % videoUrl)
+        printDBG("MegaKino.getVideoLinks [%s]" % videoUrl)
         urlTab = []
         if self.cm.isValidUrl(videoUrl):
             return self.up.getVideoLinkExt(videoUrl)
         return urlTab
 
     def getArticleContent(self, cItem):
-        printDBG("KKisteAG.getArticleContent [%s]" % cItem)
+        printDBG("Movie4K.getArticleContent [%s]" % cItem)
         otherInfo = {}
         sts, data = self.getPage(cItem['link'])
         if not sts:
             return []
-        desc = self.cleanHtmlStr(self.cm.ph.getSearchGroups(data, 'video-box clearfix"><strong>([^"]+)</div>')[0])
-        desc = desc if desc else c_item.get('desc', '')
-        actors = self.cleanHtmlStr(self.cm.ph.getSearchGroups(data, "Darsteller:(.*?)</div>")[0])
-        if actors:
-            otherInfo['actors'] = actors
-        c = self.cleanHtmlStr(self.cm.ph.getSearchGroups(data, "Regisseur:(.*?)</div>")[0])
-        if c:
-            otherInfo['director'] = c
-        released = self.cleanHtmlStr(self.cm.ph.getSearchGroups(data, "Jahr:(.*?)</div>")[0])
-        if released:
-            otherInfo['released'] = released
-        duration = self.cleanHtmlStr(self.cm.ph.getSearchGroups(data, "Zeit:(.*?)</div>")[0])
-        if duration:
-            otherInfo['duration'] = duration
+        desc = self.cleanHtmlStr(self.cm.ph.getSearchGroups(data, 'description" content="([^"]+)')[0])
+        desc = desc if desc else cItem.get('desc', '')
         title = cItem['title']
-        icon = cItem.get('icon', self.DEFAULT_ICON_URL)
-        return [{'title': self.cleanHtmlStr(title), 'text': self.cleanHtmlStr(desc), 'images': [{'title': '', 'url': self.getFullUrl(icon)}], 'other_info': otherInfo}]
+        return [{'title': self.cleanHtmlStr(title), 'text': desc}]
 
     def handleService(self, index, refresh=0, searchPattern='', searchType=''):
         printDBG('handleService start')
@@ -174,15 +157,13 @@ class KKisteAG(CBaseHostClass):
         printDBG("handleService: |||||||||||||||||||||||||||||||||||| name[%s], category[%s] " % (name, category))
         self.currList = []
         if name == None:
-            self.listsTab(self.MAIN_CAT_TAB, {'name': 'category'})
+            self.listsTab(self.MENU, {'name': 'category'})
         elif 'list_items' == category:
             self.listItems(self.currItem, 'video')
         elif 'list_episodes' == category:
             self.listEpisodes(self.currItem)
-        elif 'list_year' == category:
-            self.listGenres(self.currItem, "Release Jahre")
         elif 'list_genres' == category:
-            self.listGenres(self.currItem, "Genres")
+            self.listGenres(self.currItem)
         elif category in ["search", "search_next_page"]:
             cItem = dict(self.currItem)
             cItem.update({'search_item': False, 'name': 'category'})
@@ -197,7 +178,7 @@ class KKisteAG(CBaseHostClass):
 class IPTVHost(CHostBase):
 
     def __init__(self):
-        CHostBase.__init__(self, KKisteAG(), True, [])
+        CHostBase.__init__(self, MegaKino(), True, [])
 
     def withArticleContent(self, cItem):
         return cItem.get('category', '') == 'video'

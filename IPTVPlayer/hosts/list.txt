@@ -25,6 +25,7 @@ hostdel
 hostdixmax
 hostdokumentalnenet
 hostdrdk
+hosteinschalten
 hostekinotv
 hostekstraklasatv
 hosteskago
@@ -41,8 +42,8 @@ hostfilmativa
 hostfilmehdnet
 hostfilmeonlineto
 hostfilmezz
-hostfilmowoclub
 hostfilmovizijastudio
+hostfilmowoclub
 hostfilmpalast
 hostfilmstreamvkcom
 hostfreediscpl
@@ -50,6 +51,7 @@ hostfullmatchtvcom
 hostgamatocom
 hostgledalica
 hostgreekdocumentaries3
+hosthdfilme
 hosthdfilmetv
 hosthdfull
 hosthdpopcornscom
@@ -62,6 +64,8 @@ hostitvcom
 hostjoemonsterorg
 hostkabarety
 hostkijknl
+hostkinoger
+hostkinokiste
 hostkinomoc
 hostkinox
 hostkisscartoonme
@@ -75,7 +79,11 @@ hostmaxtvgo
 hostmeczykipl
 hostmediasetplay
 hostmediayou
+hostmegakino
+hostmoflixstream
 hostmooviecc
+hostmovie2k
+hostmovie4k
 hostmovienightws
 hostmovizlandcom
 hostmrpiracy
@@ -113,6 +121,7 @@ hostsolarmovie
 hostspiegeltv
 hostsportdeutschland
 hostspryciarze
+hoststreamcloud
 hoststreamcomplet
 hoststreamliveto
 hostsvtplayse
@@ -120,6 +129,7 @@ hosttainieskaiseirestv
 hosttantifilmorg
 hostted
 hostthewatchseriesto
+hosttopstreamfilm
 hosttvgrypl
 hosttvjworg
 hosttvn24
@@ -147,5 +157,5 @@ hostwptv
 hostxrysoise
 hostyoutube
 hostzaluknijcc
-hostzerioncc
 hostzdfmediathek
+hostzerioncc
