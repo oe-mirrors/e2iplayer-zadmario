@@ -47,10 +47,11 @@ This repository has no control over the streams, links, or the legality of the c
 
 ---
 
-Aby zainstalować wydaj poniższą komendę z telnecie / To install run the following command in telnet:
+### 📂 Installation
 
-wget -q "--no-check-certificate" https://gitlab.com/zadmario/e2iplayer/-/raw/master/install-e2iplayer.sh?inline=false -O - | /bin/sh
+To install the plugin manually via Telnet Command connect to your enigma2 device via SSH/Telnet, (eg. `ssh root@boxip`), then use Install script for Telnet installation
+```bash
+wget -q "https://raw.githubusercontent.com/oe-mirrors/e2iplayer-zadmario/refs/heads/master/e2iplayer_install.sh" -O - | /bin/sh
+```
 
-jeśli nie zadziała, spróbować z poniższą:
-
-wget -q "https://gitlab.com/zadmario/e2iplayer/-/raw/master/install-e2iplayer.sh?inline=false" -O - | /bin/sh
+---
