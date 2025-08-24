@@ -35,7 +35,7 @@ class CUrlItem:
         else:
             self.url = str(url)
 
-        self.urlNeedsResolve = urlNeedsResolve #  additional request to host is needed to resolv this url (url is not direct link)
+        self.urlNeedsResolve = urlNeedsResolve  # additional request to host is needed to resolv this url (url is not direct link)
 ## class CDisplayListItem
 # define attribiutes for item of diplay list
 # communicate display layer with host
@@ -110,7 +110,7 @@ class CDisplayListItem:
         self.textColor = str(textColor)
 
         # used only for TYPE_VIDEO item
-        self.urlItems = urlItems # url to VIDEO
+        self.urlItems = urlItems  # url to VIDEO
         # links are not available the separate request is needed to get links
         self.urlSeparateRequest = urlSeparateRequest
         # used only for TYPE_SEARCH item
@@ -511,7 +511,7 @@ class CHostBase(IHost):
         return RetHost(RetHost.OK, value=convList)
 
     def getPrevList(self, refresh=0):
-        if(len(self.listOfprevList) > 0):
+        if (len(self.listOfprevList) > 0):
             hostList = self.listOfprevList.pop()
             hostCurrItem = self.listOfprevItems.pop()
             self.host.setCurrList(hostList)
@@ -699,7 +699,7 @@ class CBaseHostClass:
             except Exception:
                 data = json_loads(data)
             try:
-                data['country'] = data.get('countryCode', 'N/A') #to avoid exceptions when something went wrong
+                data['country'] = data.get('countryCode', 'N/A')  # to avoid exceptions when something went wrong
             except Exception:
                 printDBG(str(data))
                 data = {"country": "N/A"}
@@ -826,6 +826,12 @@ class CBaseHostClass:
         self.currList.append(params)
         return
 
+    def searchItems(self):
+        return [
+            {'category': 'search', 'title': _('Search'), 'search_item': True, },
+            {'category': 'search_history', 'title': _("Search history"), 'desc': _("History of searched phrases.")}
+        ]
+
     def listsHistory(self, baseItem={'name': 'history', 'category': 'Wyszukaj'}, desc_key='plot', desc_base=(_("Type: "))):
         list = self.history.getHistoryList()
         for histItem in list:
@@ -893,7 +899,7 @@ class CBaseHostClass:
                 self.currItem = {"name": None}
             else:
                 self.currItem = self.currList[index]
-        if 2 == refresh: # refresh for more items
+        if 2 == refresh:  # refresh for more items
             printDBG(">> endHandleService index[%s]" % index)
             # remove item more and store items before and after item more
             self.beforeMoreItemList = self.currList[0:index]
@@ -905,7 +911,7 @@ class CBaseHostClass:
                 self.currItem = self.currList[index]
 
     def endHandleService(self, index, refresh):
-        if 2 == refresh: # refresh for more items
+        if 2 == refresh:  # refresh for more items
             currList = self.currList
             self.currList = self.beforeMoreItemList
             for item in currList:
