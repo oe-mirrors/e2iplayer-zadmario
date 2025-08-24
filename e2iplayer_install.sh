@@ -189,11 +189,11 @@ fi
 # Unzip the E2iPlayer Source Package in the Directory (Variable TMP).
 echo -e "\nUnzip E2iPlayer Source Package to;\n$TMP ..."
 if [ -e $TMP/python3.tar.gz ] ; then
-	$EXTRACT $TMP/python3.tar.gz -C /$TMP > /dev/null
+	$EXTRACT $TMP/python3.tar.gz -C $TMP > /dev/null
 elif [ -e $TMP/e2iplayer-master.tar.gz ] ; then
-	$EXTRACT $TMP/e2iplayer-master.tar.gz -C /$TMP > /dev/null
+	$EXTRACT $TMP/e2iplayer-master.tar.gz -C $TMP > /dev/null
 elif [ -e $TMP/master.tar.gz ] ; then
-	$EXTRACT $TMP/master.tar.gz -C /$TMP > /dev/null
+	$EXTRACT $TMP/master.tar.gz -C $TMP > /dev/null
 elif [ -e $TMP/master.zip ] ; then
 	$EXTRACT_ZIP x $TMP/master.zip -o$TMP > /dev/null
 fi
