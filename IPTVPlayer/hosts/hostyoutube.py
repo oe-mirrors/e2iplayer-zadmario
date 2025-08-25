@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
-
+# Last Modified: 31.07.2025
 ###################################################
 # LOCAL import
 ###################################################
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
 from Plugins.Extensions.IPTVPlayer.components.ihost import CHostBase, CBaseHostClass, CDisplayListItem
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, IsExecutable, printExc, byteify
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, IsExecutable, printExc, byteify, GetSearchHistoryDir
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.tools.iptvfilehost import IPTVFileHost
 from Plugins.Extensions.IPTVPlayer.libs.youtubeparser import YouTubeParser
-from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
-###################################################
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote_plus
+###################################################
+
 ###################################################
 # FOREIGN import
 ###################################################
@@ -20,9 +20,16 @@ try:
 except Exception:
     import simplejson as json
 import re
+import os
+import codecs
 from Components.config import config, ConfigDirectory, getConfigListEntry
 ###################################################
 
+###################################################
+# E2 GUI COMMPONENTS
+###################################################
+from Screens.MessageBox import MessageBox
+###################################################
 ###################################################
 # Config options for HOST
 ###################################################
@@ -60,17 +67,15 @@ class Youtube(CBaseHostClass):
         self.UTLIST_FILE = 'ytlist.txt'
         self.DEFAULT_ICON_URL = 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b8/YouTube_Logo_2017.svg/640px-YouTube_Logo_2017.svg.png'
         self.MAIN_GROUPED_TAB = [{'category': 'from_file', 'title': _("User links"), 'desc': _("User links stored in the ytlist.txt file.")},
-                                 {'category': 'search', 'title': _("Search"), 'desc': _("Search youtube materials "), 'search_item': True},
-                                 {'category': 'feeds', 'title': _("Trending"), 'desc': _("Browse youtube trending feeds")},
-                                 {'category': 'search_history', 'title': _("Search history"), 'desc': _("History of searched phrases.")}]
+                                 {'category': 'feeds', 'title': _("Trending"), 'desc': _("Browse youtube trending feeds")}] + self.searchItems()
 
         self.SEARCH_TYPES = [(_("Video"), "video"),
                                (_("Channel"), "channel"),
                                (_("Playlist"), "playlist"),
-                              #(_("Movie"),    "movie"   ),
+                              # (_("Movie"),    "movie"   ),
                                (_("Live"), "live")]
-                              #("Program",            "show"    ),
-                              #("traylist",           "traylist"),
+                              # ("Program",            "show"    ),
+                              # ("traylist",           "traylist"),
         self.ytp = YouTubeParser()
         self.currFileHost = None
 
@@ -80,7 +85,7 @@ class Youtube(CBaseHostClass):
             category = 'playlist'
         elif url.split('?')[0].endswith('/playlists'):
             category = 'playlists'
-        elif None != re.search('/watch\?v=[^\&]+?\&list=', url):
+        elif None is not re.search(r'/watch\?v=[^\&]+?\&list=', url):
             category = 'traylist'
         elif 'user/' in url or (('channel/' in url or '/c/' in url or '/@' in url) and not url.endswith('/live')):
             category = 'channel'
@@ -178,15 +183,15 @@ class Youtube(CBaseHostClass):
            params = {'category': 'feeds_video', 'title': title, 'url': url}
            self.addDir(params)
            title = _("Music")
-           url = "https://www.youtube.com/feed/trending?bp=4gINGgt5dG1hX2NoYXJ0cw%3D%3D"
+           url = "https://www.youtube.com/channel/UC-9-kyTW8ZkZNDHQJ6FgpwQ"
            params = {'category': 'feeds_video', 'title': title, 'url': url}
            self.addDir(params)
            title = _("Games")
-           url = "https://www.youtube.com/feed/trending?bp=4gIcGhpnYW1pbmdfY29ycHVzX21vc3RfcG9wdWxhcg%3D%3D"
+           url = "https://www.youtube.com/gaming"
            params = {'category': 'feeds_video', 'title': title, 'url': url}
            self.addDir(params)
            title = _("Movies")
-           url = "https://www.youtube.com/feed/trending?bp=4gIKGgh0cmFpbGVycw%3D%3D"
+           url = "https://www.youtube.com/feed/storefront?bp=ogUCKAU%3D"
            params = {'category': 'feeds_video', 'title': title, 'url': url}
            self.addDir(params)
            title = _("Live")
@@ -195,6 +200,14 @@ class Youtube(CBaseHostClass):
            self.addDir(params)
            title = _("News")
            url = "https://www.youtube.com/channel/UCYfdidRxbB8Qhf0Nx7ioOYw"
+           params = {'category': 'feeds_video', 'title': title, 'url': url}
+           self.addDir(params)
+           title = _("Shorts")
+           url = "https://www.youtube.com/shorts/I-GhnPL3C8Q"
+           params = {'category': 'feeds_video', 'title': title, 'url': url}
+           self.addDir(params)
+           title = _("Podcasts")
+           url = "https://www.youtube.com/podcasts"
            params = {'category': 'feeds_video', 'title': title, 'url': url}
            self.addDir(params)
            title = _("Sport")
@@ -214,7 +227,7 @@ class Youtube(CBaseHostClass):
         page = cItem.get("page", '1')
 
         if "channel" == category:
-            if not ('browse' in url) and (not 'ctoken' in url):
+            if 'browse' not in url and ('ctoken' not in url):
                 if url.endswith('/videos'):
                     url = url + '?flow=list&view=0&sort=dd'
                 else:
@@ -300,7 +313,7 @@ class Youtube(CBaseHostClass):
         printDBG("Youtube.handleService: ---------> name[%s], category[%s] " % (name, category))
         self.currList = []
 
-        if None == name:
+        if None is name:
             self.listMainMenu()
         elif 'from_file' == category:
             self.listCategory(self.currItem)
@@ -312,12 +325,12 @@ class Youtube(CBaseHostClass):
             self.listItems(self.currItem)
         elif category == 'sub_items':
             self.listSubItems(self.currItem)
-        #SEARCH
+        # SEARCH
         elif category in ["search", "search_next_page"]:
             cItem = dict(self.currItem)
             cItem.update({'search_item': False, 'name': 'category'})
             self.listSearchResult(cItem, searchPattern, searchType)
-        #HISTORIA SEARCH
+        # HISTORY SEARCH
         elif category == "search_history":
             self.listsHistory({'name': 'history', 'category': 'search'}, 'desc', _("Type: "))
         else:
