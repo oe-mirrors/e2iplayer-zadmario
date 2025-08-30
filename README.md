@@ -54,4 +54,9 @@ To install the plugin manually via Telnet Command connect to your enigma2 device
 wget -q "https://raw.githubusercontent.com/oe-mirrors/e2iplayer-zadmario/refs/heads/master/e2iplayer_install.sh" -O - | /bin/sh
 ```
 
+A script alternative for people with an image without the necessary deeps on the feed. Like VTI or Dream. The script also installs hostxxx.
+```bash
+wget -q "https://raw.githubusercontent.com/oe-mirrors/e2iplayer-zadmario/refs/heads/master/install-e2iplayer.sh" -O - | /bin/sh
+```
+
 ---
