@@ -65,17 +65,17 @@ class Youtube(CBaseHostClass):
         printDBG("Youtube.__init__")
         CBaseHostClass.__init__(self, {'history': 'ytlist', 'cookie': 'youtube.cookie'})
         self.UTLIST_FILE = 'ytlist.txt'
-        self.DEFAULT_ICON_URL = 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b8/YouTube_Logo_2017.svg/640px-YouTube_Logo_2017.svg.png'
+        self.DEFAULT_ICON_URL = 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/20/YouTube_2024.svg/960px-YouTube_2024.svg.png'
         self.MAIN_GROUPED_TAB = [{'category': 'from_file', 'title': _("User links"), 'desc': _("User links stored in the ytlist.txt file.")},
                                  {'category': 'feeds', 'title': _("Trending"), 'desc': _("Browse youtube trending feeds")}] + self.searchItems()
 
         self.SEARCH_TYPES = [(_("Video"), "video"),
                                (_("Channel"), "channel"),
                                (_("Playlist"), "playlist"),
-                              # (_("Movie"),    "movie"   ),
+                               (_("Movie"), "movie"),
                                (_("Live"), "live")]
-                              # ("Program",            "show"    ),
-                              # ("traylist",           "traylist"),
+                               # (_("Program"), "show"),
+                               # (_("traylist"), "traylist"),
         self.ytp = YouTubeParser()
         self.currFileHost = None
 
@@ -132,6 +132,7 @@ class Youtube(CBaseHostClass):
                     if 'video' == category:
                         self.addVideo(params)
                     elif 'more' == category:
+                        params.update({'image_type': 'NEXT'})
                         self.addMore(params)
                     else:
                         self.addDir(params)
@@ -148,6 +149,7 @@ class Youtube(CBaseHostClass):
                     if 'video' == category:
                         self.addVideo(params)
                     elif 'more' == category:
+                        params.update({'image_type': 'NEXT'})
                         self.addMore(params)
                     else:
                         self.addDir(params)
@@ -178,20 +180,16 @@ class Youtube(CBaseHostClass):
                 params = {'title': title, 'url': url, 'icon': icon, 'desc': desc}
                 self.addVideo(params)
         else:
-           title = _("Trending")
-           url = "https://www.youtube.com/feed/trending"
+           title = _("Movies")
+           url = "https://www.youtube.com/results?search_query=movies"
            params = {'category': 'feeds_video', 'title': title, 'url': url}
            self.addDir(params)
            title = _("Music")
-           url = "https://www.youtube.com/channel/UC-9-kyTW8ZkZNDHQJ6FgpwQ"
+           url = "https://www.youtube.com/results?search_query=music"
            params = {'category': 'feeds_video', 'title': title, 'url': url}
            self.addDir(params)
            title = _("Games")
-           url = "https://www.youtube.com/gaming"
-           params = {'category': 'feeds_video', 'title': title, 'url': url}
-           self.addDir(params)
-           title = _("Movies")
-           url = "https://www.youtube.com/feed/storefront?bp=ogUCKAU%3D"
+           url = "https://www.youtube.com/results?search_query=games"
            params = {'category': 'feeds_video', 'title': title, 'url': url}
            self.addDir(params)
            title = _("Live")
@@ -203,7 +201,7 @@ class Youtube(CBaseHostClass):
            params = {'category': 'feeds_video', 'title': title, 'url': url}
            self.addDir(params)
            title = _("Shorts")
-           url = "https://www.youtube.com/shorts/I-GhnPL3C8Q"
+           url = "https://www.youtube.com/results?search_query=Shorts"
            params = {'category': 'feeds_video', 'title': title, 'url': url}
            self.addDir(params)
            title = _("Podcasts")
@@ -212,6 +210,10 @@ class Youtube(CBaseHostClass):
            self.addDir(params)
            title = _("Sport")
            url = "https://www.youtube.com/channel/UCEgdi0XIXXZ-qJOFPf4JSKw"
+           params = {'category': 'feeds_video', 'title': title, 'url': url}
+           self.addDir(params)
+           title = _("Knowledge")
+           url = "https://www.youtube.com/channel/UCtFRv9O2AHqOZjjynzrv-xg"
            params = {'category': 'feeds_video', 'title': title, 'url': url}
            self.addDir(params)
 
@@ -265,6 +267,7 @@ class Youtube(CBaseHostClass):
             if 'video' == item['type']:
                 self.addVideo(item)
             elif 'more' == item['type']:
+                item.update({'image_type': 'NEXT'})
                 self.addMore(item)
             else:
                 if item['category'] in ["channel", "playlist", "movie", "traylist"]:
