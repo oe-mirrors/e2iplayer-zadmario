@@ -4,7 +4,7 @@ This is a mirror of https://gitlab.com/zadmario/e2iplayer
 
 ---
 
-<img src="https://github.com/oe-mirrors/e2iplayer/blob/python3/e2ilogo2.png"> <img src="https://github.com/oe-mirrors/e2iplayer/blob/python3/e2ilogo.png">
+<img src="https://github.com/oe-mirrors/e2iplayer-zadmario/blob/master/e2ilogo2.png"> <img src="https://github.com/oe-mirrors/e2iplayer-zadmario/blob/master/e2ilogo.png">
 
 
 ### 📦 Overview
