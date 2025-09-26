@@ -195,6 +195,7 @@ config.plugins.iptvplayer.numOfRow = ConfigSelection(default="0", choices=[("1",
 config.plugins.iptvplayer.numOfCol = ConfigSelection(default="0", choices=[("1", "1"), ("2", "2"), ("3", "3"), ("4", "4"), ("5", "5"), ("6", "6"), ("7", "7"), ("8", "8"), ("0", "auto")])
 
 config.plugins.iptvplayer.skin = ConfigSelection(default="auto", choices=GetSkinsList())
+config.plugins.iptvplayer.use_colors = ConfigYesNo(default=True)
 
 #Pin code
 from Plugins.Extensions.IPTVPlayer.components.iptvpin import IPTVPinWidget
@@ -398,6 +399,7 @@ class ConfigMenu(ConfigBaseWidget):
                 list.append(getConfigListEntry(_("Set pin code"), config.plugins.iptvplayer.fakePin))
 
             list.append(getConfigListEntry(_("Skin"), config.plugins.iptvplayer.skin))
+            list.append(getConfigListEntry(_("Use colors"), config.plugins.iptvplayer.use_colors))
             list.append(getConfigListEntry(_("Display thumbnails"), config.plugins.iptvplayer.showcover))
             if config.plugins.iptvplayer.showcover.value:
                 list.append(getConfigListEntry(_("    Allowed formats of thumbnails"), config.plugins.iptvplayer.allowedcoverformats))
