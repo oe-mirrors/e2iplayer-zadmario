@@ -91,57 +91,10 @@ class E2iPlayerWidget(Screen):
         IPTV_VERSION = GetIPTVPlayerVerstion()
     screenwidth = getDesktop(0).size().width()
     if screenwidth and screenwidth == 1920:
-        skin = """
-                    <screen position="center,center" size="1590,825" title="E2iPlayer %s">
-                            <ePixmap position="5,9" zPosition="4" size="30,30" pixmap="%s" transparent="1" alphatest="on" />
-                            <ePixmap position="180,9" zPosition="4" size="30,30" pixmap="%s" transparent="1" alphatest="on" />
-                            <ePixmap position="385,9" zPosition="4" size="30,30" pixmap="%s" transparent="1" alphatest="on" />
-                            <ePixmap position="700,9" zPosition="4" size="30,30" pixmap="%s" transparent="1" alphatest="on" />
-                            <widget render="Label" source="key_red" position="45,9" size="140,32" zPosition="5" valign="center" halign="left" backgroundColor="black" font="Regular;32" transparent="1" foregroundColor="white" shadowColor="black" shadowOffset="-1,-1" />
-                            <widget render="Label" source="key_yellow" position="220,9" size="180,32" zPosition="5" valign="center" halign="left" backgroundColor="black" font="Regular;32" transparent="1" foregroundColor="white" shadowColor="black" shadowOffset="-1,-1" />
-                            <widget name="key_green" position="425,9" size="300,32" zPosition="5" valign="center" halign="left" backgroundColor="black" font="Regular;32" transparent="1" foregroundColor="white" shadowColor="black" shadowOffset="-1,-1" />
-                            <widget render="Label" source="key_blue" position="740,9" size="140,32" zPosition="5" valign="center" halign="left" backgroundColor="black" font="Regular;32" transparent="1" foregroundColor="white" shadowColor="black" shadowOffset="-1,-1" />
-                            <widget name="headertext" position="15,55" zPosition="1" size="1080,30" font="Regular;30" transparent="1" backgroundColor="#00000000" />
-                            <widget name="statustext" position="15,148" zPosition="1" size="985,120" font="Regular;30" halign="center" valign="center" transparent="1" backgroundColor="#00000000" />
-                            <widget name="list" position="5,115" zPosition="2" size="860,690" enableWrapAround="1" scrollbarMode="showOnDemand" transparent="1" backgroundColor="#00000000" />
-                            <widget name="console" position="1020,310" zPosition="1" size="500,630" font="Regular;26" transparent="1" backgroundColor="#00000000" />
-                            <widget name="cover" zPosition="2" position="1020,80" size="244,280" alphatest="blend" />
-                            <widget name="playerlogo" zPosition="4" position="1264,3" size="240,80" alphatest="blend" />
-                            <widget name="sequencer" position="0,0" zPosition="6" size="1090,625" font="Regular;160" halign="center" valign="center" transparent="1" backgroundColor="#00000000" />
-                            <widget name="spinner"   zPosition="2" position="463,200" size="16,16" transparent="1" alphatest="blend" />
-                            <widget name="spinner_1" zPosition="1" position="463,200" size="16,16" transparent="1" alphatest="blend" />
-                            <widget name="spinner_2" zPosition="1" position="479,200" size="16,16" transparent="1" alphatest="blend" />
-                            <widget name="spinner_3" zPosition="1" position="495,200" size="16,16" transparent="1" alphatest="blend" />
-                            <widget name="spinner_4" zPosition="1" position="511,200" size="16,16" transparent="1" alphatest="blend" />
-                    </screen>
-                """ % (IPTV_VERSION, GetIconDir('red.png'), GetIconDir('yellow.png'), GetIconDir('green.png'), GetIconDir('blue.png'))
+        sv = (1770, 930, 45, 15, 45, 45, GetIconDir("red.png"), 428, 15, 45, 45, GetIconDir("green.png"), 818, 15, 45, 45, GetIconDir("yellow.png"), 1208, 15, 45, 45, GetIconDir("blue.png"), 98, 15, 315, 41, 30, 488, 15, 315, 41, 30, 878, 15, 315, 41, 30, 1329, 15, 315, 41, 30, 8, 75, 1767, 41, 30, 0, 255, 1770, 182, 30, 428, 120, 1335, 560, 8, 690, 1767, 240, 30, 8, 120, 417, 555, 1583, 7, 180, 60, 8, 683, 1767, 3, 0, 0, 1770, 930, 240, 840, 300, 16, 16, 840, 300, 16, 16, 856, 300, 16, 16, 872, 300, 16, 16, 888, 300, 16, 16)
     else:
-        skin = """
-                    <screen position="center,center" size="1090,525" title="E2iPlayer %s">
-                            <ePixmap position="30,9" zPosition="4" size="30,30" pixmap="%s" transparent="1" alphatest="on" />
-                            <ePixmap position="287,9" zPosition="4" size="30,30" pixmap="%s" transparent="1" alphatest="on" />
-                            <ePixmap position="554,9" zPosition="4" size="30,30" pixmap="%s" transparent="1" alphatest="on" />
-                            <ePixmap position="801,9" zPosition="4" size="30,30" pixmap="%s" transparent="1" alphatest="on" />
-                            <widget render="Label" source="key_red"    position="65,9"  size="210,27" zPosition="5" valign="center" halign="left" backgroundColor="black" font="Regular;21" transparent="1" foregroundColor="white" shadowColor="black" shadowOffset="-1,-1" />
-                            <widget name="key_green"  position="322,9" size="210,27" zPosition="5" valign="center" halign="left" backgroundColor="black" font="Regular;21" transparent="1" foregroundColor="white" shadowColor="black" shadowOffset="-1,-1" />
-                            <widget render="Label" source="key_yellow" position="589,9" size="210,27" zPosition="5" valign="center" halign="left" backgroundColor="black" font="Regular;21" transparent="1" foregroundColor="white" shadowColor="black" shadowOffset="-1,-1" />
-                            <widget render="Label" source="key_blue"   position="836,9" size="210,27" zPosition="5" valign="center" halign="left" backgroundColor="black" font="Regular;21" transparent="1" foregroundColor="white" shadowColor="black" shadowOffset="-1,-1" />
-                            <widget name="headertext" position="5,47" zPosition="1" size="1080,23" font="Regular;20" transparent="1" backgroundColor="#00000000" />
-                            <widget name="statustext" position="5,140" zPosition="1" size="985,120" font="Regular;20" halign="center" valign="center" transparent="1" backgroundColor="#00000000" />
-                            <widget name="list" position="5,100" zPosition="2" size="1080,280" enableWrapAround="1" scrollbarMode="showOnDemand" transparent="1" backgroundColor="#00000000" />
-                            <widget name="console" position="165,430" zPosition="1" size="935,140" font="Regular;20" transparent="1" backgroundColor="#00000000" />
-                            <widget name="cover" zPosition="2" position="5,400" size="122,140" alphatest="blend" />
-                            <widget name="playerlogo" zPosition="4" position="964,3" size="120,40" alphatest="blend" />
-                            <ePixmap zPosition="4" position="5,395" size="1080,5" pixmap="%s" transparent="1" />
-                            <widget name="sequencer" position="0,0" zPosition="6" size="1090,525" font="Regular;160" halign="center" valign="center" transparent="1" backgroundColor="#00000000" />
-
-                            <widget name="spinner"   zPosition="2" position="463,200" size="16,16" transparent="1" alphatest="blend" />
-                            <widget name="spinner_1" zPosition="1" position="463,200" size="16,16" transparent="1" alphatest="blend" />
-                            <widget name="spinner_2" zPosition="1" position="479,200" size="16,16" transparent="1" alphatest="blend" />
-                            <widget name="spinner_3" zPosition="1" position="495,200" size="16,16" transparent="1" alphatest="blend" />
-                            <widget name="spinner_4" zPosition="1" position="511,200" size="16,16" transparent="1" alphatest="blend" />
-                    </screen>
-                """ % (IPTV_VERSION, GetIconDir('red.png'), GetIconDir('green.png'), GetIconDir('yellow.png'), GetIconDir('blue.png'), GetIconDir('line.png'))
+        sv = (1180, 620, 30, 10, 30, 30, GetIconDir("red.png"), 285, 10, 30, 30, GetIconDir("green.png"), 545, 10, 30, 30, GetIconDir("yellow.png"), 805, 10, 30, 30, GetIconDir("blue.png"), 65, 10, 210, 27, 20, 325, 10, 210, 27, 20, 585, 10, 210, 27, 20, 846, 10, 210, 27, 20, 10, 50, 1170, 27, 20, 0, 170, 1180, 121, 20, 285, 85, 890, 351, 5, 460, 1170, 160, 20, 5, 80, 278, 370, 1055, 5, 120, 40, 5, 455, 1170, 2, 0, 0, 1180, 620, 160, 560, 200, 16, 16, 560, 200, 16, 16, 576, 200, 16, 16, 592, 200, 16, 16, 608, 200, 16, 16)
+    skin = """<screen position="center,center" size="%d,%d" title="E2iPlayer" flags="wfNoBorder" backgroundColor="#40000000"><ePixmap position="%d,%d" zPosition="4" size="%d,%d" pixmap="%s" transparent="1" alphatest="on"/><ePixmap position="%d,%d" zPosition="4" size="%d,%d" pixmap="%s" transparent="1" alphatest="on"/><ePixmap position="%d,%d" zPosition="4" size="%d,%d" pixmap="%s" transparent="1" alphatest="on"/><ePixmap position="%d,%d" zPosition="4" size="%d,%d" pixmap="%s" transparent="1" alphatest="on"/><widget render="Label" source="key_red" position="%d,%d" size="%d,%d" zPosition="5" valign="center" halign="left" backgroundColor="black" font="Regular;%d" transparent="1" foregroundColor="white" shadowColor="black" shadowOffset="-1,-1"/><widget name="key_green" position="%d,%d" size="%d,%d" zPosition="5" valign="center" halign="left" backgroundColor="black" font="Regular;%d" transparent="1" foregroundColor="white" shadowColor="black" shadowOffset="-1,-1"/><widget render="Label" source="key_yellow" position="%d,%d" size="%d,%d" zPosition="5" valign="center" halign="left" backgroundColor="black" font="Regular;%d" transparent="1" foregroundColor="white" shadowColor="black" shadowOffset="-1,-1"/><widget render="Label" source="key_blue" position="%d,%d" size="%d,%d" zPosition="5" valign="center" halign="left" backgroundColor="black" font="Regular;%d" transparent="1" foregroundColor="white" shadowColor="black" shadowOffset="-1,-1"/><widget name="headertext" position="%d,%d" zPosition="1" size="%d,%d" font="Regular;%d" transparent="1" backgroundColor="#00000000"/><widget name="statustext" position="%d,%d" zPosition="1" size="%d,%d" font="Regular;%d" halign="center" valign="center" transparent="1" backgroundColor="#00000000"/><widget name="list" position="%d,%d" zPosition="2" size="%d,%d" enableWrapAround="1" scrollbarMode="showOnDemand" transparent="1" backgroundColor="#00000000"/><widget name="console" position="%d,%d" zPosition="1" size="%d,%d" font="Regular;%d" transparent="1" backgroundColor="#00000000"/><widget name="cover" zPosition="2" position="%d,%d" size="%d,%d" alphatest="blend"/><widget name="playerlogo" zPosition="4" position="%d,%d" size="%d,%d" alphatest="blend"/><eLabel position="%d,%d" size="%d,%d" backgroundColor="#818181"/><widget name="sequencer" position="%d,%d" zPosition="6" size="%d,%d" font="Regular;%d" halign="center" valign="center" transparent="1" backgroundColor="#00000000"/><widget name="spinner" zPosition="2" position="%d,%d" size="%d,%d" transparent="1" alphatest="blend"/><widget name="spinner_1" zPosition="1" position="%d,%d" size="%d,%d" transparent="1" alphatest="blend"/><widget name="spinner_2" zPosition="1" position="%d,%d" size="%d,%d" transparent="1" alphatest="blend"/><widget name="spinner_3" zPosition="1" position="%d,%d" size="%d,%d" transparent="1" alphatest="blend"/><widget name="spinner_4" zPosition="1" position="%d,%d" size="%d,%d" transparent="1" alphatest="blend"/></screen>""" % sv
 
     def __init__(self, session):
         printDBG("!!!!! E2iPlayerWidget.__init__ IPTV_VERSION[%s], CPU:%s, PYTHON:%s !!!!!\n" % (E2iPlayerWidget.IPTV_VERSION,
