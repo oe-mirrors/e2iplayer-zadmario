@@ -94,7 +94,29 @@ class E2iPlayerWidget(Screen):
         sv = (1770, 930, 45, 15, 45, 45, GetIconDir("red.png"), 428, 15, 45, 45, GetIconDir("green.png"), 818, 15, 45, 45, GetIconDir("yellow.png"), 1208, 15, 45, 45, GetIconDir("blue.png"), 98, 15, 315, 41, 30, 488, 15, 315, 41, 30, 878, 15, 315, 41, 30, 1329, 15, 315, 41, 30, 8, 75, 1767, 41, 30, 0, 255, 1770, 182, 30, 428, 120, 1335, 560, 8, 690, 1767, 240, 30, 8, 120, 417, 555, 1583, 7, 180, 60, 8, 683, 1767, 3, 0, 0, 1770, 930, 240, 840, 300, 16, 16, 840, 300, 16, 16, 856, 300, 16, 16, 872, 300, 16, 16, 888, 300, 16, 16)
     else:
         sv = (1180, 620, 30, 10, 30, 30, GetIconDir("red.png"), 285, 10, 30, 30, GetIconDir("green.png"), 545, 10, 30, 30, GetIconDir("yellow.png"), 805, 10, 30, 30, GetIconDir("blue.png"), 65, 10, 210, 27, 20, 325, 10, 210, 27, 20, 585, 10, 210, 27, 20, 846, 10, 210, 27, 20, 10, 50, 1170, 27, 20, 0, 170, 1180, 121, 20, 285, 85, 890, 351, 5, 460, 1170, 160, 20, 5, 80, 278, 370, 1055, 5, 120, 40, 5, 455, 1170, 2, 0, 0, 1180, 620, 160, 560, 200, 16, 16, 560, 200, 16, 16, 576, 200, 16, 16, 592, 200, 16, 16, 608, 200, 16, 16)
-    skin = """<screen position="center,center" size="%d,%d" title="E2iPlayer" flags="wfNoBorder" backgroundColor="#40000000"><ePixmap position="%d,%d" zPosition="4" size="%d,%d" pixmap="%s" transparent="1" alphatest="on"/><ePixmap position="%d,%d" zPosition="4" size="%d,%d" pixmap="%s" transparent="1" alphatest="on"/><ePixmap position="%d,%d" zPosition="4" size="%d,%d" pixmap="%s" transparent="1" alphatest="on"/><ePixmap position="%d,%d" zPosition="4" size="%d,%d" pixmap="%s" transparent="1" alphatest="on"/><widget render="Label" source="key_red" position="%d,%d" size="%d,%d" zPosition="5" valign="center" halign="left" backgroundColor="black" font="Regular;%d" transparent="1" foregroundColor="white" shadowColor="black" shadowOffset="-1,-1"/><widget name="key_green" position="%d,%d" size="%d,%d" zPosition="5" valign="center" halign="left" backgroundColor="black" font="Regular;%d" transparent="1" foregroundColor="white" shadowColor="black" shadowOffset="-1,-1"/><widget render="Label" source="key_yellow" position="%d,%d" size="%d,%d" zPosition="5" valign="center" halign="left" backgroundColor="black" font="Regular;%d" transparent="1" foregroundColor="white" shadowColor="black" shadowOffset="-1,-1"/><widget render="Label" source="key_blue" position="%d,%d" size="%d,%d" zPosition="5" valign="center" halign="left" backgroundColor="black" font="Regular;%d" transparent="1" foregroundColor="white" shadowColor="black" shadowOffset="-1,-1"/><widget name="headertext" position="%d,%d" zPosition="1" size="%d,%d" font="Regular;%d" transparent="1" backgroundColor="#00000000"/><widget name="statustext" position="%d,%d" zPosition="1" size="%d,%d" font="Regular;%d" halign="center" valign="center" transparent="1" backgroundColor="#00000000"/><widget name="list" position="%d,%d" zPosition="2" size="%d,%d" enableWrapAround="1" scrollbarMode="showOnDemand" transparent="1" backgroundColor="#00000000"/><widget name="console" position="%d,%d" zPosition="1" size="%d,%d" font="Regular;%d" transparent="1" backgroundColor="#00000000"/><widget name="cover" zPosition="2" position="%d,%d" size="%d,%d" alphatest="blend"/><widget name="playerlogo" zPosition="4" position="%d,%d" size="%d,%d" alphatest="blend"/><eLabel position="%d,%d" size="%d,%d" backgroundColor="#818181"/><widget name="sequencer" position="%d,%d" zPosition="6" size="%d,%d" font="Regular;%d" halign="center" valign="center" transparent="1" backgroundColor="#00000000"/><widget name="spinner" zPosition="2" position="%d,%d" size="%d,%d" transparent="1" alphatest="blend"/><widget name="spinner_1" zPosition="1" position="%d,%d" size="%d,%d" transparent="1" alphatest="blend"/><widget name="spinner_2" zPosition="1" position="%d,%d" size="%d,%d" transparent="1" alphatest="blend"/><widget name="spinner_3" zPosition="1" position="%d,%d" size="%d,%d" transparent="1" alphatest="blend"/><widget name="spinner_4" zPosition="1" position="%d,%d" size="%d,%d" transparent="1" alphatest="blend"/></screen>""" % sv
+    skin = """
+        <screen position="center,center" size="%d,%d" title="E2iPlayer" flags="wfNoBorder" backgroundColor="#40000000">
+        <ePixmap position="%d,%d" zPosition="4" size="%d,%d" pixmap="%s" transparent="1" alphatest="on"/>
+        <ePixmap position="%d,%d" zPosition="4" size="%d,%d" pixmap="%s" transparent="1" alphatest="on"/>
+        <ePixmap position="%d,%d" zPosition="4" size="%d,%d" pixmap="%s" transparent="1" alphatest="on"/>
+        <ePixmap position="%d,%d" zPosition="4" size="%d,%d" pixmap="%s" transparent="1" alphatest="on"/>
+        <widget render="Label" source="key_red" position="%d,%d" size="%d,%d" zPosition="5" valign="center" halign="left" backgroundColor="black" font="Regular;%d" transparent="1" foregroundColor="white" shadowColor="black" shadowOffset="-1,-1"/>
+        <widget render="Label" source="key_green" position="%d,%d" size="%d,%d" zPosition="5" valign="center" halign="left" backgroundColor="black" font="Regular;%d" transparent="1" foregroundColor="white" shadowColor="black" shadowOffset="-1,-1"/>
+        <widget render="Label" source="key_yellow" position="%d,%d" size="%d,%d" zPosition="5" valign="center" halign="left" backgroundColor="black" font="Regular;%d" transparent="1" foregroundColor="white" shadowColor="black" shadowOffset="-1,-1"/>
+        <widget render="Label" source="key_blue" position="%d,%d" size="%d,%d" zPosition="5" valign="center" halign="left" backgroundColor="black" font="Regular;%d" transparent="1" foregroundColor="white" shadowColor="black" shadowOffset="-1,-1"/>
+        <widget name="headertext" position="%d,%d" zPosition="1" size="%d,%d" font="Regular;%d" transparent="1" backgroundColor="#00000000"/>
+        <widget name="statustext" position="%d,%d" zPosition="1" size="%d,%d" font="Regular;%d" halign="center" valign="center" transparent="1" backgroundColor="#00000000"/>
+        <widget name="list" position="%d,%d" zPosition="2" size="%d,%d" enableWrapAround="1" scrollbarMode="showOnDemand" transparent="1" backgroundColor="#00000000"/>
+        <widget name="console" position="%d,%d" zPosition="1" size="%d,%d" font="Regular;%d" transparent="1" backgroundColor="#00000000"/>
+        <widget name="cover" zPosition="2" position="%d,%d" size="%d,%d" alphatest="blend"/>
+        <widget name="playerlogo" zPosition="4" position="%d,%d" size="%d,%d" alphatest="blend"/><eLabel position="%d,%d" size="%d,%d" backgroundColor="#818181"/>
+        <widget name="sequencer" position="%d,%d" zPosition="6" size="%d,%d" font="Regular;%d" halign="center" valign="center" transparent="1" backgroundColor="#00000000"/>
+        <widget name="spinner" zPosition="2" position="%d,%d" size="%d,%d" transparent="1" alphatest="blend"/>
+        <widget name="spinner_1" zPosition="1" position="%d,%d" size="%d,%d" transparent="1" alphatest="blend"/>
+        <widget name="spinner_2" zPosition="1" position="%d,%d" size="%d,%d" transparent="1" alphatest="blend"/>
+        <widget name="spinner_3" zPosition="1" position="%d,%d" size="%d,%d" transparent="1" alphatest="blend"/>
+        <widget name="spinner_4" zPosition="1" position="%d,%d" size="%d,%d" transparent="1" alphatest="blend"/>
+        </screen>""" % sv
 
     def __init__(self, session):
         printDBG("!!!!! E2iPlayerWidget.__init__ IPTV_VERSION[%s], CPU:%s, PYTHON:%s !!!!!\n" % (E2iPlayerWidget.IPTV_VERSION,
@@ -135,7 +157,7 @@ class E2iPlayerWidget(Screen):
             self.session.nav.stopService()
 
         self["key_red"] = StaticText(_("Exit"))
-        self["key_green"] = Label(_("Download"))
+        self["key_green"] = StaticText()
 
         self["key_yellow"] = StaticText(_("Refresh"))
         self["key_blue"] = StaticText(_("More"))
@@ -323,18 +345,12 @@ class E2iPlayerWidget(Screen):
             if self["list"].visible:
                 item = self.getSelItem()
                 self.downloadable = self.isDownloadableType(item.type)
-                if self.downloadable and item.urlItems[0].url.startswith('file://'): # workaround for LocalMedia
+                if self.downloadable and item and item.urlItems and item.urlItems[0].url.startswith('file://'):  # workaround for LocalMedia
                     self.downloadable = False
         except Exception:
             printExc()
 
-        try:
-            if self.downloadable:
-                self["key_green"].instance.setForegroundColor(self.colorEnabled)
-            else:
-                self["key_green"].instance.setForegroundColor(self.colorDisabled)
-        except Exception:
-            printExc()
+        self["key_green"].setText(_("Download") if self.downloadable else "")
 
     def getSkinResolutionType(self):
         return self.skinResolutionType
