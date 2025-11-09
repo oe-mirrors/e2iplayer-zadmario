@@ -76,7 +76,7 @@ class IPTVHostsGroups:
                                             'hdpopcornscom', 'losmovies', 'solarmovie', 'putlockertvto', 'vumooch', 'cineto', 'cartoonhd', 'kisscartoonme', 'watchcartoononline', 'dailymotion',
                                             'ourmatchnet', 'watchwrestlinguno', 'watchwrestling', 'laola1tv', 'hoofootcom', 'fightvideo', 'twitchtv', 'ted', 'ororotv', 'pinkbike', 'dancetrippin',
                                             'ustreamtv', 'rteieplayer', '3player', 'questtvcouk', 'filmeonlineto', 'playrtsiw', '123movieshd', 'orthobulletscom', 'vumedicom', 'ddl']
-        self.PREDEFINED_HOSTS['german'] = ['einschalten', 'filmpalast', 'hdfilme', 'aniworld', 'hdfilmetv', 'kkiste', 'kinokiste', 'kinox', 'kinoger', 'megakino', 'moflixstream', 'movie2k', 'movie4k', 'serienstreamto', 'streamcloud', 'topstreamfilm', 'youtube', 'zdfmediathek']
+        self.PREDEFINED_HOSTS['german'] = ['einschalten', 'filmpalast', 'hdfilme', 'aniworld', 'hdfilmetv', 'kkiste', 'megafilme', 'kinokiste', 'kinox', 'kinoger', 'megakino', 'moflixstream', 'movie2k', 'movie4k', 'serienstreamto', 'streamcloud', 'topstreamfilm', 'youtube', 'zdfmediathek']
 
         self.PREDEFINED_HOSTS['french'] = ['youtube', 'skstream', 'filmstreamvkcom', 'streamcomplet', 'librestream', 'cinemay', 'otakufr', 'rtbfbe', 'artetv', 'dailymotion',
                                            'vimeo', 'twitchtv', 'planetstreamingcom', 'playrtsiw']
