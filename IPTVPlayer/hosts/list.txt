@@ -80,6 +80,7 @@ hostmaxtvgo
 hostmeczykipl
 hostmediasetplay
 hostmediayou
+hostmegafilme
 hostmegakino
 hostmoflixstream
 hostmooviecc
