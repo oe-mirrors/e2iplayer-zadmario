@@ -1,9 +1,16 @@
-# <p align="center">E2iPlayer Plugin for Enigma2 (E²) ![GitHub repo size](https://img.shields.io/github/repo-size/oe-mirrors/e2iplayer-zadmario.svg) ![Profil views](https://komarev.com/ghpvc/?username=oe-mirrors)</p>
+# <p align="center">E2iPlayer Plugin for Enigma2 (E²) </p>
 
+<div align="center">
 This is a mirror of https://gitlab.com/zadmario/e2iplayer 
+
 
 [![Python](https://img.shields.io/badge/Python-2,7%2F3.x-darkviolet.svg?style=flat)](https://python.org)
 ![Platform](https://img.shields.io/badge/Platform-Enigma2-orange.svg?style=flat)
+![GitHub repo size](https://img.shields.io/github/repo-size/oe-mirrors/e2iplayer-zadmario.svg) 
+![Profil views](https://komarev.com/ghpvc/?username=oe-mirrors)
+
+</div>
+
 ---
 
 <img src="https://github.com/oe-mirrors/e2iplayer-zadmario/blob/master/e2ilogo2.png"> <img src="https://github.com/oe-mirrors/e2iplayer-zadmario/blob/master/e2ilogo.png">
