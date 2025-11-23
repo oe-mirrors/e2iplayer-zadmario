@@ -485,8 +485,7 @@ class common:
         if isPY2():
             cj._really_load(StringIO(''.join(lines)), cookiefile, ignore_discard=ignoreDiscard, ignore_expires=ignoreExpires)
         else:
-            data = ''.join(lines).encode("utf-8")
-            cj._really_load(BytesIO(data), cookiefile, ignore_discard=ignoreDiscard, ignore_expires=ignoreExpires)
+            cj._really_load(StringIO(''.join(lines)), cookiefile, ignore_discard=ignoreDiscard, ignore_expires=ignoreExpires)
         return cj
 
     def clearCookie(self, cookiefile, leaveNames=[], removeNames=None, ignoreDiscard=True, ignoreExpires=False):
