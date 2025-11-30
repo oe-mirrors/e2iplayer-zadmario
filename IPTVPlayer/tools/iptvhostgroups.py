@@ -53,7 +53,7 @@ class IPTVHostsGroups:
                                                     'solarmovie', 'thewatchseriesto', 'classiccinemaonline', 'seriesonline', 'vumooch', 'movizlandcom',
                                                     'cinemay', 'librestream', 'streamcomplet', 'skstream', 'filmstreamvkcom',
                                                     'filmpalast', 'serienstreamto', 'bsto', 'hdfilmetv', 'cineto', 'filmezz', 'rtlmost', 'gamatocom', 'xrysoise', 'mooviecc', 'mrpiracy',
-                                                    'filmativa', 'filmovizijastudio', 'filma24hdcom', 'serijeonline', 'kinox', 'cartoonhd', 'tantifilmorg', 'forjatn', 'serialeco', 'faselhdcom',
+                                                    'filmativa', 'filmovizijastudio', 'filma24hdcom', 'serijeonline', 'cartoonhd', 'tantifilmorg', 'forjatn', 'serialeco', 'faselhdcom',
                                                     'planetstreamingcom', 'filmeonlineto', 'tainieskaiseirestv', '3sktv', 'cimaclubcom', 'gledalica',
                                                     'filmaoncom', 'putlockertvto', 'akoam', 'filmehdnet',
                                                     'altadefinizione01', '123movieshd', 'filma24io', 'ddl', 'hdfull', 'dixmax', 'fenixsite',
@@ -76,7 +76,7 @@ class IPTVHostsGroups:
                                             'hdpopcornscom', 'losmovies', 'solarmovie', 'putlockertvto', 'vumooch', 'cineto', 'cartoonhd', 'kisscartoonme', 'watchcartoononline', 'dailymotion',
                                             'ourmatchnet', 'watchwrestlinguno', 'watchwrestling', 'laola1tv', 'hoofootcom', 'fightvideo', 'twitchtv', 'ted', 'ororotv', 'pinkbike', 'dancetrippin',
                                             'ustreamtv', 'rteieplayer', '3player', 'questtvcouk', 'filmeonlineto', 'playrtsiw', '123movieshd', 'orthobulletscom', 'vumedicom', 'ddl']
-        self.PREDEFINED_HOSTS['german'] = ['einschalten', 'filmpalast', 'hdfilme', 'aniworld', 'hdfilmetv', 'kkiste', 'megafilme', 'kinox', 'kinoger', 'megakino', 'moflixstream', 'movie2k', 'movie4k', 'serienstreamto', 'streamcloud', 'topstreamfilm', 'youtube', 'zdfmediathek']
+        self.PREDEFINED_HOSTS['german'] = ['einschalten', 'filmpalast', 'hdfilme', 'aniworld', 'hdfilmetv', 'kkiste', 'megafilme', 'kinoger', 'megakino', 'moflixstream', 'movie2k', 'movie4k', 'serienstreamto', 'streamcloud', 'topstreamfilm', 'youtube', 'zdfmediathek']
 
         self.PREDEFINED_HOSTS['french'] = ['youtube', 'skstream', 'filmstreamvkcom', 'streamcomplet', 'librestream', 'cinemay', 'otakufr', 'rtbfbe', 'artetv', 'dailymotion',
                                            'vimeo', 'twitchtv', 'planetstreamingcom', 'playrtsiw']
