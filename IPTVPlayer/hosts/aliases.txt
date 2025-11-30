@@ -68,7 +68,6 @@
 "hostkijknl":"http://kijk.nl/",
 "hostkinoger":"https://kinoger.to/",
 "hostkinomoc":"https://kinomoc.com/",
-"hostkinox":"https://kinox.to/",
 "hostkisscartoonme":"https://kisscartoon.ac/",
 "hostkkiste":"https://kinokiste.me/",
 "hostlaola1tv":"http://laola1.tv/",
