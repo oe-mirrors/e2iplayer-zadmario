@@ -69,7 +69,6 @@
 "hostkinoger":"https://kinoger.to/",
 "hostkinoking":"https://Kinoking.cc/",
 "hostkinomoc":"https://kinomoc.com/",
-"hostkinox":"https://kinox.to/",
 "hostkisscartoonme":"https://kisscartoon.ac/",
 "hostkkiste":"https://kinokiste.me/",
 "hostlaola1tv":"http://laola1.tv/",
