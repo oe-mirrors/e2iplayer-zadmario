@@ -343,6 +343,7 @@ class urlparser:
             "bestwish.lol": self.pp.parserJWPLAYER,
             "bf0skv.org": self.pp.parserFILEMOON,
             "bgwp.cc": self.pp.parserJWPLAYER,
+            "bigshare.io": self.pp.parserJWPLAYER,
             "bigwarp.art": self.pp.parserJWPLAYER,
             "bigwarp.cc": self.pp.parserJWPLAYER,
             "bigwarp.io": self.pp.parserJWPLAYER,
@@ -380,6 +381,7 @@ class urlparser:
             "dhmu4p2hkp.sbs": self.pp.parserVIDGUARDTO,
             "dhtpre.com": self.pp.parserJWPLAYER,
             "dingtezuni.com": self.pp.parserJWPLAYER,
+            "dintezuvio.com": self.pp.parserJWPLAYER,
             "do0od.com": self.pp.parserDOOD,
             "do7go.com": self.pp.parserDOOD,
             "dood.cx": self.pp.parserDOOD,
@@ -462,6 +464,7 @@ class urlparser:
             "goofy-banana.com": self.pp.parserVOESX,
             "google.com": self.pp.parserGOOGLE,
             "govid.me": self.pp.parserGOVIDME,
+            "govid.site": self.pp.parserJWPLAYER,
             "gradehgplus.com": self.pp.parserJWPLAYER,
             "gsfjzmqu.sbs": self.pp.parserVIDGUARDTO,
             "gsfqzmqu.sbs": self.pp.parserJWPLAYER,
@@ -544,6 +547,7 @@ class urlparser:
             "mwish.pro": self.pp.parserJWPLAYER,
             "mxdrop.to": self.pp.parserJWPLAYER,
             "mysportzfy.com": self.pp.parserJWPLAYER,
+            "myvidplay.com": self.pp.parserDOOD,
             # n
             "nba-streams.online": self.pp.parserSHOWSPORTXYZ,
             "nflinsider.net": self.pp.parserVIDEOHOUSE,
@@ -669,6 +673,7 @@ class urlparser:
             "upstream.to": self.pp.parserONLYSTREAMTV,
             "upvideo.cc": self.pp.parserONLYSTREAMTV,
             "upzone.cc": self.pp.parserUPZONECC,
+            "uqload.com": self.pp.parserJWPLAYER,
             "uqload.cx": self.pp.parserJWPLAYER,
             "uqload.io": self.pp.parserJWPLAYER,
             "uqload.ws": self.pp.parserJWPLAYER,
@@ -751,6 +756,7 @@ class urlparser:
             # y
             "yodbox.com": self.pp.parserONLYSTREAMTV,
             "youdbox.com": self.pp.parserONLYSTREAMTV,
+            "yourupload.com": self.pp.parserJWPLAYER,
             "youtu.be": self.pp.parserYOUTUBE,
             "youtube-nocookie.com": self.pp.parserYOUTUBE,
             "youtube.com": self.pp.parserYOUTUBE,
@@ -3686,7 +3692,7 @@ class pageParser(CaptchaHelper):
             if not data:
                 return []
         host = urlparser.getDomain(baseUrl, False)
-        url = re.search(r"""["']((?:https?:)?//[^'^"]+?\.(?:mp4|m3u8)(?:\?[^"^']+?)?)["']""", data)
+        url = re.search(r"""["']((?:https?:)?//[^'^"]+?\.(?:mp4|m3u8|mkv)(?:\?[^"^']+?)?)["']""", data)
         if not url:
             url = re.search(r"""file":"([^"]+)""", data)
         subTracks = []
