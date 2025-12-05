@@ -66,6 +66,7 @@ hostjoemonsterorg
 hostkabarety
 hostkijknl
 hostkinoger
+hostkinoking
 hostkinomoc
 hostkinox
 hostkisscartoonme

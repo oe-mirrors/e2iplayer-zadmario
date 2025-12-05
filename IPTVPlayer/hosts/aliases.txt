@@ -67,6 +67,7 @@
 "hostkabarety":"http://kabaret.tworzymyhistorie.pl/",
 "hostkijknl":"http://kijk.nl/",
 "hostkinoger":"https://kinoger.to/",
+"hostkinoking":"https://Kinoking.cc/",
 "hostkinomoc":"https://kinomoc.com/",
 "hostkinox":"https://kinox.to/",
 "hostkisscartoonme":"https://kisscartoon.ac/",
