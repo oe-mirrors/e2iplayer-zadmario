@@ -33,17 +33,16 @@ class PlayerSelectorWidget(Screen):
             numOfRow, numOfCol = 2, 3
         else:
             numOfRow, numOfCol = 1, 3
-        if screenwidth < 1920:
-            try:
-                confNumOfRow = int(config.plugins.iptvplayer.numOfRow.value)
-                confNumOfCol = int(config.plugins.iptvplayer.numOfCol.value)
-                # 0 - means AUTO
-                if confNumOfRow > 0:
-                    numOfRow = confNumOfRow
-                if confNumOfCol > 0:
-                    numOfCol = confNumOfCol
-            except (ValueError, AttributeError):
-                pass
+        try:
+            confNumOfRow = int(config.plugins.iptvplayer.numOfRow.value)
+            confNumOfCol = int(config.plugins.iptvplayer.numOfCol.value)
+            # 0 - means AUTO
+            if confNumOfRow > 0:
+                numOfRow = confNumOfRow
+            if confNumOfCol > 0:
+                numOfCol = confNumOfCol
+        except (ValueError, AttributeError):
+            pass
         if screenwidth >= 1920:
             offsetCoverX, offsetCoverY, iconSize = 38, 120, 135
             font = 36
