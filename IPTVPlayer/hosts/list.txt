@@ -68,6 +68,7 @@ hostkijknl
 hostkinoger
 hostkinoking
 hostkinomoc
+hostkinox
 hostkisscartoonme
 hostkkiste
 hostlaola1tv
@@ -79,7 +80,6 @@ hostmaxtvgo
 hostmeczykipl
 hostmediasetplay
 hostmediayou
-hostmegafilme
 hostmegakino
 hostmoflixstream
 hostmooviecc
