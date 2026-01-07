@@ -81,7 +81,7 @@
 "hostmeczykipl":"http://www.meczyki.pl/",
 "hostmediasetplay":"https://mediasetplay.it/",
 "hostmediayou":"https://mediayou.net/",
-"hostmegakino":"https://megakino.world",
+"hostmegakino":"https://megakino1.fit/",
 "hostmoflixstream":"https://moflix-stream.xyz",
 "hostmooviecc":"https://moovie.cc/",
 "hostmovie2k":"https://movie2k.ch/",
