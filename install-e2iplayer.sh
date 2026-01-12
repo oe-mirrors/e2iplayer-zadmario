@@ -1,22 +1,15 @@
 #!/bin/sh
 
-# Reading out the Python version, and depending on that, set the download address for the xxx stuff.
-py_ver=$(python -c "import sys; print(sys.version_info.major)")
-if [ $py_ver -eq 2 ] ; then
-	echo -e "\nfound system using python2."
-	dl_archive=http://www.blindspot.nhely.hu/hosts/iptv-host-xxx-master.tar.gz
-else
-	echo -e "\nfound system using python3."
-	dl_archive=http://www.blindspot.nhely.hu/python3/iptv-host-xxx-master-python3.tar.gz
-fi
+## Variables ##
+target_path=/usr/lib/enigma2/python/Plugins/Extensions
+e2iplayer_downl_package=https://github.com/oe-mirrors/e2iplayer-zadmario/archive/refs/heads/master.tar.gz
 
 # Delete any remains of previous installations.
 rm -rf /tmp/e2iplayer-* /tmp/iptv-host-xxx* /tmp/xxx.tar.gz
 
 # Download E2iPlayer package. 
-e2iplayer_downl_file=https://github.com/oe-mirrors/e2iplayer-zadmario/archive/refs/heads/master.tar.gz
-if ! wget -q $e2iplayer_downl_file -O /tmp/e2iplayer-master.tar.gz ; then
-	if ! wget -q "--no-check-certificate" $e2iplayer_downl_file -O /tmp/e2iplayer-master.tar.gz ; then
+if ! wget -q $e2iplayer_downl_package -O /tmp/e2iplayer-master.tar.gz ; then
+	if ! wget -q "--no-check-certificate" $e2iplayer_downl_package -O /tmp/e2iplayer-master.tar.gz ; then
 		echo -e "\nError ! downloading archive failed, end."
 		exit 1
 	fi
@@ -33,13 +26,13 @@ else
 fi
 
 # Delete any existing E2iPlayer.
-if [ -e /usr/lib/enigma2/python/Plugins/Extensions/IPTVPlayer ] ; then
-	rm  -rf /usr/lib/enigma2/python/Plugins/Extensions/IPTVPlayer
+if [ -e $target_path/IPTVPlayer ] ; then
+	rm  -rf $target_path/IPTVPlayer
 	echo -e "\nold E2iPlayer version deleted."
 fi
 
-# Move newly downloaded E2iPlayer to /usr/lib/enigma2/python/Plugins/Extensions.
-if ! mv -f /tmp/e2iplayer-zadmario-master/IPTVPlayer /usr/lib/enigma2/python/Plugins/Extensions/ ; then
+# Move newly downloaded E2iPlayer to /usr/lib/enigma2/python/Plugins/Extensions (target_path).
+if ! mv -f /tmp/e2iplayer-zadmario-master/IPTVPlayer $target_path/ ; then
 	echo -e "\nError ! installing E2iPlayer, end."
 	exit 1
 else
@@ -66,45 +59,28 @@ if [ -e /etc/opkg/opkg.conf ] ; then
 fi
 
 # xxx Install.
-xxx_package=xxx.tar.gz
-if ! wget -q "--no-check-certificate" $dl_archive -O /tmp/$xxx_package ; then
-	echo -e "\nError ! downloading xxx archive failed, end."
-	xxx_install=failed
+xxx_targetdir=$target_path/IPTVPlayer/hosts
+# Reading out the python version, and depending on that, set the download address for the xxx stuff.
+python_version=$(python -c "import sys; print(sys.version_info.major)")
+if [ $python_version -eq 2 ] ; then
+	echo -e "\nfound system using python2."
+	xxx_file=http://www.krapulax2023.nhely.hu/Python2/hosts/hostXXX.py
+	# For python2, rename the existing icon files to XXX*.png (i.e., to XXX in capital letters).
+	icon_path=$target_path/IPTVPlayer/icons
+	mv $icon_path/logos/xxxlogo.png $icon_path/logos/XXXlogo.png ; echo -e "\nrename xxxlogo.png = $?"
+	mv $icon_path/PlayerSelector/xxx100.png $icon_path/PlayerSelector/XXX100.png ; echo "rename xxx100.png = $?"
+	mv $icon_path/PlayerSelector/xxx120.png $icon_path/PlayerSelector/XXX120.png ; echo "rename xxx120.png = $?"
+	mv $icon_path/PlayerSelector/xxx135.png $icon_path/PlayerSelector/XXX135.png ; echo -e "rename xxx135.png = $?\n"
+elif [ $python_version -eq 3 ] ; then
+	echo -e "\nfound system using python3."
+	xxx_file=http://www.krapulax2023.nhely.hu/Python3/hostxxx.py
+fi
+
+echo -e "\nDownload xxx (+18 addon host) to;\n$xxx_targetdir ...\n"
+if ! $WGET "--no-check-certificate" $xxx_file -P $xxx_targetdir ; then
+	echo -e "\n... ERROR ...\nDownload xxx (+18 addon host) failed ! \nCheck your Internet connection\nand restart the Script.\n"
 else
-	echo -e "\nxxx archive successfully downloaded.\n"
-fi
-
-# Extract the xxx.tar.gz archive (variable xxx_package).
-if ! tar -xzf /tmp/$xxx_package -C /tmp 2>/dev/null ; then
-	echo "Error ! extracting xxx archive failed, end."
-	xxx_install=failed
-else
-	echo "xxx archive successfully extracted."
-	rm -f /tmp/xxx.tar.gz
-fi
-
-# Set source for python2 or python3.
-source_py3=iptv-host-xxx-master-python3
-source_py2=iptv-host-xxx-master
-if [ -d /tmp/$source_py2 ] ; then
-	source=$source_py2
-elif [ -d /tmp/$source_py3 ] ; then
-	source=$source_py3
-fi
-echo -e "\ntemporary xxx directory = /tmp/$source\n" 
-
-# Copy xxx files to the correct directory.
-if ! cp -rf /tmp/$source/IPTVPlayer /usr/lib/enigma2/python/Plugins/Extensions/ ; then
-	echo "Error ! xxx files could not be copied to the correct directory, end."
-	xxx_install=failed
-else
-	echo "copying xxx files to the correct directory successfully completed."
-	rm -rf /tmp/$source
-fi
-
-# xxx Install Check.
-if [ "$xxx_install" = "failed" ] ; then
-	echo -e "\n\nUnfortunately, xxx install has failed."
+	echo -e "\nxxx (+18 addon host) successfully installed ! ! ! \n"
 fi
 
 # Endmessage.
