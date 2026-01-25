@@ -83,7 +83,8 @@ hostmediayou
 hostmegakino
 hostmoflixstream
 hostmooviecc
-hostmovie2k
+hostmovie2kch
+hostmovie2kcx
 hostmovie4k
 hostmovienightws
 hostmovizlandcom
