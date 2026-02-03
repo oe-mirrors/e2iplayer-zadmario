@@ -1,8 +1,22 @@
 #!/bin/sh
 
+#e2iplayer install script - modified by Pike_Bishop from oATV
+
 ## Variables ##
+scriptversion=16.0.3_git-zadmario_fork_for_other_images
+startdate="$(date +%a.%d.%b.%Y-%H:%M:%S)"
+workdir=/home/root/_workdir
 target_path=/usr/lib/enigma2/python/Plugins/Extensions
 e2iplayer_downl_package=https://github.com/oe-mirrors/e2iplayer-zadmario/archive/refs/heads/master.tar.gz
+logfile=$workdir/_e2iplayer_install.log
+
+# If it does not exist create the Working Directory (this is where the Log file are stored).
+mkdir -p $workdir
+
+{
+# script Name + script Version Output + E2iPlayer Installation Start Message.
+echo -e "\nScript-Name/Version -> e2iplayer-install.sh\t  Version_$scriptversion\n"
+echo -e "\nInstall/Update E2iPlayer ... -> $startdate\n\n"
 
 # Delete any remains of previous installations.
 rm -rf /tmp/e2iplayer-* /tmp/iptv-host-xxx* /tmp/xxx.tar.gz
@@ -83,13 +97,16 @@ else
 	echo -e "\nxxx (+18 addon host) successfully installed ! ! ! \n"
 fi
 
-# Endmessage.
-echo -e "\n\n! ! ! END -> Enigma2 GUI restart needed ! ! !\n\n\n"
+# E2iPlayer Installation/Update success Message, and delete remains.
+enddate="$(date +%a.%d.%b.%Y-%H:%M:%S)"
+echo -e "\n\nE2iPlayer installed/updated successfully. -> $enddate\n"
+rm -rf /tmp/e2iplayer-* /tmp/iptv-host-xxx* /tmp/xxx.tar.gz
+echo -e "\n\n! ! ! END -> Enigma2 GUI restart needed, either immediately or later ! ! !\n\n"
 sync
 
 # Enigma2 GUI restart, yes or no ?, it's your decision (if there are currently no timer recordings running the answer would be yes).
 while true; do
-	read -p "$(echo -e "\nWould you like to restart the Enigma2 GUI? y/n (Default = yes) ?")" -n 1 yn
+	read -p "$(echo -e "\nWould you like to restart the Enigma2 GUI? y/n (Default = yes) ?")" -n 1 yn < /dev/tty
 	case $yn in
 		[yY]* )	echo -e "\n\nEnigma2 GUI restart is executed ...\n"
 				wget -q -O - http://127.0.0.1/web/powerstate?newstate=3
@@ -103,3 +120,5 @@ while true; do
 				echo -e "\n\nPlease answer with y for (yes) or n for (no).\n" ;;
 	esac
 done
+
+} 2>&1 | tee $logfile
