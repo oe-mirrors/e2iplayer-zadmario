@@ -91,7 +91,7 @@ elif [ $python_version -eq 3 ] ; then
 fi
 
 echo -e "\nDownload xxx (+18 addon host) to;\n$xxx_targetdir ...\n"
-if ! $WGET "--no-check-certificate" $xxx_file -P $xxx_targetdir ; then
+if ! wget "--no-check-certificate" $xxx_file -P $xxx_targetdir ; then
 	echo -e "\n... ERROR ...\nDownload xxx (+18 addon host) failed ! \nCheck your Internet connection\nand restart the Script.\n"
 else
 	echo -e "\nxxx (+18 addon host) successfully installed ! ! ! \n"
