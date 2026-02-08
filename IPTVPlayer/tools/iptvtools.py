@@ -432,7 +432,7 @@ def ClearTmpJSCacheDir():
     global gE2iPlayerTempJSCache
     if gE2iPlayerTempJSCache != None:
         try:
-            for fileName in os.listdir(gE2iPlayerTempJSCache): #file is native p2 function renamed for clarity
+            for fileName in os.listdir(gE2iPlayerTempJSCache):  # file is native p2 function renamed for clarity
                 rm(os.path.join(gE2iPlayerTempJSCache, fileName))
         except Exception:
             printExc()
@@ -587,7 +587,7 @@ class CSelOneLink():
         val2 = self.getQualiyFun(item2)
 
         if val1 is None or val2 is None:
-            printDBG('iptvtools.CSelOneLink()_cmpLinks <host>__getLinkQuality() returned None value(s) which is an error(val1=%s, val2=%s)\n\t CORRECT <host>!!!' % (str(val1),str(val2)))
+            printDBG('iptvtools.CSelOneLink()_cmpLinks <host>__getLinkQuality() returned None value(s) which is an error(val1=%s, val2=%s)\n\t CORRECT <host>!!!' % (str(val1), str(val2)))
             ret = 0
         elif val1 < val2:
             ret = -1
@@ -699,7 +699,7 @@ def printDBG(DBGtxt, writeMode='a'):
         print(DBGtxt)
     else:
         if DBG == 'debugfile':
-            DBGfile = '/hdd/iptv.dbg' #backward compatibility
+            DBGfile = '/hdd/iptv.dbg'  # backward compatibility
         else:
             DBGfile = DBG
         try:
@@ -742,21 +742,25 @@ def __getHostsPath(fileName=''):
 
 def GetHostsFromList(useCache=True):
     global g_cacheHostsFromList
-    if useCache and g_cacheHostsFromList != None and len(g_cacheHostsFromList) > 0:
+    if useCache and g_cacheHostsFromList is not None and len(g_cacheHostsFromList) > 0:
         printDBG('iptvtools.GetHostsFromList returns cached list (%s)' % str(g_cacheHostsFromList))
         return list(g_cacheHostsFromList)
 
     lhosts = []
+
     try:
-        sts, data = ReadTextFile(__getHostsPath('list.txt'))
-        if sts:
-            data = data.split('\n')
-            for item in data:
-                line = item.strip()
-                if __isHostNameValid(line):
-                    lhosts.append(line[4:])
-                    printDBG('getHostsList add host from list.txt hostName: "%s"' % line[4:])
-    except Exception:
+        unique_names = set()
+        for f in os.listdir(__getHostsPath()):
+            if f.endswith((".py", ".pyc", ".pyo")):
+                name = os.path.splitext(f)[0]
+                if len(name) > 4 and "_blocked_" not in name and name.startswith("host"):
+                    unique_names.add(name[4:])
+
+        for filename in unique_names:
+            printDBG('getHostsList add host from list hostName: "%s"' % filename)
+            lhosts.append(filename)
+
+    except OSError:
         printExc()
 
     g_cacheHostsFromList = lhosts
@@ -911,7 +915,7 @@ def IsHostEnabled(hostName):
 def FreeSpace(katalog, requiredSpace, unitDiv=1024 * 1024):
     try:
         s = os.statvfs(katalog)
-        freeSpace = s.f_bfree * s.f_frsize # all free space
+        freeSpace = s.f_bfree * s.f_frsize  # all free space
         if 512 > (freeSpace / (1024 * 1024)):
             freeSpace = s.f_bavail * s.f_frsize
         freeSpace = freeSpace / unitDiv
@@ -1100,7 +1104,7 @@ def GetIconDirBaseName():
 
 
 def CheckIconName(name):
-    #check if name is correct
+    # check if name is correct
     if 36 == len(name) and '.jpg' == name[-4:]:
         try:
             tmp = int(name[:-4], 16)
@@ -1192,7 +1196,7 @@ def RemoveOldDirsIcons(path, deltaInDays='7'):
         iconsDirs = GetIconsDirs(path)
         for item in iconsDirs:
             currDir = os.path.join(path, item)
-            delta = GetCreateIconsDirDeltaDateInDays(currDir) # we will check only directory date
+            delta = GetCreateIconsDirDeltaDateInDays(currDir)  # we will check only directory date
             if delta >= 0 and deltaInDays >= 0 and delta >= deltaInDays:
                 RemoveIconsDirByPath(currDir)
     except Exception:
@@ -1401,7 +1405,7 @@ class CFakeMoviePlayerOption():
 class CMoviePlayerPerHost():
     def __init__(self, hostName):
         self.filePath = GetCacheSubDir('MoviePlayer', hostName + '.json')
-        self.activePlayer = {} # {buffering:True/False, 'player':''}
+        self.activePlayer = {}  # {buffering:True/False, 'player':''}
         self.load()
 
     def __del__(self):
@@ -1517,7 +1521,7 @@ def printExc(msg='', WarnOnly=False):
         retMSG = ''
     if not isWarning:
         LASTExcMSG = retMSG
-    return retMSG #returns the error description to possibly use in main code. E.g. inform about failed login
+    return retMSG  # returns the error description to possibly use in main code. E.g. inform about failed login
 
 
 def GetIPTVPlayerVerstion():
@@ -1525,13 +1529,13 @@ def GetIPTVPlayerVerstion():
         from Plugins.Extensions.IPTVPlayer.version import IPTV_VERSION
     except Exception:
         try:
-            from Plugins.Extensions.IPTVPlayer.version import Version as IPTV_VERSION #from opkg
+            from Plugins.Extensions.IPTVPlayer.version import Version as IPTV_VERSION  # from opkg
         except Exception:
             IPTV_VERSION = "XX.YY.ZZ"
     return IPTV_VERSION
 
 
-def GetIPTVPlayerVersion(): # just for compatibility
+def GetIPTVPlayerVersion():  # just for compatibility
     return GetIPTVPlayerVerstion()
 
 
@@ -1853,7 +1857,7 @@ def ReadGnuMIPSABIFP(elfFileName):
                                 end = p + size - 1
                                 p += 4
 
-                                if tag == 1 and attrName == "gnu": #File Attributes
+                                if tag == 1 and attrName == "gnu":  # File Attributes
                                     while p < end:
                                         # display_gnu_attribute
                                           numRead, tag = _readLeb128(contents, p, end)
@@ -1936,7 +1940,7 @@ def defaultToolPath(fileName):
         toolPaths.append(os.path.join(resolveFilename(SCOPE_PLUGINS, 'Extensions/IPTVPlayer/bin/'), config.plugins.iptvplayer.plarform.value))
         toolPaths.append(resolveFilename(SCOPE_PLUGINS, 'Extensions/IPTVPlayer/bin/'))
         toolPaths.append('/usr/bin/')
-    else: #PY3
+    else:  # PY3
         toolPaths.append('/usr/bin/')
         toolPaths.append(resolveFilename(SCOPE_PLUGINS, 'Extensions/IPTVPlayer/bin/'))
         toolPaths.append(os.path.join(resolveFilename(SCOPE_PLUGINS, 'Extensions/IPTVPlayer/bin/'), config.plugins.iptvplayer.plarform.value))
