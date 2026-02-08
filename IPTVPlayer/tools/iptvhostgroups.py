@@ -47,7 +47,7 @@ class IPTVHostsGroups:
 
         # hosts
         self.PREDEFINED_HOSTS = {}
-        self.PREDEFINED_HOSTS['userdefined'] = ['favourites', 'localmedia']
+        self.PREDEFINED_HOSTS['userdefined'] = ['favourites', 'localmedia', 'urllist', 'iptvplayerinfo']
         self.PREDEFINED_HOSTS['moviesandseries'] = ['ekinotv', 'cdapl', 'zaluknijcc', 'filman', 'obejrzyjto', 'filmowoclub', 'freediscpl',
                                                     'movienightws', 'hdpopcornscom', 'losmovies', 'kinomoc', 'hdseanspl', 'zerioncc',
                                                     'solarmovie', 'thewatchseriesto', 'classiccinemaonline', 'seriesonline', 'vumooch', 'movizlandcom',
@@ -76,7 +76,7 @@ class IPTVHostsGroups:
                                             'hdpopcornscom', 'losmovies', 'solarmovie', 'putlockertvto', 'vumooch', 'cineto', 'cartoonhd', 'kisscartoonme', 'watchcartoononline', 'dailymotion',
                                             'ourmatchnet', 'watchwrestlinguno', 'watchwrestling', 'laola1tv', 'hoofootcom', 'fightvideo', 'twitchtv', 'ted', 'ororotv', 'pinkbike', 'dancetrippin',
                                             'ustreamtv', 'rteieplayer', '3player', 'questtvcouk', 'filmeonlineto', 'playrtsiw', '123movieshd', 'orthobulletscom', 'vumedicom', 'ddl']
-        self.PREDEFINED_HOSTS['german'] = ['einschalten', 'filmpalast', 'hdfilme', 'aniworld', 'hdfilmetv', 'kkiste', 'megafilme', 'kinoger', 'megakino', 'moflixstream', 'movie2kch',
+        self.PREDEFINED_HOSTS['german'] = ['einschalten', 'filmpalast', 'hdfilme', 'aniworld', 'hdfilmetv', 'kkiste', 'kinoger', 'megakino', 'moflixstream', 'movie2kch',
                                             'movie2kcx', 'movie4k', 'serienstreamto' , 'streamcloud', 'kinoking', 'topstreamfilm', 'youtube', 'zdfmediathek']
 
         self.PREDEFINED_HOSTS['french'] = ['youtube', 'skstream', 'filmstreamvkcom', 'streamcomplet', 'librestream', 'cinemay', 'otakufr', 'rtbfbe', 'artetv', 'dailymotion',
