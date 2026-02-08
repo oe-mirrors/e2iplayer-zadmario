@@ -311,4 +311,6 @@ def clean_html(html):
             if html == prev:
                 break
     html = re.sub(r'\s+', ' ', html)
+    if isPY2():
+        return ensure_str(html.strip())
     return html.strip()
