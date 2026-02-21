@@ -46,7 +46,7 @@ class IPTVListComponentBase(GUIComponent, object):
         raise Exception("IPTVListComponentBase.buildEntry must be overwritten in the derived class!")
 
     def connectSelChanged(self, fnc):
-        if not fnc in self.onSelectionChanged:
+        if fnc not in self.onSelectionChanged:
             self.onSelectionChanged.append(fnc)
 
     def disconnectSelChanged(self, fnc):
@@ -89,7 +89,26 @@ class IPTVListComponentBase(GUIComponent, object):
 
 
 class IPTVMainNavigatorList(IPTVListComponentBase):
-    ICONS_FILESNAMES = {CDisplayListItem.TYPE_MARKER: 'MarkerItem.png', CDisplayListItem.TYPE_SUB_PROVIDER: 'CategoryItem.png', CDisplayListItem.TYPE_SUBTITLE: 'ArticleItem.png', CDisplayListItem.TYPE_CATEGORY: 'CategoryItem.png', CDisplayListItem.TYPE_MORE: 'MoreItem.png', CDisplayListItem.TYPE_VIDEO: 'VideoItem.png', CDisplayListItem.TYPE_AUDIO: 'AudioItem.png', CDisplayListItem.TYPE_SEARCH: 'SearchItem.png', CDisplayListItem.TYPE_ARTICLE: 'ArticleItem.png', CDisplayListItem.TYPE_PICTURE: 'PictureItem.png', CDisplayListItem.TYPE_DATA: 'DataItem.png'}
+    ICONS_FILESNAMES = {
+        CDisplayListItem.TYPE_MARKER: 'MarkerItem.png',
+        CDisplayListItem.TYPE_SUB_PROVIDER: 'CategoryItem.png',
+        CDisplayListItem.TYPE_SUBTITLE: 'ArticleItem.png',
+        CDisplayListItem.TYPE_CATEGORY: 'CategoryItem.png',
+        CDisplayListItem.TYPE_MORE: 'MoreItem.png',
+        CDisplayListItem.TYPE_VIDEO: 'VideoItem.png',
+        CDisplayListItem.TYPE_AUDIO: 'AudioItem.png',
+        CDisplayListItem.TYPE_SEARCH: 'SearchItem.png',
+        CDisplayListItem.TYPE_ARTICLE: 'ArticleItem.png',
+        CDisplayListItem.TYPE_PICTURE: 'PictureItem.png',
+        CDisplayListItem.TYPE_DATA: 'DataItem.png',
+        CDisplayListItem.TYPE_SEARCH_HISTORY: 'SearchHistoryItem.png',
+        CDisplayListItem.TYPE_SEARCH_HISTORY_DELETE: 'SearchHistoryDeleteItem.png',
+        CDisplayListItem.TYPE_NEXT: 'NextItem.png',
+        CDisplayListItem.TYPE_DOWNLOAD: 'DownloadFolder.png',
+        CDisplayListItem.TYPE_MMC: 'MMCItem.png',
+        CDisplayListItem.TYPE_USB: 'USBItem.png',
+        CDisplayListItem.TYPE_WWW: 'GlobItem.png'
+    }
 
     def __init__(self):
         IPTVListComponentBase.__init__(self)
@@ -116,7 +135,7 @@ class IPTVMainNavigatorList(IPTVListComponentBase):
         for key in self.dictPIX:
             try:
                 pixFile = self.ICONS_FILESNAMES.get(key, None)
-                if None != pixFile:
+                if None is not pixFile:
                     self.dictPIX[key] = LoadPixmap(cached=True, path=GetIconDir(pixFile))
             except Exception:
                 printExc()
@@ -129,7 +148,7 @@ class IPTVMainNavigatorList(IPTVListComponentBase):
         height = self.l.getItemSize().height()
         res = [None]
         res.append((eListboxPythonMultiContent.TYPE_TEXT, 45, 0, width - 45, height, 1, RT_HALIGN_LEFT | RT_VALIGN_CENTER, item.getDisplayTitle(), item.getTextColor()))
-        res.append((eListboxPythonMultiContent.TYPE_PIXMAP_ALPHABLEND, 3, 1, 40, 40, self.dictPIX.get(item.type, None)))
+        res.append((eListboxPythonMultiContent.TYPE_PIXMAP_ALPHABLEND, 3, 1, 40, 40, self.dictPIX.get(item.imageType, None)))
         return res
 
 
@@ -144,7 +163,7 @@ class IPTVRadioButtonList(IPTVMainNavigatorList):
         height = self.l.getItemSize().height()
         pixmap_y = int((height - 16) / 2)
         res = [None]
-        if None == item.type:
+        if None is item.type:
             res.append((eListboxPythonMultiContent.TYPE_TEXT, 5, 0, width - 5, height, 1, RT_HALIGN_LEFT | RT_VALIGN_CENTER, item.name))
         else:
             res.append((eListboxPythonMultiContent.TYPE_TEXT, 30, 0, width - 30, height, 1, RT_HALIGN_LEFT | RT_VALIGN_CENTER, item.name))

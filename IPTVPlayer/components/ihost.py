@@ -1,4 +1,4 @@
-## @file  ihost.py
+# @file  ihost.py
 #
 
 ###################################################
@@ -15,6 +15,7 @@ from Components.config import config
 from skin import parseColor
 
 from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str
+from Screens.MessageBox import MessageBox
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlParse import urljoin
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import isPY2
 if not isPY2():
@@ -36,7 +37,7 @@ class CUrlItem:
             self.url = str(url)
 
         self.urlNeedsResolve = urlNeedsResolve  # additional request to host is needed to resolv this url (url is not direct link)
-## class CDisplayListItem
+# class CDisplayListItem
 # define attribiutes for item of diplay list
 # communicate display layer with host
 #
@@ -52,6 +53,13 @@ class CDisplayListItem:
     TYPE_DATA = "DATA"
     TYPE_MORE = "MORE"
     TYPE_MARKER = "MARKER"
+    TYPE_SEARCH_HISTORY = "SEARCH_HISTORY"
+    TYPE_SEARCH_HISTORY_DELETE = "SEARCH_HISTORY_DELETE"
+    TYPE_NEXT = "NEXT"
+    TYPE_DOWNLOAD = "DOWNLOAD"
+    TYPE_MMC = "MMC"
+    TYPE_USB = "USB"
+    TYPE_WWW = "WWW"
 
     TYPE_SUBTITLE = "SUBTITLE"
     TYPE_SUB_PROVIDER = "SUB_PROVIDER"
@@ -68,14 +76,17 @@ class CDisplayListItem:
                 isGoodForFavourites=False,
                 isWatched=False,
                 textColor='',
-                pinCode=''):
+                pinCode='',
+                imageType=None):
 
         if isinstance(name, basestring):
             self.name = name
         else:
             self.name = str(name)
 
-        if isinstance(description, basestring):
+        if callable(description):
+            self._description = description
+        elif isinstance(description, basestring):
             self.description = description
         else:
             self.description = str(description)
@@ -84,6 +95,8 @@ class CDisplayListItem:
             self.type = type
         else:
             self.type = str(type)
+
+        self.imageType = imageType or self.type
 
         if isinstance(iconimage, basestring):
             self.iconimage = iconimage
@@ -134,58 +147,71 @@ class CDisplayListItem:
             printExc()
         return None
 
+    def _getDescription(self):
+        if callable(self._description):
+            return self._description()
+        return self._description
+
+    def _setDescription(self, description):
+        self._description = description
+
+    description = property(_getDescription, _setDescription)
+
 
 class ArticleContent:
     VISUALIZER_DEFAULT = 'DEFAULT'
     # Posible args and values for richDescParams:
-    RICH_DESC_PARAMS = ["alternate_title", "original_title", "station", "price", "age_limit", "views", "status", "type", "first_air_date", "last_air_date", "seasons", "episodes", "country", "language", "duration", "quality", "subtitles", "year", "imdb_rating", "tmdb_rating",
-                               "released", "broadcast", "remaining", "rating", "rated", "genre", "genres", "category", "categories", "production", "director", "directors", "writer", "writers",
-                               "creator", "creators", "cast", "actors", "stars", "awards", "budget", "translation", ]
+    RICH_DESC_PARAMS = [
+        "alternate_title", "original_title", "station", "price", "age_limit", "views", "status", "type", "first_air_date", "last_air_date", "seasons", "episodes", "country", "language", "duration", "quality", "subtitles", "year", "imdb_rating", "tmdb_rating",
+        "released", "broadcast", "remaining", "rating", "rated", "genre", "genres", "category", "categories", "production", "director", "directors", "writer", "writers",
+        "creator", "creators", "cast", "actors", "stars", "awards", "budget", "translation"
+    ]
     # labels here must be in english language
     # translation should be done before presentation using "locals" mechanism
-    RICH_DESC_LABELS = {"alternate_title": "Alternate Title:",
-                        "original_title": "Original Title:",
-                        "station": "Station:",
-                        "price": "Price:",
-                        "status": "Status:",
-                        "type": "Type:",
-                        "age_limit": "Age limit:",
-                        "first_air_date": "First air date:",
-                        "last_air_date": "Last air date:",
-                        "seasons": "Seasons:",
-                        "episodes": "Episodes:",
-                        "quality": "Quality:",
-                        "subtitles": "Subtitles:",
-                        "country": "Country:",
-                        "language": "Language",
-                        "year": "Year:",
-                        "released": "Released:",
-                        "broadcast": "Broadcast:",
-                        "remaining": "Remaining:",
-                        "imdb_rating": "IMDb Rating:",
-                        "tmdb_rating": "TMDb Rating:",
-                        "rating": "Rating:",
-                        "rated": "Rated:",
-                        "duration": "Duration:",
-                        "genre": "Genre:",
-                        "genres": "Genres:",
-                        "category": "Category:",
-                        "categories": "Categories:",
-                        "production": "Production:",
-                        "director": "Director:",
-                        "directors": "Directors:",
-                        "writer": "Writer:",
-                        "writers": "Writers:",
-                        "creator": "Creator:",
-                        "creators": "Creators:",
-                        "cast": "Cast:",
-                        "actors": "Actors:",
-                        "stars": "Stars:",
-                        "awards": "Awards:",
-                        "views": "Views:",
-                        "budget": "Budget:",
-                        "translation": "Translation:"
-                        }
+    RICH_DESC_LABELS = {
+        "alternate_title": "Alternate Title:",
+        "original_title": "Original Title:",
+        "station": "Station:",
+        "price": "Price:",
+        "status": "Status:",
+        "type": "Type:",
+        "age_limit": "Age limit:",
+        "first_air_date": "First air date:",
+        "last_air_date": "Last air date:",
+        "seasons": "Seasons:",
+        "episodes": "Episodes:",
+        "quality": "Quality:",
+        "subtitles": "Subtitles:",
+        "country": "Country:",
+        "language": "Language",
+        "year": "Year:",
+        "released": "Released:",
+        "broadcast": "Broadcast:",
+        "remaining": "Remaining:",
+        "imdb_rating": "IMDb Rating:",
+        "tmdb_rating": "TMDb Rating:",
+        "rating": "Rating:",
+        "rated": "Rated:",
+        "duration": "Duration:",
+        "genre": "Genre:",
+        "genres": "Genres:",
+        "category": "Category:",
+        "categories": "Categories:",
+        "production": "Production:",
+        "director": "Director:",
+        "directors": "Directors:",
+        "writer": "Writer:",
+        "writers": "Writers:",
+        "creator": "Creator:",
+        "creators": "Creators:",
+        "cast": "Cast:",
+        "actors": "Actors:",
+        "stars": "Stars:",
+        "awards": "Awards:",
+        "views": "Views:",
+        "budget": "Budget:",
+        "translation": "Translation:"
+    }
 
     def __init__(self, title='', text='', images=[], trailers=[], richDescParams={}, visualizer=None):
         self.title = title
@@ -193,7 +219,7 @@ class ArticleContent:
         self.images = images
         self.trailers = trailers
         self.richDescParams = richDescParams
-        if None == visualizer:
+        if None is visualizer:
             self.visualizer = ArticleContent.VISUALIZER_DEFAULT
         else:
             self.visualizer = visualizer
@@ -251,7 +277,7 @@ class RetHost:
         self.value = value
         self.message = message
 
-## class IHost
+# class IHost
 # interface base class with method used to
 # communicate display layer with host
 #
@@ -380,7 +406,7 @@ class CHostBase(IHost):
         if listLen <= Index or Index < 0:
             printDBG("ERROR isValidIndex - current list is to short len: %d, Index: %d" % (listLen, Index))
             return False
-        if None != validTypes and self.converItem(self.host.currList[Index]).type not in validTypes:
+        if None is not validTypes and self.converItem(self.host.currList[Index]).type not in validTypes:
             printDBG("ERROR isValidIndex - current item has wrong type")
             return False
         return True
@@ -398,7 +424,7 @@ class CHostBase(IHost):
         if not self.withArticleContent(cItem):
             return RetHost(retCode, value=retlist)
         hList = self.host.getArticleContent(cItem)
-        if None == hList:
+        if None is hList:
             return RetHost(retCode, value=retlist)
         for item in hList:
             title = item.get('title', '')
@@ -446,7 +472,7 @@ class CHostBase(IHost):
 
         cItem = self.host.currList[Index]
         data = self.host.getFavouriteData(cItem)
-        if None != data:
+        if None is not data:
             favItem = CFavItem(data=data)
             favItem.fromDisplayListItem(self.converItem(cItem))
 
@@ -569,22 +595,22 @@ class CHostBase(IHost):
         hostList = []
         for cItem in cList:
             hostItem = self.converItem(cItem)
-            if None != hostItem:
+            if None is not hostItem:
                 hostList.append(hostItem)
         return hostList
     # end convertList
 
     def getSearchTypes(self):
         searchTypesOptions = []
-        #searchTypesOptions.append((_("Movies"),   "movie"))
-        #searchTypesOptions.append((_("TV Shows"), "series"))
+        # searchTypesOptions.append((_("Movies"),   "movie"))
+        # searchTypesOptions.append((_("TV Shows"), "series"))
         return searchTypesOptions
 
     def getDefaulIcon(self, cItem):
         return self.host.getDefaulIcon(cItem)
 
     def getFullIconUrl(self, url, currUrl=None):
-        if currUrl != None:
+        if currUrl is not None:
             return self.host.getFullIconUrl(url, currUrl)
         else:
             return self.host.getFullIconUrl(url)
@@ -599,6 +625,14 @@ class CHostBase(IHost):
             if cItem.get('search_item', False):
                 type = CDisplayListItem.TYPE_SEARCH
                 possibleTypesOfSearch = self.getSearchTypes()
+            elif cItem.get('category', '') == 'search_history':
+                type = CDisplayListItem.TYPE_SEARCH_HISTORY
+            elif cItem.get('category', '') == 'delete_history':
+                type = CDisplayListItem.TYPE_SEARCH_HISTORY_DELETE
+            elif cItem.get('name', '') == 'history':
+                type = CDisplayListItem.TYPE_SEARCH_HISTORY
+            elif cItem.get('title', '') == _('Next page'):
+                type = CDisplayListItem.TYPE_NEXT
             else:
                 type = CDisplayListItem.TYPE_CATEGORY
         elif cItem['type'] == 'video':
@@ -633,6 +667,11 @@ class CHostBase(IHost):
         pinCode = cItem.get('pin_code', '')
         textColor = cItem.get('text_color', '')
 
+        if 'image_type' in cItem:
+            imageType = cItem['image_type']
+        else:
+            imageType = type
+
         return CDisplayListItem(name=title,
                                     description=description,
                                     type=type,
@@ -643,19 +682,19 @@ class CHostBase(IHost):
                                     pinLocked=pinLocked,
                                     isGoodForFavourites=isGoodForFavourites,
                                     textColor=textColor,
-                                    pinCode=pinCode)
+                                    pinCode=pinCode, imageType=imageType)
     # end converItem
 
     def getSearchResults(self, searchpattern, searchType=None):
-        retList = []
+        # retList = []
         if self.withSearchHistrory:
             self.host.history.addHistoryItem(searchpattern, searchType)
 
         self.searchPattern = searchpattern
         self.searchType = searchType
 
-        # Find 'Wyszukaj' item
-        list = self.host.getCurrList()
+        # Find 'Search' item
+        # list = self.host.getCurrList()
 
         searchItemIdx = self.getSearchItemInx()
         if searchItemIdx > -1:
@@ -677,11 +716,16 @@ class CBaseHostClass:
 
         self.currList = []
         self.currItem = {}
+        self._historyLenTextFunction = ""
         if '' != params.get('history', ''):
             self.history = CSearchHistoryHelper(params['history'], params.get('history_store_type', False))
+            self._historyLenTextFunction = self.getHistoryText
         if '' != params.get('cookie', ''):
             self.COOKIE_FILE = GetCookieDir(params['cookie'])
         self.moreMode = False
+
+    def getHistoryText(self):
+        return self.history.getLength()
 
     def informAboutGeoBlockingIfNeeded(self, country, onlyOnce=True):
         try:
@@ -689,7 +733,7 @@ class CBaseHostClass:
                 return
         except Exception:
             self.isGeoBlockingChecked = False
-        sts, data = self.cm.getPage('http://ip-api.com/json/')
+        sts, data = self.cm.getPage('http://ip-api.com/json/')  # NOSONAR
         if not sts:
             return
         try:
@@ -741,17 +785,17 @@ class CBaseHostClass:
         return False
 
     def getFullUrl(self, url, currUrl=None):
-        if currUrl == None or not self.cm.isValidUrl(currUrl):
+        if currUrl is None or not self.cm.isValidUrl(currUrl):
             try:
                 currUrl = self.getMainUrl()
             except Exception:
                 currUrl = None
-            if currUrl == None or not self.cm.isValidUrl(currUrl):
-                currUrl = 'http://fake/'
+            if currUrl is None or not self.cm.isValidUrl(currUrl):
+                currUrl = 'http://fake/'  # NOSONAR
         return self.cm.getFullUrl(url, currUrl)
 
     def getFullIconUrl(self, url, currUrl=None):
-        if currUrl != None:
+        if currUrl is not None:
             return self.getFullUrl(url, currUrl)
         else:
             return self.getFullUrl(url)
@@ -827,17 +871,29 @@ class CBaseHostClass:
         return
 
     def searchItems(self):
-        return [
-            {'category': 'search', 'title': _('Search'), 'search_item': True, },
-            {'category': 'search_history', 'title': _("Search history"), 'desc': _("History of searched phrases.")}
-        ]
+        if self._historyLenTextFunction:
+            return [
+                {'category': 'search', 'title': _('Search'), 'search_item': True, },
+                {'category': 'search_history', 'title': _("Search history"), 'desc': _("History of searched phrases.")},
+                {'category': 'delete_history', 'title': _('Delete search history'), 'desc': self._historyLenTextFunction}
+            ]
+        else:
+            return []
 
-    def listsHistory(self, baseItem={'name': 'history', 'category': 'Wyszukaj'}, desc_key='plot', desc_base=(_("Type: "))):
+    def delHistory(self, session):
+        def doit(ret=None):
+            if ret:
+                err, msg = self.history.doRemove()
+                session.open(MessageBox, msg, type=MessageBox.TYPE_ERROR if err else MessageBox.TYPE_INFO, timeout=5)
+        msg = _('Are you sure you want to delete search history?')
+        session.openWithCallback(doit, MessageBox, msg, type=MessageBox.TYPE_YESNO, default=True)
+
+    def listsHistory(self, baseItem={'name': 'history', 'category': 'search'}, desc_key='plot', desc_base=(_("Type: "))):
         list = self.history.getHistoryList()
         for histItem in list:
             plot = ''
             try:
-                if type(histItem) == type({}):
+                if type(histItem) is type({}):
                     pattern = histItem.get('pattern', '')
                     search_type = histItem.get('type', '')
                     if '' != search_type:
@@ -860,7 +916,7 @@ class CBaseHostClass:
 
     def getLinksForFavourite(self, fav_data):
         try:
-            if self.MAIN_URL == None:
+            if self.MAIN_URL is None:
                 self.selectDomain()
         except Exception:
             printExc()
@@ -874,7 +930,7 @@ class CBaseHostClass:
 
     def setInitListFromFavouriteItem(self, fav_data):
         try:
-            if self.MAIN_URL == None:
+            if self.MAIN_URL is None:
                 self.selectDomain()
         except Exception:
             printExc()
