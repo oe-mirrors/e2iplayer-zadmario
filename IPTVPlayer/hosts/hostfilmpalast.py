@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Last Modified: 03.06.2025
 ###################################################
 # LOCAL import
 ###################################################
@@ -15,6 +16,7 @@ from Plugins.Extensions.IPTVPlayer.p2p3.UrlParse import urljoin
 # FOREIGN import
 ###################################################
 ###################################################
+
 
 def GetConfigList():
     return []
@@ -42,14 +44,11 @@ class FilmPalastTo(CBaseHostClass):
         self.cacheLinks = {}
 
     def selectDomain(self):
-        self.MAIN_URL = 'http://filmpalast.to/'
+        self.MAIN_URL = 'https://filmpalast.to/'
         self.MAIN_CAT_TAB = [{'category': 'list_items', 'title': _("Main"), 'url': self.getMainUrl()},
                              {'category': 'movies', 'title': _("Movies")},
                              {'category': 'series', 'title': _("Series"), },
-
-                             {'category': 'search', 'title': _('Search'), 'search_item': True, },
-                             {'category': 'search_history', 'title': _('Search history'), },
-                            ]
+                            ] + self.searchItems()
 
         self.MOVIES_CAT_TAB = [{'category': 'list_items', 'title': _("New"), 'url': self.getFullUrl('/movies/new')},
                                {'category': 'list_items', 'title': _("Top"), 'url': self.getFullUrl('/movies/top')},
@@ -160,7 +159,7 @@ class FilmPalastTo(CBaseHostClass):
         data = self.cm.ph.getAllItemsBeetwenMarkers(data, '<article', '</article>')
         for item in data:
             url = self.getFullUrl(self.cm.ph.getSearchGroups(item, '''href=['"]([^'^"]+?)['"]''')[0])
-            icon = self.getFullIconUrl(self.cm.ph.getSearchGroups(item, '''src=['"]([^'^"]+?\.jpe?g)['"]''')[0])
+            icon = self.getFullIconUrl(self.cm.ph.getSearchGroups(item, r'''src=['"]([^'^"]+?\.jpe?g)['"]''')[0])
             title = self.cleanHtmlStr(self.cm.ph.getSearchGroups(item, '''title=['"]([^'^"]+)['"]''')[0])
 
             # get desc
@@ -197,7 +196,7 @@ class FilmPalastTo(CBaseHostClass):
         for item in tab:
             params = dict(cItem)
             params.update(item)
-            #params['icon'] = self.getFullIconUrl('/files/movies/450/%s.jpg' % item['url'].split('/')[-1])
+            # params['icon'] = self.getFullIconUrl('/files/movies/450/%s.jpg' % item['url'].split('/')[-1])
             self.addVideo(params)
 
     def exploreItem(self, cItem, nextCategory):
@@ -215,7 +214,7 @@ class FilmPalastTo(CBaseHostClass):
             self.addVideo(params)
             return
 
-        if '' != self.cm.ph.getSearchGroups(cItem['title'] + ' ', '''\s([Ss][0-9]+[Ee][0-9]+)\s''')[0]:
+        if '' != self.cm.ph.getSearchGroups(cItem['title'] + ' ', r'''\s([Ss][0-9]+[Ee][0-9]+)\s''')[0]:
             params = dict(cItem)
             self.addVideo(params)
 
@@ -296,8 +295,8 @@ class FilmPalastTo(CBaseHostClass):
         data_stamp = videoUrl.meta.get('data_stamp', '')
 
         if data_id and data_stamp:
-            #sts, data = self.getPage(key, self.defaultParams)
-            #if not sts: return []
+            # sts, data = self.getPage(key, self.defaultParams)
+            # if not sts: return []
 
             url = self.getFullUrl('/stream/%s/%s' % (data_id, data_stamp))
             urlParams = dict(self.defaultParams)
@@ -334,7 +333,7 @@ class FilmPalastTo(CBaseHostClass):
 
         title = self.cleanHtmlStr(self.cm.ph.getDataBeetwenMarkers(data, '<h2', '</h2>')[1])
         desc = self.cleanHtmlStr(self.cm.ph.getDataBeetwenMarkers(data, '<span class="hidden', '</span>')[1])
-        icon = self.getFullIconUrl(self.cm.ph.getSearchGroups(data, '''src=['"]([^"^']+\.jpe?g)['"]''')[0])
+        icon = self.getFullIconUrl(self.cm.ph.getSearchGroups(data, r'''src=['"]([^"^']+\.jpe?g)['"]''')[0])
 
         tmpTab = []
         tmp = self.cm.ph.getDataBeetwenMarkers(data, 'enre</p>', '</li>', False)[1]
@@ -401,8 +400,8 @@ class FilmPalastTo(CBaseHostClass):
         printDBG('handleService start')
 
         CBaseHostClass.handleService(self, index, refresh, searchPattern, searchType)
-        if self.MAIN_URL == None:
-            #rm(self.COOKIE_FILE)
+        if self.MAIN_URL is None:
+            # rm(self.COOKIE_FILE)
             self.selectDomain()
 
         name = self.currItem.get("name", '')
@@ -412,8 +411,8 @@ class FilmPalastTo(CBaseHostClass):
         printDBG("handleService: |||||||||||||||||||||||||||||||||||| name[%s], category[%s] " % (name, category))
         self.currList = []
 
-    #MAIN MENU
-        if name == None:
+    # MAIN MENU
+        if name is None:
             self.listsTab(self.MAIN_CAT_TAB, {'name': 'category'})
         elif 'movies' == category:
             self.listsTab(self.MOVIES_CAT_TAB, self.currItem)
@@ -436,12 +435,12 @@ class FilmPalastTo(CBaseHostClass):
         elif 'list_episodes' == category:
             self.listEpisodes(self.currItem)
 
-    #SEARCH
+    # SEARCH
         elif category in ["search", "search_next_page"]:
             cItem = dict(self.currItem)
             cItem.update({'search_item': False, 'name': 'category'})
             self.listSearchResult(cItem, searchPattern, searchType)
-    #HISTORIA SEARCH
+    # HISTORIA SEARCH
         elif category == "search_history":
             self.listsHistory({'name': 'history', 'category': 'search'}, 'desc', _("Type: "))
         else:

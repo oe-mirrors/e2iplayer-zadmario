@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Last Modified: 03.06.2025
 ######################
 # (c) 2025 Team Jogi #
 ######################
@@ -35,9 +36,7 @@ class HDFilmeTV(CBaseHostClass):
                             {'category': 'list_items', 'title': _("New"), 'link': self.getFullUrl('/aktuelle-kinofilme-im-kino/')},
                             {'category': 'list_items', 'title': _("Movies"), 'link': self.getFullUrl('/kinofilme-online/')},
                             {'category': 'list_items', 'title': _("Series"), 'link': self.getFullUrl('/serienstream-deutsch/')},
-                            {'category': 'list_genres', 'title': 'Genres', 'link': self.MAIN_URL},
-                            {'category': 'search', 'title': _('Search'), 'search_item': True, },
-                            {'category': 'search_history', 'title': _('Search history'), }]
+                            {'category': 'list_genres', 'title': 'Genres', 'link': self.MAIN_URL}] + self.searchItems()
 
     def getPage(self, baseUrl, addParams={}, post_data=None):
         if addParams == {}:
@@ -176,13 +175,13 @@ class HDFilmeTV(CBaseHostClass):
     def handleService(self, index, refresh=0, searchPattern='', searchType=''):
         printDBG('handleService start')
         CBaseHostClass.handleService(self, index, refresh, searchPattern, searchType)
-        if self.MAIN_URL == None:
+        if self.MAIN_URL is None:
             self.selectDomain()
         name = self.currItem.get("name", '')
         category = self.currItem.get("category", '')
         printDBG("handleService: |||||||||||||||||||||||||||||||||||| name[%s], category[%s] " % (name, category))
         self.currList = []
-        if name == None:
+        if name is None:
             self.listsTab(self.MAIN_CAT_TAB, {'name': 'category'})
         elif 'list_items' == category:
             self.listItems(self.currItem, 'video')
