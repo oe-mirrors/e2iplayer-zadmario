@@ -125,7 +125,7 @@ def PrevDay(dt):
 
 def GetNice(pid=None):
     nice = 0
-    if None == pid:
+    if None is pid:
         pid = 'self'
     filePath = '/proc/%s/stat' % pid
     try:
@@ -263,7 +263,7 @@ class iptv_system:
         self.cmd = cmd
 
         self.console = eConsoleAppContainer()
-        if None != self.callBackFun:
+        if None is not self.callBackFun:
             self.console_appClosed_conn = eConnectCallback(self.console.appClosed, self._cmdFinished)
             self.console_stdoutAvail_conn = eConnectCallback(self.console.stdoutAvail, self._dataAvail)
             self.outData = ""
@@ -273,8 +273,8 @@ class iptv_system:
         self.kill(doCallBackFun)
 
     def kill(self, doCallBackFun=False):
-        if None != self.console:
-            if None != self.callBackFun:
+        if None is not self.console:
+            if None is not self.callBackFun:
                 self.console_appClosed_conn = None
                 self.console_stdoutAvail_conn = None
             else:
@@ -286,7 +286,7 @@ class iptv_system:
                 self.callBackFun = None
 
     def _dataAvail(self, data):
-        if None != data:
+        if None is not data:
             self.outData += strDecode(data)
 
     def _cmdFinished(self, code):
@@ -430,7 +430,7 @@ def SetTmpJSCacheDir():
 
 def ClearTmpJSCacheDir():
     global gE2iPlayerTempJSCache
-    if gE2iPlayerTempJSCache != None:
+    if gE2iPlayerTempJSCache is not None:
         try:
             for fileName in os.listdir(gE2iPlayerTempJSCache):  # file is native p2 function renamed for clarity
                 rm(os.path.join(gE2iPlayerTempJSCache, fileName))
@@ -578,9 +578,9 @@ def Which(program):
 class CSelOneLink():
 
     def __init__(self, listOfLinks, getQualiyFun, maxRes):
-       self.listOfLinks = listOfLinks
-       self.getQualiyFun = getQualiyFun
-       self.maxRes = maxRes
+        self.listOfLinks = listOfLinks
+        self.getQualiyFun = getQualiyFun
+        self.maxRes = maxRes
 
     def _cmpLinks(self, item1, item2):
         val1 = self.getQualiyFun(item1)
@@ -625,7 +625,7 @@ class CSelOneLink():
             sortList.sort(self._cmpLinks)
         else:
             sortList.sort(key=cmp_to_key(self._cmpLinks))
-        if len(self.listOfLinks) < 2 or None == self.maxRes:
+        if len(self.listOfLinks) < 2 or None is self.maxRes:
             return self.listOfLinks
 
         if defaultFirst:
@@ -770,7 +770,7 @@ def GetHostsFromList(useCache=True):
 
 def GetHostsFromFolder(useCache=True):
     global g_cacheHostsFromFolder
-    if useCache and g_cacheHostsFromFolder != None and len(g_cacheHostsFromFolder) > 0:
+    if useCache and g_cacheHostsFromFolder is not None and len(g_cacheHostsFromFolder) > 0:
         printDBG('iptvtools.GetHostsFromFolder returns cached list (%s)' % str(g_cacheHostsFromFolder))
         return g_cacheHostsFromFolder
 
@@ -923,7 +923,7 @@ def FreeSpace(katalog, requiredSpace, unitDiv=1024 * 1024):
         printExc()
         freeSpace = -1
     printDBG("FreeSpace freeSpace[%s] requiredSpace[%s] unitDiv[%s]" % (freeSpace, requiredSpace, unitDiv))
-    if None == requiredSpace:
+    if None is requiredSpace:
         return freeSpace
     else:
         if freeSpace >= requiredSpace:
@@ -1170,7 +1170,7 @@ def GetCreationIconsDirTime(fullPath):
 def GetCreateIconsDirDeltaDateInDays(fullPath):
     ret = -1
     createTime = GetCreationIconsDirTime(fullPath)
-    if None != createTime:
+    if None is not createTime:
         try:
             currTime = datetime.datetime.now()
             modTime = datetime.datetime.fromtimestamp(createTime)
@@ -1251,22 +1251,23 @@ def remove_html_markup(s, replacement=''):
     quote = False
     out = ""
     for c in s:
-            if c == '<' and not quote:
-                tag = True
-            elif c == '>' and not quote:
-                tag = False
-                out += replacement
-            elif (c == '"' or c == "'") and tag:
-                quote = not quote
-            elif not tag:
-                out = out + c
-    return re.sub('&\w+;', ' ', out)
+        if c == '<' and not quote:
+            tag = True
+        elif c == '>' and not quote:
+            tag = False
+            out += replacement
+        elif (c == '"' or c == "'") and tag:
+            quote = not quote
+        elif not tag:
+            out = out + c
+    return re.sub(r'&\w+;', ' ', out)
 
 
 class CSearchHistoryHelper():
     TYPE_SEP = '|--TYPE--|'
 
     def __init__(self, name, storeTypes=False):
+        self.length = None
         printDBG('CSearchHistoryHelper.__init__')
         self.storeTypes = storeTypes
         try:
@@ -1275,22 +1276,56 @@ class CSearchHistoryHelper():
         except Exception:
             printExc('CSearchHistoryHelper.__init__ EXCEPTION')
 
+    def doRemove(self):
+        printDBG('CSearchHistoryHelper.doRemove file = "%s"' % self.PATH_FILE)
+        self.length = 0
+        msg = 1, _('Unable to comply. Search History is empty.')
+        try:
+            if os.path.isfile(self.PATH_FILE):
+                os.remove(self.PATH_FILE)
+                msg = 0, _('Search History successfully deleted.')
+        except:
+            pass
+        return msg
+
+    def getLength(self):
+        if self.length is None:
+            self.length = 0
+            if os.path.isfile(self.PATH_FILE):
+                try:
+                    num = 0
+                    file = codecs.open(GetSearchHistoryDir("ytlist.txt"), 'r', 'utf-8', 'ignore')
+                    for line in file:
+                        num = num + 1
+                    file.close()
+                    self.length = num
+                except:
+                    pass
+
+        if self.length:
+            return _("Number of items in search history: %d") % self.length
+        else:
+            return _("Search History is empty.")
+
     def getHistoryList(self):
         printDBG('CSearchHistoryHelper.getHistoryList from file = "%s"' % self.PATH_FILE)
         historyList = []
 
-        try:
-            file = codecs.open(self.PATH_FILE, 'r', 'utf-8', 'ignore')
-            for line in file:
-                value = line.replace('\n', '').strip()
-                if len(value) > 0:
-                    try:
-                        historyList.insert(0, ensure_str(value))
-                    except Exception:
-                        printExc()
-            file.close()
-        except Exception:
-            printExc()
+        if os.path.isfile(self.PATH_FILE):
+            try:
+                file = codecs.open(self.PATH_FILE, 'r', 'utf-8', 'ignore')
+                for line in file:
+                    value = line.replace('\n', '').strip()
+                    if len(value) > 0:
+                        try:
+                            historyList.insert(0, ensure_str(value))
+                        except Exception:
+                            printExc()
+                file.close()
+            except Exception:
+                printExc()
+                return []
+        else:
             return []
 
         orgLen = len(historyList)
@@ -1329,12 +1364,15 @@ class CSearchHistoryHelper():
             if config.plugins.iptvplayer.search_history_size.value > 0:
                 file = codecs.open(self.PATH_FILE, 'a', 'utf-8', 'replace')
                 value = itemValue
-                if None != itemType:
+                if None is not itemType:
                     value = value + self.TYPE_SEP + itemType
-                value = value if type(u'') == type(value) else value.decode('utf-8', 'replace')
-                file.write(value + u'\n')
+                # value = value if type('') == type(value) else value.decode('utf-8', 'replace')
+                file.write(value + '\n')
                 printDBG('Added pattern: "%s"' % itemValue)
                 file.close
+                if self.length is None:
+                    self.length = 0
+                self.length += 1
         except Exception:
             printExc('CSearchHistoryHelper.addHistoryItem EXCEPTION')
 
@@ -1346,6 +1384,7 @@ class CSearchHistoryHelper():
             for i in range(l):
                 file.write(list[l - 1 - i] + '\n')
             file.close
+            self.length = l
         except Exception:
             printExc('CSearchHistoryHelper._saveHistoryList EXCEPTION')
 
@@ -1357,25 +1396,31 @@ class CSearchHistoryHelper():
     @staticmethod
     def loadLastPattern():
         filePath = GetSearchHistoryDir("pattern")
+        if os.path.isdir(filePath):
+            try:
+                os.rmdir(filePath)
+            except Exception:
+                printExc('CSearchHistoryHelper.loadLastPattern EXCEPTION')
         return ReadTextFile(filePath)
 # end CSearchHistoryHelper
 
 
 def ReadTextFile(filePath, encode='utf-8', errors='ignore'):
     sts, ret = False, ''
-    try:
-        file = codecs.open(filePath, 'r', encode, errors)
-        ret = file.read().encode(encode, errors)
-        file.close()
-        if ret.startswith(codecs.BOM_UTF8):
-            ret = ret[3:]
-        sts = True
-        ret = strDecode(ret, errors)
-    except Exception:
-        if 'SearchHistory/' in filePath:
-            printExc('WARNING')
-        else:
-            printExc()
+    if os.path.isfile(filePath):
+        try:
+            file = codecs.open(filePath, 'r', encode, errors)
+            ret = file.read().encode(encode, errors)
+            file.close()
+            if ret.startswith(codecs.BOM_UTF8):
+                ret = ret[3:]
+            sts = True
+            ret = strDecode(ret, errors)
+        except Exception:
+            if 'SearchHistory/' in filePath:
+                printExc('WARNING')
+            else:
+                printExc()
 
     return sts, ret
 
@@ -1437,7 +1482,7 @@ class CMoviePlayerPerHost():
         try:
             if {} == self.activePlayer and os.path.isfile(self.filePath):
                 os.remove(self.filePath)
-            elif self.activePlayer.get('buffering', None) == None:
+            elif self.activePlayer.get('buffering', None) is None:
                 printDBG('WARNING: buffering NOT set')
             else:
                 data = {}
@@ -1860,9 +1905,9 @@ def ReadGnuMIPSABIFP(elfFileName):
                                 if tag == 1 and attrName == "gnu":  # File Attributes
                                     while p < end:
                                         # display_gnu_attribute
-                                          numRead, tag = _readLeb128(contents, p, end)
-                                          p += numRead
-                                          if tag == Tag_GNU_MIPS_ABI_FP:
+                                        numRead, tag = _readLeb128(contents, p, end)
+                                        p += numRead
+                                        if tag == Tag_GNU_MIPS_ABI_FP:
                                             numRead, val = _readLeb128(contents, p, end)
                                             p += numRead
                                             Val_GNU_MIPS_ABI_FP = val
@@ -1976,10 +2021,11 @@ def readCFG(cfgName, defVal=''):
 def checkWebSiteStatus(URL, HEADERS=None, TIMEOUT=1):
     global LASTExcMSG
     if HEADERS is None:
-        HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux i686; rv:88.0) Gecko/20100101 Firefox/88.0',
-                        'Accept-Charset': 'utf-8',
-                        'Content-Type': 'text/html; charset=utf-8'
-                      }
+        HEADERS = {
+            'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux i686; rv:88.0) Gecko/20100101 Firefox/88.0',
+            'Accept-Charset': 'utf-8',
+            'Content-Type': 'text/html; charset=utf-8'
+    }
     req = urllib2_Request(URL, headers=HEADERS)
     try:
         response = urllib2_urlopen(req, timeout=TIMEOUT)
