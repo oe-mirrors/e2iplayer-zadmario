@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Last Modified: 04.06.2025
 import re
 from Plugins.Extensions.IPTVPlayer.components.ihost import CBaseHostClass, CHostBase
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
@@ -7,11 +8,14 @@ from Plugins.Extensions.IPTVPlayer.p2p3.UrlParse import urlparse
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 
+
 def GetConfigList():
     return []
 
+
 def gettytul():
     return 'https://kkiste-to.me'
+
 
 class KKisteAG(CBaseHostClass):
 
@@ -30,9 +34,7 @@ class KKisteAG(CBaseHostClass):
                             {'category': 'list_items', 'title': _("Series"), 'link': self.getFullUrl('/serienstream-deutsch/')},
                             {'category': 'list_items', 'title': _("Animation"), 'link': self.getFullUrl('/animation/')},
                             {'category': 'list_year', 'title': _("Year"), 'link': self.MAIN_URL},
-                            {'category': 'list_genres', 'title': 'Genres', 'link': self.MAIN_URL},
-                            {'category': 'search', 'title': _('Search'), 'search_item': True, },
-                            {'category': 'search_history', 'title': _('Search history'), }]
+                            {'category': 'list_genres', 'title': 'Genres', 'link': self.MAIN_URL}] + self.searchItems()
 
     def getPage(self, baseUrl, addParams={}, post_data=None):
         if addParams == {}:
@@ -125,9 +127,9 @@ class KKisteAG(CBaseHostClass):
             if url.startswith('//'):
                 url = "https:" + url
             title = urlparse(url).netloc.split('.')[0]
-            if 'mdy48tn97' in title.lower(): 
+            if 'mdy48tn97' in title.lower():
                 title = title.replace('mdy48tn97', 'Mixdrop').lower()
-            
+
             linksTab.append({'name': title.capitalize(), 'url': url, 'need_resolve': 1})
         if linksTab:
             cItem['url'] = linksTab
@@ -147,7 +149,7 @@ class KKisteAG(CBaseHostClass):
         if not sts:
             return []
         desc = self.cleanHtmlStr(self.cm.ph.getSearchGroups(data, 'video-box clearfix"><strong>([^"]+)</div>')[0])
-        desc = desc if desc else c_item.get('desc', '')
+        desc = desc if desc else cItem.get('desc', '')
         actors = self.cleanHtmlStr(self.cm.ph.getSearchGroups(data, "Darsteller:(.*?)</div>")[0])
         if actors:
             otherInfo['actors'] = actors
@@ -167,13 +169,13 @@ class KKisteAG(CBaseHostClass):
     def handleService(self, index, refresh=0, searchPattern='', searchType=''):
         printDBG('handleService start')
         CBaseHostClass.handleService(self, index, refresh, searchPattern, searchType)
-        if self.MAIN_URL == None:
+        if self.MAIN_URL is None:
             self.menu()
         name = self.currItem.get("name", '')
         category = self.currItem.get("category", '')
         printDBG("handleService: |||||||||||||||||||||||||||||||||||| name[%s], category[%s] " % (name, category))
         self.currList = []
-        if name == None:
+        if name is None:
             self.listsTab(self.MAIN_CAT_TAB, {'name': 'category'})
         elif 'list_items' == category:
             self.listItems(self.currItem, 'video')

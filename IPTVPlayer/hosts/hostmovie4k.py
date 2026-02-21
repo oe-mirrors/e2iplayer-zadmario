@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Last Modified: 03.06.2025
 import re
 from Plugins.Extensions.IPTVPlayer.components.ihost import CBaseHostClass, CHostBase
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
@@ -33,9 +34,7 @@ class Movie4K(CBaseHostClass):
                     {'category': 'list_items', 'title': _("Series"), 'link': self.getFullUrl('/serienstream-deutsch')},
                     {'category': 'list_genres', 'title': 'Genres'},
                     {'category': 'list_year', 'title': 'Jahr'},
-                    {'category': 'list_country', 'title': 'Land'},
-                    {'category': 'search', 'title': _('Search'), 'search_item': True, },
-                    {'category': 'search_history', 'title': _('Search history'), }]
+                    {'category': 'list_country', 'title': 'Land'}] + self.searchItems()
 
     def getPage(self, baseUrl, addParams={}, post_data=None):
         if addParams == {}:
@@ -56,7 +55,7 @@ class Movie4K(CBaseHostClass):
         sts, data = self.getPage(url)
         if not sts:
             return
-        nextPage = self.cm.ph.getSearchGroups(data,  'Nächste[^>]Seite">[^>]*<a[^>]href="([^"]+)')[0]
+        nextPage = self.cm.ph.getSearchGroups(data, 'Nächste[^>]Seite">[^>]*<a[^>]href="([^"]+)')[0]
         data = self.cm.ph.getAllItemsBeetwenMarkers(data, '<article class', '</article>')
         for item in data:
             url = self.getFullUrl(self.cm.ph.getSearchGroups(item, 'href="([^"]+)')[0])
@@ -64,7 +63,7 @@ class Movie4K(CBaseHostClass):
             title = self.cleanHtmlStr(self.cm.ph.getSearchGroups(item, 'title="([^"]+)')[0])
             desc = self.cleanHtmlStr(self.cm.ph.getSearchGroups(item, 'st-desc">([^<]+)')[0])
             params = dict(cItem)
-            params.update({'good_for_fav': True, 'category': nextCategory, 'title': title.replace(' hdfilme','').replace(' kostenlos online anschauen',''), 'link': url, 'icon': icon, 'desc': desc})
+            params.update({'good_for_fav': True, 'category': nextCategory, 'title': title.replace(' hdfilme', '').replace(' kostenlos online anschauen', ''), 'link': url, 'icon': icon, 'desc': desc})
             if 'taffel' in title or 'serie' in title:
                 params.update({'category': 'list_episodes'})
                 self.addDir(params)

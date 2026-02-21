@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Last Modified: 09.06.2025
 ###################################################
 # LOCAL import
 ###################################################
@@ -8,6 +9,8 @@ from Plugins.Extensions.IPTVPlayer.components.captcha_helper import CaptchaHelpe
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, GetDefaultLang, MergeDicts
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads
+from Components.config import config, ConfigSelection, ConfigYesNo, ConfigText, getConfigListEntry
+
 ###################################################
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote_plus, urllib_urlencode
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlParse import urljoin
@@ -17,10 +20,25 @@ from Plugins.Extensions.IPTVPlayer.p2p3.UrlParse import urljoin
 import re
 ###################################################
 
+###################################################
+# Config options for HOST
+###################################################
+config.plugins.iptvplayer.api_key_9kweu = ConfigText(default="", fixed_size=False)
+config.plugins.iptvplayer.api_key_2captcha = ConfigText(default="", fixed_size=False)
+config.plugins.iptvplayer.cineto_bypassrecaptcha = ConfigSelection(default="", choices=[("", _("None")),
+                                                                                          ("9kw.eu", "https://9kw.eu/"),
+                                                                                          ("2captcha.com", "https://2captcha.com/")])
+
 
 def GetConfigList():
     optionList = []
+    optionList.append(getConfigListEntry(_("Captcha solving service"), config.plugins.iptvplayer.cineto_bypassrecaptcha))
+    if config.plugins.iptvplayer.cineto_bypassrecaptcha.value == '9kw.eu':
+        optionList.append(getConfigListEntry(_("%s API KEY") % '    ', config.plugins.iptvplayer.api_key_9kweu))
+    elif config.plugins.iptvplayer.cineto_bypassrecaptcha.value == '2captcha.com':
+        optionList.append(getConfigListEntry(_("%s API KEY") % '    ', config.plugins.iptvplayer.api_key_2captcha))
     return optionList
+###################################################
 
 
 def gettytul():
@@ -43,15 +61,12 @@ class CineTO(CBaseHostClass, CaptchaHelper):
         self.cacheLinks = {}
         self.defaultParams = {'with_metadata': True, 'header': self.HEADER, 'raw_post_data': True, 'use_cookie': True, 'load_cookie': True, 'save_cookie': True, 'cookiefile': self.COOKIE_FILE}
 
-        self.MAIN_CAT_TAB = [
-                             {'category': 'search', 'title': _('Search'), 'search_item': True, },
-                             {'category': 'search_history', 'title': _('Search history'), }
-                            ]
+        self.MAIN_CAT_TAB = self.searchItems()
 
     def _getStr(self, item, key, default=''):
         if key not in item:
             val = default
-        if item[key] == None:
+        if item[key] is None:
             val = default
         val = str(item[key])
         return self._(val)
@@ -188,7 +203,7 @@ class CineTO(CBaseHostClass, CaptchaHelper):
         for it in ['year', 'quality', 'language']:
             tmp = item.get(it, '')
             if it == 'language':
-                tmp = ', '.join(re.compile('\-([^\,]+?)\,').findall(tmp + ','))
+                tmp = ', '.join(re.compile(r'\-([^\,]+?)\,').findall(tmp + ','))
             if tmp != '':
                 descTab.append(tmp)
         desc = ' | '.join(descTab)
@@ -369,9 +384,9 @@ class CineTO(CBaseHostClass, CaptchaHelper):
                 if cacheKey in CineTO.LINKS_CACHE:
                     videoUrl = CineTO.LINKS_CACHE[cacheKey]
                 else:
-                    sitekey = self.cm.ph.getSearchGroups(data, '''gcaptchaSetup\s*?\(\s*?['"]([^'^"]+?)['"]''')[0]
+                    sitekey = self.cm.ph.getSearchGroups(data, r'''gcaptchaSetup\s*?\(\s*?['"]([^'^"]+?)['"]''')[0]
                     if sitekey != '':
-                        token, errorMsgTab = self.processCaptcha(sitekey, self.cm.meta['url'])
+                        token, errorMsgTab = self.processCaptcha(sitekey, self.cm.meta['url'], bypassCaptchaService=config.plugins.iptvplayer.cineto_bypassrecaptcha.value)
 
                         if token != '':
                             params = MergeDicts(self.defaultParams, {'max_data_size': 0})
@@ -478,8 +493,8 @@ class CineTO(CBaseHostClass, CaptchaHelper):
         printDBG("handleService: |||||||||||||||||||||||||||||||||||| name[%s], category[%s] " % (name, category))
         self.currList = []
 
-    #MAIN MENU
-        if name == None:
+    # MAIN MENU
+        if name is None:
             self.listMainMenu({'name': 'category'}, 'list_genres')
         elif category == 'list_genres':
             self.listGenres(self.currItem, 'list_rating')
@@ -493,12 +508,12 @@ class CineTO(CBaseHostClass, CaptchaHelper):
             self.exploreItem(self.currItem, 'list_episodes')
         elif category == 'list_episodes':
             self.listEpisodes(self.currItem, 'explore_item')
-    #SEARCH
+    # SEARCH
         elif category in ["search", "search_next_page"]:
             cItem = dict(self.currItem)
             cItem.update({'search_item': False, 'name': 'category'})
             self.listSearchResult(cItem, searchPattern, searchType)
-    #HISTORIA SEARCH
+    # HISTORIA SEARCH
         elif category == "search_history":
             self.listsHistory({'name': 'history', 'category': 'search'}, 'desc', _("Type: "))
         else:
