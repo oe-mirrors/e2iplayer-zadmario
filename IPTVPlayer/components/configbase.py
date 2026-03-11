@@ -181,8 +181,8 @@ class ConfigBaseWidget(Screen, ConfigListScreen):
 
     def isChanged(self):
         bChanged = False
-        for x in self["config"].list:
-            if x[1].isChanged():
+        for item in self["config"].list:
+            if len(item) > 1 and item[1].isChanged():
                 bChanged = True
                 break
         printDBG("ConfigMenu.isChanged bChanged[%r]" % bChanged)
@@ -212,11 +212,12 @@ class ConfigBaseWidget(Screen, ConfigListScreen):
         self.saveAndClose()
 
     def saveOrCancel(self, operation="save"):
-        for x in self["config"].list:
-            if "save" == operation:
-                x[1].save()
-            else:
-                x[1].cancel()
+        for item in self["config"].list:
+            if len(item) > 1:
+                if "save" == operation:
+                    item[1].save()
+                else:
+                    item[1].cancel()
         if "save" == operation:
             configfile.save()
 
