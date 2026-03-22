@@ -78,7 +78,7 @@ class IPTVHostsGroups:
                                             'ustreamtv', 'rteieplayer', '3player', 'questtvcouk', 'filmeonlineto', 'playrtsiw', '123movieshd', 'orthobulletscom', 'vumedicom', 'ddl']
         self.PREDEFINED_HOSTS['german'] = ['youtube', 'webstream', 'zdfmediathek', 'artetv', 'aniworld', 'serienstreamto', 'hdfilmetv', 'cineto', 'kinoking', 'moviedream', 'filmpalast',
                                             'kinox', 'megafilme', 'dailymotion', 'kkiste', 'kinoger', 'einschalten', 'megakino', 'moflixstream', 'movie4k', 'streamcloud',
-                                            'topstreamfilm', 'hdfilme', 'movie2kch', 'movie2kcx']
+                                            'topstreamfilm', 'hdfilme', 'movie2kch', 'watchbase', 'movie2kcx']
 
         self.PREDEFINED_HOSTS['french'] = ['youtube', 'skstream', 'filmstreamvkcom', 'streamcomplet', 'librestream', 'cinemay', 'otakufr', 'rtbfbe', 'artetv', 'dailymotion',
                                            'vimeo', 'twitchtv', 'planetstreamingcom', 'playrtsiw']
