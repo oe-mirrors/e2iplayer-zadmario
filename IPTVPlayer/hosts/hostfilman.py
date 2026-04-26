@@ -86,7 +86,7 @@ class Filman(CBaseHostClass, CaptchaHelper):
     def listMainMenu(self, cItem):
         printDBG("Filman.listMainMenu")
 
-        MAIN_CAT_TAB = [{'category': 'list_sort', 'title': _('Movies'), 'url': self.getFullUrl('/filmy/')},
+        MAIN_CAT_TAB = [{'category': 'list_items', 'title': _('Movies'), 'url': self.getFullUrl('/filmy/sort:link/')},
                         {'category': 'list_items', 'title': _('Children'), 'url': self.getFullUrl('/dla-dzieci-pl/')},
                         {'category': 'list_sort', 'title': _('Series'), 'url': self.getFullUrl('/seriale/')},
 #                        {'category':'list_years',     'title': _('Movies by year'), 'url':self.MAIN_URL},
@@ -237,13 +237,16 @@ class Filman(CBaseHostClass, CaptchaHelper):
 
     def listSearchResult(self, cItem, searchPattern, searchType):
         printDBG("Filman.listSearchResult cItem[%s], searchPattern[%s] searchType[%s]" % (cItem, searchPattern, searchType))
-        url = self.getFullUrl('/item?phrase=%s') % urllib_quote_plus(searchPattern)
+        url = self.getFullUrl('/search?phrase=%s') % urllib_quote_plus(searchPattern)
         params = {'name': 'category', 'category': 'list_items', 'good_for_fav': False, 'url': url}
         self.listItems(params)
 
     def getLinksForVideo(self, cItem):
         printDBG("Filman.getLinksForVideo [%s]" % cItem)
-
+        rot13 = str.maketrans(
+        'ABCDEFGHIJKLMabcdefghijklmNOPQRSTUVWXYZnopqrstuvwxyz',
+        'NOPQRSTUVWXYZnopqrstuvwxyzABCDEFGHIJKLMabcdefghijklm')
+        
         cacheKey = cItem['url']
         cacheTab = self.cacheLinks.get(cacheKey, [])
         if len(cacheTab):
@@ -271,8 +274,12 @@ class Filman(CBaseHostClass, CaptchaHelper):
         for item in data:
 #            printDBG("Filman.getLinksForVideo item[%s]" % item)
             playerUrl = ensure_str(base64.b64decode(self.cm.ph.getSearchGroups(item, '''data-iframe=['"]([^"^']+?)['"]''')[0])).replace('\\', '')
-            playerUrl = self.getFullUrl(self.cm.ph.getSearchGroups(playerUrl, '''src['"]:['"]([^"^']+?)['"]''')[0])
-            name = self.up.getHostName(playerUrl)
+            sts, data0 = self.getPage(playerUrl)
+            if not sts:
+                return 
+            hostrot13 = ensure_str(base64.b64decode(data0.split("var _e = '")[1].split("';")[0].strip())).replace('\\', '')
+            playerUrl =hostrot13.translate(rot13) 
+            name = self.cm.ph.getSearchGroups(item, '''alt=['"]([^"^']+?)['"]''')[0]
             item = item.split('</td>\n')
             if len(item) > 2:
                 name = name + ' - ' + self.cleanHtmlStr(item[1]) + ' - ' + self.cleanHtmlStr(item[2])
