@@ -298,24 +298,19 @@ class CParsingHelper:
 
 
 class common:
-    HOST = 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36'
+    HOST = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
     HEADER = None
     ph = CParsingHelper
 
     @staticmethod
     def getDefaultHeader(browser='firefox'):
         if browser == 'firefox':
-            ua = 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:46.0) Gecko/20100101 Firefox/46.0'
+            ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:150.0) Gecko/20100101 Firefox/150.0'
         elif browser == 'iphone_3_0':
             ua = 'Mozilla/5.0 (iPhone; U; CPU iPhone OS 3_0 like Mac OS X; en-us) AppleWebKit/528.18 (KHTML, like Gecko) Version/4.0 Mobile/7A341 Safari/528.16'
         else:
-            ua = 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36'
-
-        HTTP_HEADER = {'User-Agent': ua,
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                        'Accept-Encoding': 'gzip, deflate',
-                        'DNT': 1
-                      }
+            ua = common.HOST
+        HTTP_HEADER = {'User-Agent': ua, 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 'Accept-Encoding': 'gzip, deflate', 'DNT': 1}
         return dict(HTTP_HEADER)
 
     @staticmethod
@@ -351,7 +346,7 @@ class common:
         return domain
 
     @staticmethod
-    def getFullUrl(url, mainUrl='http://fake/'):
+    def getFullUrl(url, mainUrl='https://fake/'):
         if not url:
             return ''
         if url.startswith('./'):

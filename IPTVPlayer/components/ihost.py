@@ -60,7 +60,10 @@ class CDisplayListItem:
     TYPE_MMC = "MMC"
     TYPE_USB = "USB"
     TYPE_WWW = "WWW"
-
+    TYPE_JUMP = "JUMP"
+    TYPE_FIRST = "FIRST"
+    TYPE_PREVIOUS = "PREVIOUS"
+    TYPE_LAST = "LAST"      
     TYPE_SUBTITLE = "SUBTITLE"
     TYPE_SUB_PROVIDER = "SUB_PROVIDER"
     TYPE_UNKNOWN = "UNKNOWN"
@@ -977,3 +980,18 @@ class CBaseHostClass:
             self.beforeMoreItemList = []
             self.afterMoreItemList = []
         self.moreMode = False
+
+    def apply_next_page_url(self, citem, url=None, page=None):
+        params = dict(citem)
+        if url:
+            params.update({"url": url})
+        if page:
+            params.update({"page": page})
+        params.update({"good_for_fav": False, "title": _("Next page")})
+        self.addDir(params)
+
+    def apply_next_page(self, citem, page):
+        self.apply_next_page_url(citem, url=None, page=page)
+
+    def apply_next_url(self, citem, url):
+        self.apply_next_page_url(citem, url=url, page=None)
