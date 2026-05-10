@@ -1006,7 +1006,7 @@ class pageParser(CaptchaHelper):
         self.jscode["data"] = ""
         return videoUrls[::-1]
 
-    def parserDAILYMOTION(self, baseUrl):  # Partly fix 180226
+    def parserDAILYMOTION(self, baseUrl):  # fix 180226
         printDBG("parserDAILYMOTION %s" % baseUrl)
         COOKIE_FILE = self.COOKIE_PATH + "dailymotion.cookie"
         HTTP_HEADER = self.cm.getDefaultHeader()
