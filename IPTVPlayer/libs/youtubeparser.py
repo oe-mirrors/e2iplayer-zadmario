@@ -12,6 +12,7 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads, dumps as json_dumps
 from Plugins.Extensions.IPTVPlayer.libs import ph
 ###################################################
+
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_urlencode
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlParse import urlparse, urlunparse, parse_qsl
 from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str
@@ -42,7 +43,7 @@ class YouTubeParser():
     def __init__(self):
         self.cm = common()
         self.HTTP_HEADER = {
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36',
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36',
                             'X-YouTube-Client-Name': '1',
                             'X-YouTube-Client-Version': '2.20201112.04.01',
                             'X-Requested-With': 'XMLHttpRequest'
@@ -95,7 +96,7 @@ class YouTubeParser():
                 if sts:
                     videoId = self.cm.ph.getSearchGroups(data, '''<meta[^>]+?itemprop=['"]videoId['"][^>]+?content=['"]([^'^"]+?)['"]''')[0]
                     if videoId == '':
-                        videoId = self.cm.ph.getSearchGroups(data, '''['"]REDIRECT_TO_VIDEO['"]\s*\,\s*['"]([^'^"]+?)['"]''')[0]
+                        videoId = self.cm.ph.getSearchGroups(data, r'''['"]REDIRECT_TO_VIDEO['"]\s*\,\s*['"]([^'^"]+?)['"]''')[0]
                     if videoId != '':
                         url = 'https://www.youtube.com/watch?v=' + videoId
             linksList = YoutubeIE()._real_extract(url, allowVP9=allowVP9, allowAgeGate=allowAgeGate)
@@ -146,14 +147,14 @@ class YouTubeParser():
             if -1 < formats.find(item['ext']):
                 if 'yes' == item['m3u8']:
                     format = re.search('([0-9]+?)p$', item['format'])
-                    if format != None:
+                    if format is not None:
                         item['format'] = format.group(1) + "x"
                         item['ext'] = item['ext'] + "_M3U8"
                         item['url'] = decorateUrl(ensure_str(item['url']), {"iptv_proto": "m3u8"})
                         retHLSList.append(item)
                 else:
                     format = re.search('([0-9]+?x[0-9]+?$)', item['format'])
-                    if format != None:
+                    if format is not None:
                         item['format'] = format.group(1)
                         item['url'] = decorateUrl(ensure_str(item['url']))
                         retList.append(item)
@@ -170,17 +171,17 @@ class YouTubeParser():
             try:
                 video_id = YoutubeIE()._extract_id(url)
                 url = 'http://www.youtube.com/watch?v=%s&gl=US&hl=en&has_verified=1' % video_id
-                sts, data = self.cm.getPage(url, {'header': {'User-agent': 'Mozilla/5.0 (iPad; U; CPU OS 3_2 like Mac OS X; en-us) AppleWebKit/531.21.10 (KHTML, like Gecko) Version/4.0.4 Mobile/7B334b Safari/531.21.10'}})
+                sts, data = self.cm.getPage(url, {'header': {'User-agent': 'Mozilla/5.0 (iPad; CPU OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/146.0.7680.38 Mobile/15E148 Safari/604.1'}})
                 if sts:
                     data = data.replace('\\"', '"').replace('\\\\\\/', '/')
-                    hlsUrl = self.cm.ph.getSearchGroups(data, '''"hlsvp"\s*:\s*"(https?://[^"]+?)"''')[0]
+                    hlsUrl = self.cm.ph.getSearchGroups(data, r'''"hlsvp"\s*:\s*"(https?://[^"]+?)"''')[0]
                     hlsUrl = json_loads('"%s"' % hlsUrl)
                     if self.cm.isValidUrl(hlsUrl):
                         hlsList = getDirectM3U8Playlist(hlsUrl)
                         if len(hlsList):
                             dashList = []
                             for item in hlsList:
-                                item['format'] = "%sx%s" % (item.get('with', 0), item.get('heigth', 0))
+                                item['format'] = "%sx%s" % (item.get('width', 0), item.get('height', 0))
                                 item['ext'] = "m3u8"
                                 item['m3u8'] = True
                                 retList.append(item)
@@ -191,9 +192,9 @@ class YouTubeParser():
 
             if dash:
                 try:
-                    sts, data = self.cm.getPage(url, {'header': {'User-agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36'}})
+                    sts, data = self.cm.getPage(url, {'header': {'User-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36'}})
                     data = data.replace('\\"', '"').replace('\\\\\\/', '/').replace('\\/', '/')
-                    dashUrl = self.cm.ph.getSearchGroups(data, '''"dashmpd"\s*:\s*"(https?://[^"]+?)"''')[0]
+                    dashUrl = self.cm.ph.getSearchGroups(data, r'''"dashmpd"\s*:\s*"(https?://[^"]+?)"''')[0]
                     dashUrl = json_loads('"%s"' % dashUrl)
                     if '?' not in dashUrl:
                         dashUrl += '?mpd_version=5'
@@ -236,7 +237,7 @@ class YouTubeParser():
         elif isinstance(node, dict):
             if kv in node:
                 yield node[kv]
-            for j in node.values():
+            for j in list(node.values()):
                 for x in self.findKeys(j, kv):
                     yield x
 
@@ -492,6 +493,84 @@ class YouTubeParser():
 
         return currList
 
+    ### Neue Parsing-Funktion für lockupViewModel
+    def getLockupVideoData(self, lockupJson):
+        videoId = lockupJson.get("contentId", "")
+        if not videoId:
+            return {}
+        
+        # Nur Videos, keine anderen Typen
+        if lockupJson.get("contentType") != "LOCKUP_CONTENT_TYPE_VIDEO":
+            return {}
+
+        url = 'http://www.youtube.com/watch?v=%s' % videoId
+
+        try:
+            title = lockupJson['metadata']['lockupMetadataViewModel']['title']['content']
+            title = ensure_str(title)
+        except:
+            return {}
+
+        # Thumbnail - Query-Parameter abschneiden
+        icon = ''
+        try:
+            sources = lockupJson['contentImage']['thumbnailViewModel']['image']['sources']
+            icon = ensure_str(sources[-1]['url'])
+            if '?' in icon:
+                icon = icon.split('?')[0]
+        except:
+            pass
+
+        # Duration aus Overlays
+        desc = []
+        try:
+            overlays = lockupJson['contentImage']['thumbnailViewModel']['overlays']
+            for overlay in overlays:
+                badge = overlay.get('thumbnailBottomOverlayViewModel', {}).get('badges', [])
+                if badge:
+                    duration = badge[0].get('thumbnailBadgeViewModel', {}).get('text', '')
+                    if duration:
+                        desc.append(_("Duration: %s") % ensure_str(duration))
+                        break
+        except:
+            pass
+
+        # Aufrufe und Datum
+        time = ''
+        try:
+            parts = lockupJson['metadata']['lockupMetadataViewModel']['metadata']\
+                    ['contentMetadataViewModel']['metadataRows'][0]['metadataParts']
+            for part in parts:
+                text = part.get('text', {}).get('content', '')
+                if text:
+                    desc.append(ensure_str(text))
+                    if not time:
+                        time = ensure_str(text)
+        except:
+            pass
+
+        desc_str = " | ".join(desc)
+
+        # Description Snippet - nur in videoRenderer vorhanden,
+        # in lockupViewModel nicht verfügbar
+        # try:
+            # label = ensure_str(
+                # lockupJson['rendererContext']['accessibilityContext']['label']
+            # )
+            # if label:
+                # desc_str = desc_str + "\n" + label
+        # except:
+            # pass
+
+        return {
+            'type': 'video',
+            'category': 'video',
+            'title': title,
+            'url': ensure_str(url),
+            'icon': icon,
+            'time': time,
+            'desc': desc_str
+        }
     ########################################################
     # Tray List PARSER
     ########################################################
@@ -620,15 +699,23 @@ class YouTubeParser():
 
                 nextPage = ''
                 for r5 in r4:
-                    videoJson = r5.get("richItemRenderer", "")
                     nP = r5.get('continuationItemRenderer', '')
-                    if videoJson:
-                        videoJson = videoJson.get("content", {})
-                        videoJson = videoJson.get("videoRenderer", "")
-                        params = self.getVideoData(videoJson)
+                    ### Einschub 7 neuer Zeilen, die der neuen Struktur entsprechen
+                    lockup = r5.get('richItemRenderer', {}).get('content', {}).get('lockupViewModel', {})
+                    if lockup:
+                        params = self.getLockupVideoData(lockup)
                         if params:
                             printDBG(str(params))
                             currList.append(params)
+                    else:
+                         videoJson = r5.get("richItemRenderer", "")
+                         if videoJson:
+                            videoJson = videoJson.get("content", {})
+                            videoJson = videoJson.get("videoRenderer", "")
+                            params = self.getVideoData(videoJson)
+                            if params:
+                                printDBG(str(params))
+                                currList.append(params)
                     if nP != '':
                         nextPage = nP
 
@@ -638,7 +725,7 @@ class YouTubeParser():
                     try:
                         label = nextPage["nextContinuationData"]["label"]["runs"][0]["text"]
                     except:
-                        label = _("Next Page")
+                        label = _("Next page")
 
                     urlNextPage = "https://www.youtube.com/youtubei/v1/browse?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"
                     post_data = {'context': {'client': {'clientName': 'WEB', 'clientVersion': '2.20201021.03.00', }}, }
@@ -658,13 +745,13 @@ class YouTubeParser():
     ########################################################
     # SEARCH PARSER
     ########################################################
-    #def getVideosFromSearch(self, pattern, page='1'):
+    # def getVideosFromSearch(self, pattern, page='1'):
     def getSearchResult(self, pattern, searchType, page, nextPageCategory, sortBy='A', url=''):
         printDBG('YouTubeParser.getSearchResult pattern[%s], searchType[%s], page[%s]' % (pattern, searchType, page))
         currList = []
 
         try:
-            #url = 'http://www.youtube.com/results?search_query=%s&filters=%s&search_sort=%s&page=%s' % (pattern, searchType, sortBy, page)
+            # url = 'http://www.youtube.com/results?search_query=%s&filters=%s&search_sort=%s&page=%s' % (pattern, searchType, sortBy, page)
 
             nextPage = {}
             nP = {}
@@ -709,8 +796,8 @@ class YouTubeParser():
                     if len(data2) == 0:
                         data2 = self.cm.ph.getDataBeetwenMarkers(data, "var ytInitialData =", "};", False)[1]
 
-                    data2 = ensure_str(data2.strip()) #just cleaning and ensuring we're working with string
-                    #json simple schema verification and correction
+                    data2 = ensure_str(data2.strip())  # just cleaning and ensuring we're working with string
+                    # json simple schema verification and correction
                     jsonStarts = data2.count('{')
                     jsonEnds = data2.count('}')
                     printDBG('youtuberparser.YouTubeParser().getSearchResult correcting json string by adding "}" %s time(s) at the end' % (jsonStarts - jsonEnds))
@@ -760,7 +847,7 @@ class YouTubeParser():
                     printDBG(str(params))
                     currList.append(params)
 
-            #search playlists
+            # search playlists
 
             r2 = list(self.findKeys(response, 'playlistRenderer'))
 
@@ -789,7 +876,7 @@ class YouTubeParser():
                 try:
                     label = nextPage["label"]["runs"][0]["text"]
                 except:
-                    label = _("Next Page")
+                    label = _("Next page")
 
                 urlNextPage = self.updateQueryUrl(url, {'pbj': '1', 'ctoken': ctoken, 'continuation': ctoken, 'itct': itct})
                 params = {'type': 'more', 'category': "search_next_page", 'title': label, 'page': str(int(page) + 1), 'url': ensure_str(urlNextPage)}
@@ -804,7 +891,7 @@ class YouTubeParser():
 
                 ctoken = nextPage["continuationCommand"]["token"]
                 itct = nextPage["clickTrackingParams"]
-                label = _("Next Page")
+                label = _("Next page")
 
                 urlNextPage = "https://www.youtube.com/youtubei/v1/search?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"
                 post_data = {'context': {'client': {'clientName': 'WEB', 'clientVersion': '2.20201021.03.00', }}, }
