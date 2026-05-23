@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 import base64
-from binascii import unhexlify
+from binascii import hexlify, unhexlify
 import codecs
 from hashlib import sha256
-from random import choice as random_choice
+from random import choice as random_choice, uniform
 import re
 import string
 import struct
 import time
+from os import urandom
 from Components.config import config
 from Screens.MessageBox import MessageBox
 from Plugins.Extensions.IPTVPlayer.components.asynccall import MainSessionWrapper
@@ -34,6 +35,17 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 if not isPY2():
     basestring = str
     xrange = range
+
+
+def b64urlencode(b, strip=False):
+    if not isinstance(b, bytes if "bytes" in locals() or bytes is not str else (str, bytes)):
+        b = b.encode("utf-8") if hasattr(b, "encode") else bytes(b)
+    r = base64.urlsafe_b64encode(b)
+    if not isinstance(r, str):
+        r = r.decode("utf-8")
+    if strip:
+        r = r.rstrip("=")
+    return r
 
 
 def generate_vrf(movie_id, user_id):
@@ -545,6 +557,8 @@ class urlparser:
             "vk.com": self.pp.parserVK,
             "vkvideo.ru": self.pp.parserVK,
             "voe.sx": self.pp.parserVOESX,
+            "vrra.top": self.pp.parserVRRATOP,
+            "vrrstream.ru": self.pp.parserVRRATOP,
             "vsports.pt": self.pp.parserJWPLAYER,
             "vtbe.to": self.pp.parserJWPLAYER,
             "vtube.network": self.pp.parserJWPLAYER,
@@ -762,6 +776,41 @@ class pageParser(CaptchaHelper):
                 self.bbcIE = None
                 printExc()
         return self.bbcIE
+
+    def parserVRRATOP(self, baseUrl):
+        printDBG("parserVRRATOP baseUrl[%s]" % baseUrl)
+        urltab = []
+        HTTP_HEADER = self.cm.getDefaultHeader()
+        sts, data = self.cm.getPage(baseUrl, {"header": HTTP_HEADER})
+        if not sts:
+            return []
+        handshake = self.cm.ph.getSearchGroups(data, r"""var HANDSHAKE = "([^"]+)";""")[0]
+        if not handshake:
+            handshake = self.cm.ph.getSearchGroups(data, r"""HANDSHAKE\s*=\s*["']([^"^']+?)["']""")[0]
+        if not handshake:
+            printDBG("parserVRRATOP: Handshake token not found")
+            return []
+        api_url = "https://vrra.top/api/manifest"
+        HTTP_HEADER.update({"Content-Type": "application/json", "X-Requested-With": "XMLHttpRequest", "Referer": baseUrl})
+        json_data = json_dumps({"h": handshake})
+        sts, resp = self.cm.getPage(api_url, {"header": HTTP_HEADER, "raw_post_data": True}, json_data)
+        if not sts:
+            printDBG("parserVRRATOP: API request failed")
+            return []
+        try:
+            resp_json = json_loads(resp)
+            video_url = resp_json.get("url", "")
+        except TypeError:
+            printDBG("parserVRRATOP: Failed to parse JSON response")
+            return []
+        if video_url and self.cm.isValidUrl(video_url):
+            host = "https://vrra.top/"
+            url = urlparser.decorateUrl(video_url, {"User-Agent": HTTP_HEADER["User-Agent"], "Referer": host, "Origin": host[:-1], "iptv_proto": "m3u8"})
+            if ".m3u8" in video_url:
+                urltab.extend(getDirectM3U8Playlist(url, sortWithMaxBitrate=99999999))
+            else:
+                urltab.append({"name": "vrra.top", "url": url})
+        return urltab
 
     def parserFREEDISC(self, baseUrl):  # OK according to PL user?
         urltab = []
@@ -2076,7 +2125,20 @@ class pageParser(CaptchaHelper):
             urltab.extend(getDirectM3U8Playlist(url))
         return urltab
 
-    def parserBYSE(self, baseUrl):  # fix 200126
+    def parserBYSE(self, baseUrl):  # fix 220526
+        def fp(x, y, z):  # thx Gujal00
+            v_id = hexlify(urandom(x)).decode()
+            d_id = hexlify(urandom(x)).decode()
+            ctime = int(time.time())
+            t_data = {"viewer_id": v_id, "device_id": d_id, "confidence": round(uniform(y, z), 2), "iat": ctime, "exp": ctime + 600}
+            t_bdata = b64urlencode(json_dumps(t_data), strip=True)
+            t_sig = b64urlencode(sha256(t_bdata.encode()).digest(), strip=True)
+            token = "{0}.{1}".format(t_bdata, t_sig)
+            t_data.update({"token": token})
+            t_data.pop("iat")
+            t_data.pop("exp")
+            return {"fingerprint": t_data}
+
         def ft(e):
             t = e.replace("-", "+").replace("_", "/")
             r = 0 if len(t) % 4 == 0 else 4 - len(t) % 4
@@ -2103,7 +2165,7 @@ class pageParser(CaptchaHelper):
         HTTP_HEADER["Referer"] = baseUrl
         host = urlparser.getDomain(baseUrl, False)
         HTTP_HEADER["Origin"] = host[:-1]
-        sts, data = self.cm.getPage("%sapi/videos/%s/embed/playback" % (host, code), {"header": HTTP_HEADER})
+        sts, data = self.cm.getPage("%sapi/videos/%s/embed/playback" % (host, code), {"header": HTTP_HEADER, "raw_post_data": True}, json_dumps(fp(16, 0.6, 0.9)))
         if not sts:
             return []
         html = json_loads(data)
