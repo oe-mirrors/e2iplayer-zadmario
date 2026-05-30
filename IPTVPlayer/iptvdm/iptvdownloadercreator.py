@@ -38,41 +38,201 @@ def IsUrlDownloadable(url):
     else:
         return False
 
+#29.05.26
+def IsHlsLikeUrl(url):
+    try:
+        lowUrl = str(url).lower()
+    except Exception:
+        printExc()
+        return False
 
+    hlsMarkers = [
+        '.m3u8',
+        '/playlist/',
+        'm3u8',
+        'x-stream-inf'
+    ]
+
+    for marker in hlsMarkers:
+        if marker in lowUrl:
+            return True
+
+    return False
+
+###################################################
+#29.05.26
+###################################################
 def DownloaderCreator(url):
     printDBG("DownloaderCreator url[%r]" % url)
-    downloader = None
 
-    url = urlparser.decorateUrl(url)
-    iptv_proto = url.meta.get('iptv_proto', '')
-    if 'm3u8' == iptv_proto:
-        if config.plugins.iptvplayer.hlsdlpath.value != '':
-            downloader = HLSDownloader()
-        else:
-            downloader = M3U8Downloader()
-    elif 'em3u8' == iptv_proto:
-        if config.plugins.iptvplayer.hlsdlpath.value != '':
-            downloader = EHLSDownloader()
-        else:
-            downloader = EM3U8Downloader()
-    elif 'f4m' == iptv_proto:
-        downloader = F4mDownloader()
-    elif 'rtmp' == iptv_proto:
-        downloader = RtmpDownloader()
-    elif iptv_proto in ['https', 'http']:
-        downloader = WgetDownloader()
-    elif 'merge' == iptv_proto:
-        if url.meta.get('prefered_merger') == 'hlsdl' and config.plugins.iptvplayer.hlsdlpath.value != '' and config.plugins.iptvplayer.prefer_hlsdl_for_pls_with_alt_media.value:
-            downloader = HLSDownloader()
-        elif IsExecutable('ffmpeg') and config.plugins.iptvplayer.cmdwrappath.value != '':
+    downloader = None
+    downloaderParams = {}
+    orgUrl = url
+
+    try:
+        url, downloaderParams = DMHelper.getDownloaderParamFromUrlWithMeta(url)
+    except Exception:
+        printExc()
+        url = orgUrl
+        downloaderParams = {}
+
+    # Meta sicher holen
+    urlMeta = {}
+    try:
+        urlMeta = getattr(orgUrl, 'meta', {})
+        if not isinstance(urlMeta, dict):
+            urlMeta = {}
+    except Exception:
+        printExc()
+        urlMeta = {}
+
+    # Fallback: einige Builds liefern alles schon in downloaderParams
+    if not urlMeta and isinstance(downloaderParams, dict):
+        urlMeta = downloaderParams
+
+    proto = ''
+    try:
+        proto = urlMeta.get('iptv_proto', '')
+    except Exception:
+        printExc()
+        proto = ''
+
+    # Host-/Spezialfall für Downloader-Routing
+    ffmpegCase = ''
+    try:
+        ffmpegCase = str(urlMeta.get('iptv_ffmpeg_case', ''))
+    except Exception:
+        printExc()
+        ffmpegCase = ''
+
+    # Fallback-Protokollerkennung aus URL
+    if not proto:
+        try:
+            if isinstance(url, basestring):
+                lowUrl = url.lower()
+                if '.m3u8' in lowUrl:
+                    proto = 'm3u8'
+                elif lowUrl.startswith('merge://'):
+                    proto = 'merge'
+                elif lowUrl.startswith('mpd://') or '.mpd' in lowUrl:
+                    proto = 'mpd'
+                elif lowUrl.startswith('f4m://') or '.f4m' in lowUrl:
+                    proto = 'f4m'
+        except Exception:
+            printExc()
+
+    useFFmpeg = False
+    try:
+        useFFmpeg = bool(urlMeta.get('iptv_use_ffmpeg', False))
+    except Exception:
+        printExc()
+        useFFmpeg = False
+
+    printDBG("DownloaderCreator url[%s]" % url)
+    printDBG("DownloaderCreator iptv_proto[%s] iptv_use_ffmpeg[%s] iptv_ffmpeg_case[%s]" % (proto, useFFmpeg, ffmpegCase))
+    printDBG("DownloaderCreator downloaderParams[%s]" % downloaderParams)
+
+    #################################################
+    # WICHTIG:
+    # Wenn iptv_use_ffmpeg=True gesetzt ist,
+    # dann IMMER FFMPEGDownloader bevorzugen,
+    # auch bei m3u8/HLS.
+    #################################################
+    if useFFmpeg:
+        printDBG("DownloaderCreator: force FFMPEGDownloader by iptv_use_ffmpeg=True")
+        try:
             downloader = FFMPEGDownloader()
-        else:
+        except Exception:
+            printExc()
+            downloader = None
+
+        if downloader != None:
+            return downloader
+
+    #################################################
+    # Host-/Spezialfälle, die gezielt über Meta
+    # vom Parser markiert wurden
+    #################################################
+    if ffmpegCase == 'kinoger':
+        printDBG("DownloaderCreator: force FFMPEGDownloader by iptv_ffmpeg_case=kinoger")
+        try:
+            downloader = FFMPEGDownloader()
+        except Exception:
+            printExc()
+            downloader = None
+
+        if downloader != None:
+            return downloader
+
+    if ffmpegCase == 'pornslash':
+        printDBG("DownloaderCreator: force FFMPEGDownloader by iptv_ffmpeg_case=pornslash")
+        try:
+            downloader = FFMPEGDownloader()
+        except Exception:
+            printExc()
+            downloader = None
+
+        if downloader != None:
+            return downloader
+
+    #################################################
+    # Standard-Zuordnung nach Protokoll
+    #################################################
+    try:
+        if proto in ['m3u8', 'hls']:
+            printDBG("DownloaderCreator: HLS/M3U8 -> HLSDownloader")
+            downloader = HLSDownloader()
+
+        elif proto in ['mpd', 'dash']:
+            printDBG("DownloaderCreator: MPD/DASH -> FFMPEGDownloader")
+            downloader = FFMPEGDownloader()
+
+        elif proto in ['f4m']:
+            printDBG("DownloaderCreator: F4M -> F4mDownloader")
+            downloader = F4mDownloader()
+
+        elif proto in ['merge']:
+            printDBG("DownloaderCreator: MERGE -> MergeDownloader")
             downloader = MergeDownloader()
-    elif 'mpd' == iptv_proto and IsExecutable('ffmpeg') and config.plugins.iptvplayer.cmdwrappath.value != '':
-        downloader = FFMPEGDownloader()
+
+        elif proto in ['http', 'https', 'ftp', 'ftps']:
+            if IsHlsLikeUrl(url):
+                printDBG("DownloaderCreator: HTTP/HTTPS but HLS-like URL -> FFMPEGDownloader")
+                downloader = FFMPEGDownloader()
+            else:
+                printDBG("DownloaderCreator: HTTP/HTTPS/FTP -> WgetDownloader")
+                downloader = WgetDownloader()
+
+        else:
+            # Fallback nach URL-Endung
+            lowUrl = ''
+            try:
+                lowUrl = url.lower()
+            except Exception:
+                printExc()
+                lowUrl = ''
+
+            if '.m3u8' in lowUrl:
+                printDBG("DownloaderCreator: fallback .m3u8 -> HLSDownloader")
+                downloader = HLSDownloader()
+            elif '.f4m' in lowUrl:
+                printDBG("DownloaderCreator: fallback .f4m -> F4mDownloader")
+                downloader = F4mDownloader()
+            elif '.mpd' in lowUrl:
+                printDBG("DownloaderCreator: fallback .mpd -> FFMPEGDownloader")
+                downloader = FFMPEGDownloader()
+            elif IsHlsLikeUrl(lowUrl):
+                printDBG("DownloaderCreator: fallback HLS-like URL -> FFMPEGDownloader")
+                downloader = FFMPEGDownloader()
+            else:
+                printDBG("DownloaderCreator: fallback default -> WgetDownloader")
+                downloader = WgetDownloader()
+
+    except Exception:
+        printExc()
+        downloader = None
 
     return downloader
-
 
 def UpdateDownloaderCreator(url):
     printDBG("UpdateDownloaderCreator url[%s]" % url)

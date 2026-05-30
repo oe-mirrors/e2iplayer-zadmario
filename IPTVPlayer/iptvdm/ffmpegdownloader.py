@@ -103,28 +103,45 @@ class FFMPEGDownloader(BaseDownloader):
         if 'iptv_m3u8_key_uri_replace_old' in tmpUri.meta and 'iptv_m3u8_key_uri_replace_new' in tmpUri.meta:
             cmdTab.extend(['-key_uri_old', str(tmpUri.meta['iptv_m3u8_key_uri_replace_old']), '-key_uri_new', str(tmpUri.meta['iptv_m3u8_key_uri_replace_new'])])
 
-        if "://" in self.url:
-            url, httpParams = DMHelper.getDownloaderParamFromUrlWithMeta(tmpUri, True)
+        def _addHttpOpts(cmdTab, meta):
             headers = []
-            for key in httpParams:
-                if key == 'Range': #Range is always used by ffmpeg
-                    continue
-                elif key == 'User-Agent':
-                    cmdTab.extend(['-user-agent', httpParams[key]])
-                else:
-                    headers.append('%s: %s' % (key, httpParams[key]))
+
+            try:
+                for key in meta:
+                    if key == 'Range':
+                        continue
+                    elif key == 'User-Agent':
+                        cmdTab.extend(['-user_agent', meta[key]])
+                    elif key == 'Referer':
+                        cmdTab.extend(['-referer', meta[key]])
+                    elif key == 'Origin':
+                        headers.append('%s: %s' % (key, meta[key]))
+                    elif key in ['Cookie', 'Authorization']:
+                        headers.append('%s: %s' % (key, meta[key]))
+            except Exception:
+                printExc()
 
             if len(headers):
-                cmdTab.extend(['-headers', '\r\n'.join(headers)])
+                cmdTab.extend(['-headers', '\r\n'.join(headers) + '\r\n'])
 
         if self.url.startswith("merge://"):
             try:
                 urlsKeys = self.url.split('merge://', 1)[1].split('|')
                 for item in urlsKeys:
-                    cmdTab.extend(['-reconnect', '1', '-i', self.url.meta[item]])
+                    oneUrl = tmpUri.meta[item]
+                    oneMeta = dict(tmpUri.meta)
+
+                    _addHttpOpts(cmdTab, oneMeta)
+                    cmdTab.extend(['-reconnect', '1', '-i', oneUrl])
             except Exception:
                 printExc()
         else:
+            if "://" in self.url:
+                url, httpParams = DMHelper.getDownloaderParamFromUrlWithMeta(tmpUri, True)
+                _addHttpOpts(cmdTab, httpParams)
+            else:
+                url = self.url
+
             cmdTab.extend(['-reconnect', '1', '-i', url])
 
         cmdTab.extend(['-c:v', 'copy', '-c:a', 'copy', '-f', tmpUri.meta.get('ff_out_container', self.ffmpegOutputContener), self.filePath])
@@ -172,10 +189,16 @@ class FFMPEGDownloader(BaseDownloader):
 
     def _getDownloadSpeed(self, data):
         try:
-            return int(float(self.parseReObj['bitrate'].search(data).group(1)) * float(self.parseReObj['speed'].search(data).group(1)) * 1024 / 8)
+            bitrateObj = self.parseReObj['bitrate'].search(data)
+            speedObj = self.parseReObj['speed'].search(data)
+            if bitrateObj is None or speedObj is None:
+                return 0
+            bitrate = float(bitrateObj.group(1))
+            speed = float(speedObj.group(1))
+            return int(bitrate * speed * 1024 / 8)
         except Exception:
             printExc()
-        return 0
+            return 0
 
     def _dataAvail(self, data):
         if None == data:
