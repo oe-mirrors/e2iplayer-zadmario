@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Last Modified: 05.06.2026
 ###################################################
 # LOCAL import
 ###################################################
@@ -493,13 +494,13 @@ class YouTubeParser():
 
         return currList
 
-    ### Neue Parsing-Funktion für lockupViewModel
+    # New parsing function for lockupViewModel
     def getLockupVideoData(self, lockupJson):
         videoId = lockupJson.get("contentId", "")
         if not videoId:
             return {}
         
-        # Nur Videos, keine anderen Typen
+        # Videos only, no other types
         if lockupJson.get("contentType") != "LOCKUP_CONTENT_TYPE_VIDEO":
             return {}
 
@@ -511,7 +512,7 @@ class YouTubeParser():
         except:
             return {}
 
-        # Thumbnail - Query-Parameter abschneiden
+        # Thumbnail - Trim query parameters
         icon = ''
         try:
             sources = lockupJson['contentImage']['thumbnailViewModel']['image']['sources']
@@ -535,7 +536,7 @@ class YouTubeParser():
         except:
             pass
 
-        # Aufrufe und Datum
+        # Views and date
         time = ''
         try:
             parts = lockupJson['metadata']['lockupMetadataViewModel']['metadata']\
@@ -551,8 +552,8 @@ class YouTubeParser():
 
         desc_str = " | ".join(desc)
 
-        # Description Snippet - nur in videoRenderer vorhanden,
-        # in lockupViewModel nicht verfügbar
+        # escription snippet – available only in videoRenderer,
+        # not available in lockupViewModel
         # try:
             # label = ensure_str(
                 # lockupJson['rendererContext']['accessibilityContext']['label']
@@ -700,7 +701,6 @@ class YouTubeParser():
                 nextPage = ''
                 for r5 in r4:
                     nP = r5.get('continuationItemRenderer', '')
-                    ### Einschub 7 neuer Zeilen, die der neuen Struktur entsprechen
                     lockup = r5.get('richItemRenderer', {}).get('content', {}).get('lockupViewModel', {})
                     if lockup:
                         params = self.getLockupVideoData(lockup)
@@ -733,7 +733,7 @@ class YouTubeParser():
                     post_data['context']['clickTracking'] = {'clickTrackingParams': ctit}
                     post_data = json_dumps(post_data).encode('utf-8')
                     urlNextPage = strwithmeta(urlNextPage, {'post_data': post_data})
-                    params = {'type': 'more', 'category': category, 'title': label, 'page': str(int(page) + 1), 'url': ensure_str(urlNextPage)}
+                    params = {'type': 'more', "image_type": "NEXT", 'category': category, 'title': label, 'page': str(int(page) + 1), 'url': ensure_str(urlNextPage)}
                     printDBG(str(params))
                     currList.append(params)
 
@@ -773,17 +773,12 @@ class YouTubeParser():
                     response = json_loads(data)
 
             else:
-                # new search
-                # url = 'http://www.youtube.com/results?search_query=%s&filters=%s&search_sort=%s' % (pattern, searchType, sortBy)
                 url = 'https://www.youtube.com/results?search_query=' + pattern + '&sp='
                 if searchType == 'video':
-#                    url += 'EgIQAQ%253D%253D'
                     url += 'CA%sSAhAB' % sortBy
                 if searchType == 'channel':
-#                    url += 'EgIQAg%253D%253D'
                     url += 'CA%sSAhAC' % sortBy
                 if searchType == 'playlist':
-#                    url += 'EgIQAw%253D%253D'
                     url += 'CA%sSAhAD' % sortBy
                 if searchType == 'live':
                     url += 'EgJAAQ%253D%253D'
