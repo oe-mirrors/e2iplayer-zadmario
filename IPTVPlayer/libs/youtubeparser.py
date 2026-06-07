@@ -46,7 +46,12 @@ class YouTubeParser():
 
     def __init__(self):
         self.cm = common()
-        self.HTTP_HEADER = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36", "X-YouTube-Client-Name": "1", "X-YouTube-Client-Version": "2.20201112.04.01", "X-Requested-With": "XMLHttpRequest"}
+        self.HTTP_HEADER = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+            "X-YouTube-Client-Name": "1",
+            "X-YouTube-Client-Version": "2.20201112.04.01",
+            "X-Requested-With": "XMLHttpRequest"
+        }
         self.http_params = {"header": self.HTTP_HEADER, "return_data": True}
         self.postdata = {}
         self.sessionToken = ""
@@ -488,7 +493,7 @@ class YouTubeParser():
             try:
                 by = plJson["longBylineText"]["runs"][0]["text"]
                 desc = desc + "\n" + by
-            except:
+            except Exception:
                 pass
             return {"type": "category", "category": "playlist", "title": title, "url": ensure_str(url), "icon": icon, "time": "", "desc": desc}
         else:
@@ -504,10 +509,10 @@ class YouTubeParser():
                 feedId = itemJson["navigationEndpoint"]["browseEndpoint"]["params"]
                 url = "https://www.youtube.com/feed/trending?bp=%s&pbj=1" % feedId
                 cat = "feeds_" + title
-            except:
+            except Exception:
                 try:
                     url = "https://www.youtube.com" + itemJson["navigationEndpoint"]["commandMetadata"]["webCommandMetadata"]["url"]
-                except:
+                except Exception:
                     printExc()
                     return {}
 
@@ -516,7 +521,7 @@ class YouTubeParser():
             else:
                 return {"type": "feed", "category": cat, "title": title, "url": ensure_str(url), "icon": icon, "time": "", "desc": ""}
 
-        except:
+        except Exception:
             printExc()
             return {}
 
@@ -545,7 +550,7 @@ class YouTubeParser():
                             if params:
                                 printDBG(str(params))
                                 currList.append(params)
-                except:
+                except Exception:
                     printExc()
 
         except Exception:
@@ -597,7 +602,7 @@ class YouTubeParser():
                             printDBG(str(params))
                             currList.append(params)
 
-                except:
+                except Exception:
                     printExc()
 
         except Exception:
@@ -620,7 +625,7 @@ class YouTubeParser():
         try:
             title = lockupJson["metadata"]["lockupMetadataViewModel"]["title"]["content"]
             title = ensure_str(title)
-        except:
+        except Exception:
             return {}
 
         # Thumbnail - Trim query parameters
@@ -630,7 +635,7 @@ class YouTubeParser():
             icon = ensure_str(sources[-1]["url"])
             if "?" in icon:
                 icon = icon.split("?")[0]
-        except:
+        except Exception:
             pass
 
         # Duration of the overlays
@@ -644,7 +649,7 @@ class YouTubeParser():
                     if duration:
                         desc.append(_("Duration: %s") % ensure_str(duration))
                         break
-        except:
+        except Exception:
             pass
 
         # Views and date
@@ -657,7 +662,7 @@ class YouTubeParser():
                     desc.append(ensure_str(text))
                     if not time:
                         time = ensure_str(text)
-        except:
+        except Exception:
             pass
 
         desc_str = " | ".join(desc)
@@ -665,16 +670,23 @@ class YouTubeParser():
         # Description snippet – available only in videoRenderer,
         # not available in lockupViewModel
         # try:
-        # label = ensure_str(
-        # lockupJson['rendererContext']['accessibilityContext']['label']
-        # )
-        # if label:
-        # desc_str = desc_str + "\n" + label
+            # label = ensure_str(
+                # lockupJson['rendererContext']['accessibilityContext']['label']
+            # )
+            # if label:
+                # desc_str = desc_str + "\n" + label
         # except:
-        # pass
+            # pass
 
-        return {"type": "video", "category": "video", "title": title, "url": ensure_str(url), "icon": icon, "time": time, "desc": desc_str}
-
+        return {
+            'type': 'video',
+            'category': 'video',
+            'title': title,
+            'url': ensure_str(url),
+            'icon': icon,
+            'time': time,
+            'desc': desc_str
+        }
     ########################################################
     # Tray List PARSER
     ########################################################
@@ -683,19 +695,6 @@ class YouTubeParser():
         printDBG("YouTubeParser.getVideosFromTraylist")
         return self.getVideosApiPlayList(url, category, page, cItem)
 
-        currList = []
-        try:
-            sts, data = self.cm.getPage(url, self.http_params)
-            if sts:
-                sts, data = CParsingHelper.getDataBeetwenMarkers(data, 'class="playlist-videos-container', '<div class="watch-sidebar-body">', False)
-                data = data.split('class="yt-uix-scroller-scroll-unit')
-                del data[0]
-                return
-        except Exception:
-            printExc()
-            return []
-
-        return currList
 
     # end getVideosFromPlaylist
 
@@ -734,7 +733,7 @@ class YouTubeParser():
                                 if params:
                                     try:
                                         params["title"] = "%s. - %s " % (videoJson["index"]["simpleText"], params["title"])
-                                    except:
+                                    except Exception:
                                         pass
                                     printDBG(str(params))
                                     currList.append(params)
@@ -794,7 +793,7 @@ class YouTubeParser():
                         try:
                             if tab["tabRenderer"]["content"]:
                                 r2 = tab["tabRenderer"]["content"]
-                        except:
+                        except Exception:
                             pass
 
                         if r2:
@@ -916,9 +915,9 @@ class YouTubeParser():
             if not sts:
                 return []
 
-            #            printDBG("-------- response ------------")
-            #            printDBG(json_dumps(response))
-            #            printDBG("------------------------------")
+            # printDBG("-------- response ------------")
+            # printDBG(json_dumps(response))
+            # printDBG("------------------------------")
 
             # search videos
             r2 = list(self.findKeys(response, "videoRenderer"))
@@ -971,15 +970,15 @@ class YouTubeParser():
 
             if nP:
                 nextPage = nP[0]
-                #                printDBG("-------------- nextPage -------------------------")
-                #                printDBG(json_dumps(nextPage))
-                #                printDBG("-------------------------------------------------")
+                # printDBG("-------------- nextPage -------------------------")
+                # printDBG(json_dumps(nextPage))
+                # printDBG("-------------------------------------------------")
 
                 ctoken = nextPage["continuation"]
                 itct = nextPage["clickTrackingParams"]
                 try:
                     label = nextPage["label"]["runs"][0]["text"]
-                except:
+                except Exception:
                     label = _("Next page")
 
                 urlNextPage = self.updateQueryUrl(url, {"pbj": "1", "ctoken": ctoken, "continuation": ctoken, "itct": itct})
