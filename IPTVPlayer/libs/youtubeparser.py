@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Last Modified: 15.06.2026
+# Last Modified: 18.06.2026
 # LOCAL import
 from Plugins.Extensions.IPTVPlayer.libs.youtube_dl.extractor.youtube import YoutubeIE
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, IsExecutable
@@ -43,7 +43,6 @@ class YouTubeParser():
         self.http_params = {"header": self.HTTP_HEADER, "return_data": True}
         self.postdata = {}
         self.sessionToken = ""
-
         return
 
     @staticmethod
@@ -239,10 +238,10 @@ class YouTubeParser():
             return ""
         if "?" in url:
             url = url.split("?", 1)[0]
-        url = re.sub(r"(/hq720)_custom_[0-9]+(\.(jpg|jpeg|png|webp))$", r"\1\2", url, flags=re.IGNORECASE)
-        url = re.sub(r"(/hqdefault)_custom_[0-9]+(\.(jpg|jpeg|png|webp))$", r"\1\2", url, flags=re.IGNORECASE)
-        url = re.sub(r"(/mqdefault)_custom_[0-9]+(\.(jpg|jpeg|png|webp))$", r"\1\2", url, flags=re.IGNORECASE)
-        url = re.sub(r"(/default)_custom_[0-9]+(\.(jpg|jpeg|png|webp))$", r"\1\2", url, flags=re.IGNORECASE)
+        url = re.sub(r"(/hq720)(?:_custom_[0-9]+)+(\.(jpg|jpeg|png|webp))$", r"\1\2", url, flags=re.IGNORECASE)
+        url = re.sub(r"(/hqdefault)(?:_custom_[0-9]+)+(\.(jpg|jpeg|png|webp))$", r"\1\2", url, flags=re.IGNORECASE)
+        url = re.sub(r"(/mqdefault)(?:_custom_[0-9]+)+(\.(jpg|jpeg|png|webp))$", r"\1\2", url, flags=re.IGNORECASE)
+        url = re.sub(r"(/default)(?:_custom_[0-9]+)+(\.(jpg|jpeg|png|webp))$", r"\1\2", url, flags=re.IGNORECASE)
         return strwithmeta(url)
 
     def getThumbnailUrl(self, thumbJson, maxWidth=1000, hq=False):
@@ -593,6 +592,7 @@ class YouTubeParser():
         try:
             sources = lockupJson["contentImage"]["thumbnailViewModel"]["image"]["sources"]
             icon = ensure_str(sources[-1]["url"])
+            icon = self._normalizeThumbnailUrl(icon)
             if "?" in icon:
                 icon = icon.split("?")[0]
         except Exception:
@@ -636,7 +636,6 @@ class YouTubeParser():
         }
 
     # Tray List PARSER
-
     def getVideosFromTraylist(self, url, category, page, cItem):
         printDBG("YouTubeParser.getVideosFromTraylist")
         return self.getVideosApiPlayList(url, category, page, cItem)
@@ -836,11 +835,13 @@ class YouTubeParser():
                                 sources = item.get("contentImage", {}).get("collectionThumbnailViewModel", {}).get("primaryThumbnail", {}).get("thumbnailViewModel", {}).get("image", {}).get("sources", [])
                                 if sources:
                                     icon = ensure_str(sources[-1].get("url", ""))
+                                    icon = self._normalizeThumbnailUrl(icon)
                             except Exception:
                                 try:
                                     sources = item.get("contentImage", {}).get("thumbnailViewModel", {}).get("image", {}).get("sources", [])
                                     if sources:
                                         icon = ensure_str(sources[-1].get("url", ""))
+                                        icon = self._normalizeThumbnailUrl(icon)
                                 except Exception:
                                     pass
                             params = {
@@ -867,6 +868,7 @@ class YouTubeParser():
                                 sources = item.get("contentImage", {}).get("thumbnailViewModel", {}).get("image", {}).get("sources", [])
                                 if sources:
                                     icon = ensure_str(sources[-1].get("url", ""))
+                                    icon = self._normalizeThumbnailUrl(icon)
                             except Exception:
                                 pass
                             params = {
