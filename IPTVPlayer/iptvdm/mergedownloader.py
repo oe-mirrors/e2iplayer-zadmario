@@ -1,20 +1,13 @@
 # -*- coding: utf-8 -*-
-#
 # IPTV download manager API
-#
-# $Id$
-#
-# Last Modified: 28.06.2026 - Change: Sidecar files (.txt + .jpg) after merge download + MKV chapters from description + Enigma2 .cuts chapter marks + Py2/Py3 safe text handling
+# Last Modified: 05.07.2026 - Channel name as download meta for MergeDownloader + absolute published date in info view + unified Py2/Py3 safe text/path handling
 ###################################################
 # LOCAL import
 ###################################################
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, iptv_system, eConnectCallback, E2PrioFix, rm
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, iptv_system, eConnectCallback, GetNice, rm, E2PrioFix
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import enum, strwithmeta
 from Plugins.Extensions.IPTVPlayer.iptvdm.basedownloader import BaseDownloader
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdh import DMHelper
-###################################################
-from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import strDecode
-from Plugins.Extensions.IPTVPlayer.p2p3.pVer import isPY2
 ###################################################
 # FOREIGN import
 ###################################################
@@ -35,49 +28,66 @@ except Exception:
 ###################################################
 
 try:
-    unicode
-except Exception:
-    unicode = str
+    text_type = unicode
+    binary_type = str
+    string_types = (basestring,)
+except NameError:
+    text_type = str
+    binary_type = bytes
+    string_types = (str, bytes)
 
-try:
-    basestring
-except Exception:
-    basestring = (str, bytes)
 
-
-def ensureText(data):
+def ensureText(data, encoding='utf-8'):
     if data is None:
         return u''
 
-    if isPY2():
-        if isinstance(data, unicode):
-            return data
+    if isinstance(data, text_type):
+        return data
+
+    if isinstance(data, binary_type):
         try:
-            return data.decode('utf-8')
+            return data.decode(encoding)
         except Exception:
             try:
-                return unicode(data, 'utf-8', 'ignore')
+                return data.decode(encoding, 'replace')
             except Exception:
                 try:
-                    return unicode(str(data), 'utf-8', 'ignore')
+                    return data.decode('latin-1', 'replace')
                 except Exception:
                     return u''
-    else:
-        if isinstance(data, bytes):
-            try:
-                return data.decode('utf-8')
-            except Exception:
-                return data.decode('utf-8', 'ignore')
+
+    try:
+        return text_type(data)
+    except Exception:
         try:
-            return str(data)
+            return text_type(str(data))
         except Exception:
             return u''
+
+
+def fsPath(path):
+    path = ensureText(path)
+    try:
+        if text_type is not str:
+            return path.encode('utf-8')
+    except Exception:
+        pass
+    return path
+
+
+def shellQuote(value):
+    value = ensureText(value)
+    value = value.replace('\\', '\\\\')
+    value = value.replace('"', '\\"')
+    value = value.replace('`', '\\`')
+    value = value.replace('$', '\\$')
+    return value
 
 
 def writeUtf8TextFile(path, data):
     try:
         txt = ensureText(data)
-        f = open(path, 'wb')
+        f = open(fsPath(path), 'wb')
         try:
             f.write(txt.encode('utf-8'))
         finally:
@@ -86,7 +96,6 @@ def writeUtf8TextFile(path, data):
     except Exception:
         printExc()
     return False
-
 
 ###################################################
 # One instance of this class can be used only for
@@ -126,16 +135,29 @@ class MergeDownloader(BaseDownloader):
         self.postProcessMode = 'merge'
         self.mergedFileDurationMs = 0
 
+        self.channelName = ''
+        self.downloadChannelName = ''
+        self.downloadUseChannelName = False
+        self.originalFilePath = ''
+
     def __del__(self):
         printDBG("MergeDownloader.__del__ ----------------------------------")
 
+    def _safeRm(self, path):
+        try:
+            fpath = fsPath(path)
+            if fpath and os.path.exists(fpath):
+                rm(fpath)
+        except Exception:
+            printExc()
+
     def _cleanUp(self):
         for item in self.multi['files']:
-            rm(item)
-        if self.tempMergePath and os.path.isfile(self.tempMergePath):
-            rm(self.tempMergePath)
-        if self.chapterMetaPath and os.path.isfile(self.chapterMetaPath):
-            rm(self.chapterMetaPath)
+            self._safeRm(item)
+        if self.tempMergePath:
+            self._safeRm(self.tempMergePath)
+        if self.chapterMetaPath:
+            self._safeRm(self.chapterMetaPath)
 
     def getName(self):
         return "MergeDownloader"
@@ -151,8 +173,7 @@ class MergeDownloader(BaseDownloader):
             reason = data
             self.iptv_sys = None
             callBackFun(sts, reason)
-        else:
-            # Need wget for correct working, so check also if wget working correctly
+        else:  # Need wget for correct working, so check also if wget working correctly
             self._isWgetWorkingCorrectly(callBackFun)
 
     def _isWgetWorkingCorrectly(self, callBackFun):
@@ -175,6 +196,10 @@ class MergeDownloader(BaseDownloader):
         self.makeMkvChapters = False
         self.makeCutsFile = False
 
+        self.channelName = ''
+        self.downloadChannelName = ''
+        self.downloadUseChannelName = False
+
     def _prepareSidecarData(self, meta):
         self._clearSidecarData()
         try:
@@ -195,8 +220,58 @@ class MergeDownloader(BaseDownloader):
                 if not self.sidecarTxt:
                     self.sidecarTxt = meta.get('e2i_sidecar_txt', '')
                 printDBG("MergeDownloader Enigma2 cuts enabled")
+
+            self.channelName = ensureText(meta.get('e2i_channel_name', '')).strip()
+            self.downloadChannelName = self.channelName
+            self.downloadUseChannelName = bool(self.downloadChannelName)
+
+            if self.downloadUseChannelName:
+                printDBG("MergeDownloader channel name [%s]" % self.downloadChannelName)
         except Exception:
             printExc()
+
+    def _sanitizeFileNamePart(self, value):
+        value = ensureText(value)
+        value = value.strip()
+        value = re.sub(r'[\r\n\t]+', ' ', value)
+        value = re.sub(r'\s+', ' ', value)
+        value = re.sub(r'[\\/:\*\?"<>\|]', '_', value)
+        value = value.strip(' ._-')
+        return value
+
+    def _applyDownloadChannelToFilePath(self, filePath):
+        try:
+            filePath = ensureText(filePath)
+
+            if not self.downloadUseChannelName or not self.downloadChannelName:
+                return filePath
+
+            dirName = os.path.dirname(filePath)
+            baseName = os.path.basename(filePath)
+            titlePart, extPart = os.path.splitext(baseName)
+
+            cleanChannel = self._sanitizeFileNamePart(self.downloadChannelName)
+            cleanTitle = self._sanitizeFileNamePart(titlePart)
+
+            if not cleanChannel or not cleanTitle:
+                return filePath
+
+            prefix = cleanChannel + ' - '
+            if cleanTitle.startswith(prefix):
+                newBaseName = cleanTitle + extPart
+            else:
+                newBaseName = prefix + cleanTitle + extPart
+
+            if dirName:
+                newPath = os.path.join(dirName, newBaseName)
+            else:
+                newPath = newBaseName
+
+            printDBG("MergeDownloader filePath with channel [%s] -> [%s]" % (filePath, newPath))
+            return newPath
+        except Exception:
+            printExc()
+        return ensureText(filePath)
 
     def _writeTxtSidecar(self, filePath):
         try:
@@ -204,10 +279,10 @@ class MergeDownloader(BaseDownloader):
                 printDBG("MergeDownloader sidecar TXT skipped: empty content")
                 return
 
-            basePath = filePath.rsplit('.', 1)[0]
+            basePath = ensureText(filePath).rsplit('.', 1)[0]
             txtPath = basePath + '.txt'
 
-            if os.path.isfile(txtPath):
+            if os.path.isfile(fsPath(txtPath)):
                 printDBG("MergeDownloader sidecar TXT already exists [%s]" % txtPath)
                 return
 
@@ -225,22 +300,29 @@ class MergeDownloader(BaseDownloader):
                 self._finishDownloadFlow()
                 return
 
-            basePath = filePath.rsplit('.', 1)[0]
+            basePath = ensureText(filePath).rsplit('.', 1)[0]
             jpgPath = basePath + '.jpg'
 
-            if os.path.isfile(jpgPath):
+            if os.path.isfile(fsPath(jpgPath)):
                 printDBG("MergeDownloader sidecar JPG already exists [%s]" % jpgPath)
                 self._finishDownloadFlow()
                 return
 
-            cmd = 'wget --header "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.103 Safari/537.36" --no-check-certificate "%s" -O "%s" > /dev/null 2>&1' % (str(self.sidecarImg), jpgPath)
+            imgUrl = shellQuote(self.sidecarImg)
+            outPath = shellQuote(jpgPath)
+
+            cmd = 'wget --header "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.103 Safari/537.36" --no-check-certificate "{0}" -O "{1}" > /dev/null 2>&1'.format(imgUrl, outPath)
             printDBG("MergeDownloader sidecar JPG cmd[%s]" % cmd)
 
             self.waitingForSidecar = True
             self.sidecarConsole = eConsoleAppContainer()
             self.sidecarConsole_appClosed_conn = eConnectCallback(self.sidecarConsole.appClosed, boundFunction(self._imgSidecarFinished, jpgPath))
             self.sidecarConsole_stderrAvail_conn = eConnectCallback(self.sidecarConsole.stderrAvail, self._imgSidecarDataAvail)
-            self.sidecarConsole.execute(E2PrioFix(cmd))
+            if hasattr(self.sidecarConsole, "setNice"):
+                self.sidecarConsole.setNice(GetNice() + 2)
+                self.sidecarConsole.execute(cmd)
+            else:
+                self.sidecarConsole.execute(E2PrioFix(cmd))
         except Exception:
             printExc("MergeDownloader sidecar JPG start failed")
             self._finishDownloadFlow()
@@ -257,7 +339,7 @@ class MergeDownloader(BaseDownloader):
             self.sidecarConsole = None
             self.waitingForSidecar = False
 
-            if os.path.isfile(jpgPath):
+            if os.path.isfile(fsPath(jpgPath)):
                 printDBG("MergeDownloader sidecar JPG saved [%s]" % jpgPath)
             else:
                 printDBG("MergeDownloader sidecar JPG failed [%s]" % jpgPath)
@@ -274,22 +356,24 @@ class MergeDownloader(BaseDownloader):
         self._cleanUp()
 
     def _getBasePath(self, filePath):
-        return filePath.rsplit('.', 1)[0]
+        return ensureText(filePath).rsplit('.', 1)[0]
 
     def _getMkvPath(self):
         return self._getBasePath(self.filePath) + '.mkv'
 
     def _getCutsPath(self, filePath):
-        return filePath + '.cuts'
+        return ensureText(filePath) + '.cuts'
 
     def _moveFile(self, src, dst):
         try:
-            if src == dst:
+            srcPath = fsPath(src)
+            dstPath = fsPath(dst)
+            if srcPath == dstPath:
                 return True
-            if os.path.isfile(dst):
-                rm(dst)
-            os.rename(src, dst)
-            return os.path.isfile(dst)
+            if os.path.isfile(dstPath):
+                rm(dstPath)
+            os.rename(srcPath, dstPath)
+            return os.path.isfile(dstPath)
         except Exception:
             printExc()
         return False
@@ -391,7 +475,8 @@ class MergeDownloader(BaseDownloader):
 
     def _probeDurationMs(self, filePath):
         try:
-            cmd = DMHelper.GET_FFMPEG_PATH() + ' -i "{0}" 2>&1 '.format(filePath)
+            inPath = shellQuote(filePath)
+            cmd = DMHelper.GET_FFMPEG_PATH() + ' -i "{0}" 2>&1 '.format(inPath)
             data = os.popen(cmd).read()
             data = ensureText(data)
             m = re.search(r'Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)', data)
@@ -469,7 +554,7 @@ class MergeDownloader(BaseDownloader):
 
             cutsPath = self._getCutsPath(finalPath)
 
-            f = open(cutsPath, 'wb')
+            f = open(fsPath(cutsPath), 'wb')
             try:
                 for item in chapters:
                     pts = self._msToPts(item['start'])
@@ -481,27 +566,29 @@ class MergeDownloader(BaseDownloader):
                 f.close()
 
             printDBG("MergeDownloader cuts saved [%s]" % cutsPath)
-            return os.path.isfile(cutsPath) and os.path.getsize(cutsPath) > 0
+            return os.path.isfile(fsPath(cutsPath)) and os.path.getsize(fsPath(cutsPath)) > 0
         except Exception:
             printExc("MergeDownloader _writeCutsFile failed")
         return False
 
     def start(self, url, filePath, params={}):
         self.downloaderParams = params
-        self.fileExtension = '' # should be implemented in future
+        self.fileExtension = ''  # should be implemented in future
         self.url = url
-        self.filePath = filePath
-        self.tempMergePath = self._getBasePath(filePath) + '.iptv.merge.tmp.mp4'
         self.chapterMetaPath = ''
         self.finalizedPath = ''
         self.postProcessMode = 'merge'
         self.mergedFileDurationMs = 0
+        self.originalFilePath = ensureText(filePath)
 
         self.multi = {'urls': [], 'files': [], 'remote_size': [], 'remote_content_type': [], 'local_size': []}
         self.currIdx = 0
 
         meta = strwithmeta(url).meta
         self._prepareSidecarData(meta)
+
+        self.filePath = self._applyDownloadChannelToFilePath(self.originalFilePath)
+        self.tempMergePath = self._getBasePath(self.filePath) + '.iptv.merge.tmp.mp4'
 
         try:
             urlsKeys = self.url.split('merge://')[1].split('|')
@@ -529,13 +616,17 @@ class MergeDownloader(BaseDownloader):
         info = ""
         retries = 0
 
-        cmd = DMHelper.getBaseWgetCmd(self.downloaderParams) + (' %s -t %d ' % (info, retries)) + '"' + url + '" -O "' + filePath + '" > /dev/null'
+        cmd = DMHelper.getBaseWgetCmd(self.downloaderParams) + (' %s -t %d ' % (info, retries)) + '"' + shellQuote(url) + '" -O "' + shellQuote(filePath) + '" > /dev/null'
         printDBG("doStartDownload cmd[%s]" % cmd)
 
         self.console = eConsoleAppContainer()
         self.console_appClosed_conn = eConnectCallback(self.console.appClosed, self._cmdFinished)
         self.console_stderrAvail_conn = eConnectCallback(self.console.stderrAvail, self._dataAvail)
-        self.console.execute(E2PrioFix(cmd))
+        if hasattr(self.console, "setNice"):
+            self.console.setNice(GetNice() + 2)
+            self.console.execute(cmd)
+        else:
+            self.console.execute(E2PrioFix(cmd))
 
         self.status = DMHelper.STS.DOWNLOADING
         self.onStart()
@@ -545,26 +636,34 @@ class MergeDownloader(BaseDownloader):
         self.postProcessMode = 'merge'
         cmd = DMHelper.GET_FFMPEG_PATH() + ' '
         for item in self.multi['files']:
-            cmd += ' -i "{0}" '.format(item)
-        cmd += ' -map 0:0 -map 1:0 -vcodec copy -acodec copy "{0}" >/dev/null 2>&1 '.format(self.tempMergePath)
+            cmd += ' -i "{0}" '.format(shellQuote(item))
+        cmd += ' -map 0:0 -map 1:0 -vcodec copy -acodec copy "{0}" >/dev/null 2>&1 '.format(shellQuote(self.tempMergePath))
         printDBG("doStartPostProcess cmd[%s]" % cmd)
         self.console = eConsoleAppContainer()
         self.console_appClosed_conn = eConnectCallback(self.console.appClosed, self._cmdFinished)
-        self.console.execute(E2PrioFix(cmd))
+        if hasattr(self.console, "setNice"):
+            self.console.setNice(GetNice() + 2)
+            self.console.execute(cmd)
+        else:
+            self.console.execute(E2PrioFix(cmd))
 
     def _startMkvChapterMux(self):
         self.postProcessMode = 'chapters'
         mkvPath = self._getMkvPath()
-        cmd = DMHelper.GET_FFMPEG_PATH() + ' -i "{0}" -i "{1}" -map 0 -c copy -map_metadata 1 "{2}" >/dev/null 2>&1 '.format(self.tempMergePath, self.chapterMetaPath, mkvPath)
+        cmd = DMHelper.GET_FFMPEG_PATH() + ' -i "{0}" -i "{1}" -map 0 -c copy -map_metadata 1 "{2}" >/dev/null 2>&1 '.format(shellQuote(self.tempMergePath), shellQuote(self.chapterMetaPath), shellQuote(mkvPath))
         printDBG("MergeDownloader _startMkvChapterMux cmd[%s]" % cmd)
         self.console = eConsoleAppContainer()
         self.console_appClosed_conn = eConnectCallback(self.console.appClosed, self._cmdFinished)
-        self.console.execute(E2PrioFix(cmd))
+        if hasattr(self.console, "setNice"):
+            self.console.setNice(GetNice() + 2)
+            self.console.execute(cmd)
+        else:
+            self.console.execute(E2PrioFix(cmd))
 
     def _finalizeSuccess(self, finalPath):
-        self.filePath = finalPath
-        self.finalizedPath = finalPath
-        self.localFileSize = DMHelper.getFileSize(finalPath)
+        self.filePath = ensureText(finalPath)
+        self.finalizedPath = ensureText(finalPath)
+        self.localFileSize = DMHelper.getFileSize(fsPath(finalPath))
         if self.localFileSize > 0:
             self.remoteFileSize = self.localFileSize
             self.status = DMHelper.STS.DOWNLOADED
@@ -590,31 +689,34 @@ class MergeDownloader(BaseDownloader):
         return False
 
     def _dataAvail(self, data):
-        if None == data:
+        if None is data:
             return
-        self.outData += strDecode(data)
+        self.outData += ensureText(data)
         if 'Saving to:' in self.outData:
             self.console_stderrAvail_conn = None
             lines = self.outData.replace('\r', '\n').split('\n')
             for idx in range(len(lines)):
                 if 'Length:' in lines[idx]:
-                    match = re.search(" ([0-9]+?) ", lines[idx])
+                    match = re.search(r" ([0-9]+?) ", lines[idx])
                     if match:
                         self.multi['remote_size'][self.currIdx] = int(match.group(1))
-                    match = re.search("(\[[^]]+?\])", lines[idx])
+                    match = re.search(r"(\[[^]]+?\])", lines[idx])
                     if match:
                         self.multi['remote_content_type'][self.currIdx] = match.group(1)
             self.outData = ''
 
     def _terminate(self):
         printDBG("MergeDownloader._terminate")
-        if None != self.iptv_sys:
+        if None is not self.iptv_sys:
             self.iptv_sys.kill()
             self.iptv_sys = None
 
         if self.sidecarConsole is not None:
             try:
-                self.sidecarConsole.sendCtrlC()
+                if hasattr(self.sidecarConsole, "sendCtrlC"):
+                    self.sidecarConsole.sendCtrlC()
+                elif hasattr(self.sidecarConsole, "kill"):
+                    self.sidecarConsole.kill()
             except Exception:
                 printExc()
             self.sidecarConsole = None
@@ -623,16 +725,18 @@ class MergeDownloader(BaseDownloader):
 
         if self.status in [DMHelper.STS.DOWNLOADING, DMHelper.STS.POSTPROCESSING]:
             if self.console:
-                self.console.sendCtrlC() # kill # produce zombies
-            self._cmdFinished(-1, True)
+                if hasattr(self.console, "sendCtrlC"):
+                    self.console.sendCtrlC()  # kill produce zombies
+                elif hasattr(self.console, "kill"):
+                    self.console.kill()  # kill produce zombies
+                self._cmdFinished(-1, True)
             return BaseDownloader.CODE_OK
         return BaseDownloader.CODE_NOT_DOWNLOADING
 
     def _cmdFinished(self, code, terminated=False):
         printDBG("MergeDownloader._cmdFinished code[%r] terminated[%r] mode[%s]" % (code, terminated, self.postProcessMode))
-
         # break circular references
-        if None != self.console:
+        if None is not self.console:
             self.console_appClosed_conn = None
             self.console_stderrAvail_conn = None
             self.console = None
@@ -644,7 +748,7 @@ class MergeDownloader(BaseDownloader):
 
         if self.status == DMHelper.STS.POSTPROCESSING:
             if self.postProcessMode == 'merge':
-                mergedSize = DMHelper.getFileSize(self.tempMergePath)
+                mergedSize = DMHelper.getFileSize(fsPath(self.tempMergePath))
                 printDBG("POSTPROCESSING merge finished tempMergePath[%s] localFileSize[%r] code[%r]" % (self.tempMergePath, mergedSize, code))
 
                 if mergedSize > 0 and code == 0:
@@ -660,7 +764,7 @@ class MergeDownloader(BaseDownloader):
 
             elif self.postProcessMode == 'chapters':
                 mkvPath = self._getMkvPath()
-                mkvSize = DMHelper.getFileSize(mkvPath)
+                mkvSize = DMHelper.getFileSize(fsPath(mkvPath))
                 printDBG("POSTPROCESSING chapters finished mkvPath[%s] localFileSize[%r] code[%r]" % (mkvPath, mkvSize, code))
 
                 if mkvSize > 0 and code == 0:
@@ -693,7 +797,7 @@ class MergeDownloader(BaseDownloader):
             return self.localFileSize
         else:
             if update and self.currIdx < len(self.multi['files']):
-                self.multi['local_size'][self.currIdx] = DMHelper.getFileSize(self.multi['files'][self.currIdx])
+                self.multi['local_size'][self.currIdx] = DMHelper.getFileSize(fsPath(self.multi['files'][self.currIdx]))
             localFileSize = 0
             for item in self.multi['local_size']:
                 if item > 0:
