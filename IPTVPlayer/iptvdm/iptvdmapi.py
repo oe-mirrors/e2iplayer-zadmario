@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
+# Last Modified: 12.07.2026 - added preCheckOnly handling to show "Download already exists" instead of FAILED
 #
-#  IPTV download manager API
+# IPTV download manager API
 #
-#  $Id$
-#
+# $Id$
 #
 ###################################################
 # LOCAL import
@@ -11,6 +11,7 @@
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, eConnectCallback
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdh import DMHelper, DMItemBase
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdownloadercreator import DownloaderCreator
+from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
 ###################################################
 
 ###################################################
@@ -42,7 +43,7 @@ class IPTVDMApi():
         self.updateProgress = False
         self.sleepDelay = refreshDelay
 
-        #self.currDMItem = None
+        # self.currDMItem = None
         # under download queue
         self.queueUD = []
         self.MAX_DOWNLOAD_ITEM = parallelDownloadNum
@@ -53,7 +54,7 @@ class IPTVDMApi():
 
         self.onlistChanged = []
 
-        #main Queue
+        # main Queue
         self.mainTimer = eTimer()
         self.mainTimer_conn = eConnectCallback(self.mainTimer.timeout, self.processDQ)
 
@@ -62,7 +63,7 @@ class IPTVDMApi():
 
     def __del__(self):
         printDBG("IPTVDMApi.__del__ -------------------")
-        if True == self.running:
+        if True is self.running:
             self.running = False
             self.mainTimer.stop()
         self.stopAllDownloadItem()
@@ -79,7 +80,7 @@ class IPTVDMApi():
 
     def stopDownloadItem(self, downloadIdx):
         listUDIdx = self.findIdxInQueueUD(downloadIdx)
-        if -1 < listUDIdx and None != self.queueUD[listUDIdx].downloader:
+        if -1 < listUDIdx and None is not self.queueUD[listUDIdx].downloader:
             self.queueUD[listUDIdx].downloader.terminate()
             # give some time to finish
             sleep(1)
@@ -161,7 +162,7 @@ class IPTVDMApi():
             item = self.queueAA[listUDIdx]
 
             item.status = DMHelper.STS.WAITING
-            #item.fileSize = -1
+            # item.fileSize = -1
             item.downloadedSize = 0
             item.downloadedProcent = -1
             item.totalFileDuration = -1
@@ -198,7 +199,7 @@ class IPTVDMApi():
 
     def stopWorkThread(self):
         ''' Can be called only from main thread'''
-        if True == self.running:
+        if True is self.running:
             self.running = False
             self.mainTimer.stop()
 
@@ -206,7 +207,7 @@ class IPTVDMApi():
 
     def runWorkThread(self):
         ''' Can be called only from main thread'''
-        if False == self.running:
+        if False is self.running:
             self.running = True
             self.mainTimer.start(self.sleepDelay * 1000)
 
@@ -219,7 +220,7 @@ class IPTVDMApi():
         for item in self.queueDQ:
             if item.url == newItem.url:
                 exist = True
-        if False == exist:
+        if False is exist:
             self.downloadIdx += 1
             newItem.downloadIdx = self.downloadIdx
             self.queueDQ.append(newItem)
@@ -264,7 +265,7 @@ class IPTVDMApi():
         return bRet, msg
 
     def processDQ(self):
-            if False == self.running:
+            if False is self.running:
                 return
             dListChanged = False
             if len(self.queueUD) < self.MAX_DOWNLOAD_ITEM and \
@@ -356,17 +357,31 @@ class IPTVDMApi():
         self.updateItemSTS(self.queueUD[listUDIdx])
         # dItem - copy only for reading filed
         dItem = self.queueUD[listUDIdx]
-        status = 'UNKNOWN'
+        # preCheckOnly - download already exists, show info instead of FAILED
+        if getattr(dItem.downloader, 'preCheckOnly', False):
+            self.queueUD[listUDIdx].status = DMHelper.STS.DOWNLOADED
+            try:
+                fileName = self.queueUD[listUDIdx].fileName.split('/')[-1]
+                shortName = fileName[:17]
+                if len(fileName) > len(shortName):
+                    shortName += '...'
+                shortName += ' '
+                self.finishNotifyCallback().showNotify(shortName + _('Download already exists'))
+            except Exception:
+                printExc()
+            return
+
+        status = _('UNKNOWN')
         if dItem.downloadedProcent > 99:
             self.queueUD[listUDIdx].status = DMHelper.STS.DOWNLOADED
-            status = 'DOWNLOADED'
+            status = _('DOWNLOADED')
         else:
             if dItem.downloadedSize > 0:
                 self.queueUD[listUDIdx].status = DMHelper.STS.INTERRUPTED
-                status = 'INTERRUPTED'
+                status = _('INTERRUPTED')
             else:
                 self.queueUD[listUDIdx].status = DMHelper.STS.ERROR
-                status = 'FAILED'
+                status = _('FAILED')
 
         try:
             fileName = self.queueUD[listUDIdx].fileName.split('/')[-1]
@@ -374,12 +389,12 @@ class IPTVDMApi():
             if len(fileName) > len(shortName):
                 shortName += '...'
             shortName += ' '
-            self.finishNotifyCallback().showNotify(shortName + _(status))
+            self.finishNotifyCallback().showNotify(shortName + status)
         except Exception:
             printExc()
 
-        #dItem = self.queueUD[listUDIdx]
-        #print( dItem.fileName + ": "+ " status: " + dItem.status + dItem.downloadedSize + " " + dItem.downloadedProcent + " " + dItem.downloadedSpeed + " " + dItem.timeToFinish )
+        # dItem = self.queueUD[listUDIdx]
+        # print( dItem.fileName + ": "+ " status: " + dItem.status + dItem.downloadedSize + " " + dItem.downloadedProcent + " " + dItem.downloadedSpeed + " " + dItem.timeToFinish )
     # end updateEndItemStatus
 
     def updateItemSTS(self, downloadItem):
@@ -424,7 +439,7 @@ class IPTVDMApi():
         return list
 
     def connectListChanged(self, fnc):
-        if not fnc in self.onlistChanged:
+        if fnc not in self.onlistChanged:
             self.onlistChanged.append(fnc)
 
     def disconnectListChanged(self, fnc):
