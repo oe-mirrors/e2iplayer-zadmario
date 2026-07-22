@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-
+# Last Modified: 22.06.2025
 ###################################################
 # LOCAL import
 ###################################################
@@ -38,11 +38,6 @@ def GetConfigList():
 ###################################################
 
 
-def GetConfigList():
-    optionList = []
-    return optionList
-
-
 def gettytul():
     return _('Favourites')
 
@@ -55,14 +50,14 @@ class Favourites(CBaseHostClass):
         self.helper = IPTVFavourites(GetFavouritesDir())
         self.host = None
         self.hostName = ''
-        self.guestMode = False # main or guest
-        self.DEFAULT_ICON_URL = 'http://sarah-bauer.weebly.com/uploads/4/2/2/3/42234635/1922500_orig.png'
+        self.guestMode = False  # main or guest
+        self.DEFAULT_ICON_URL = "https://raw.githubusercontent.com/oe-mirrors/e2iplayer/refs/heads/gh-pages/icons/favourites.png"
 
     def _setHost(self, hostName):
         if hostName == self.hostName:
             return True
         try:
-            _temp = __import__('Plugins.Extensions.IPTVPlayer.hosts.host' + hostName, globals(), locals(), ['IPTVHost'], 0) #absolute import for P3 compatybility
+            _temp = __import__('Plugins.Extensions.IPTVPlayer.hosts.host' + hostName, globals(), locals(), ['IPTVHost'], 0)  # absolute import for P3 compatybility
             host = _temp.IPTVHost()
             if isinstance(host, IHost):
                 self.hostName = hostName
@@ -106,7 +101,7 @@ class Favourites(CBaseHostClass):
             item = data[idx]
             addFun = typesMap.get(item.type, None)
             params = {'name': 'item', 'title': item.name, 'host': item.hostName, 'icon': item.iconimage, 'desc': item.description, 'group_id': cItem['group_id'], 'item_idx': idx}
-            if None != addFun:
+            if None is not addFun:
                 addFun(params)
 
     def getLinksForVideo(self, cItem):
@@ -155,7 +150,7 @@ class Favourites(CBaseHostClass):
         self.currList = []
 
         self.guestMode = False
-        if None == name:
+        if None is name:
             self.host = None
             self.hostName = None
             self.listGroups('list_favourites')
@@ -222,7 +217,7 @@ class IPTVHost(CHostBase):
 
     def isItemWatched(self, index, displayItem):
         ret = self.getItemHashData(index, displayItem)
-        if ret != None:
+        if ret is not None:
             return fileExists(GetFavouritesDir('IPTVWatched/%s/.%s.iptvhash' % ret))
         else:
             return False
@@ -239,7 +234,7 @@ class IPTVHost(CHostBase):
         return ret
 
     def _createViewedFile(self, hashData):
-        if hashData != None and mkdirs(GetFavouritesDir('IPTVWatched') + ('/%s/' % hashData[0])):
+        if hashData is not None and mkdirs(GetFavouritesDir('IPTVWatched') + ('/%s/' % hashData[0])):
             flagFilePath = GetFavouritesDir('IPTVWatched/%s/.%s.iptvhash' % hashData)
             if touch(flagFilePath):
                 return True
@@ -250,7 +245,7 @@ class IPTVHost(CHostBase):
         retlist = []
         if self.useWatchedFlag:
             ret = self.cachedRet
-            if ret.value[Index].isWatched != True and ret.value[Index].type in [CDisplayListItem.TYPE_VIDEO, CDisplayListItem.TYPE_AUDIO]:
+            if ret.value[Index].isWatched is not True and ret.value[Index].type in [CDisplayListItem.TYPE_VIDEO, CDisplayListItem.TYPE_AUDIO]:
                 hashData = self.getItemHashData(Index, ret.value[Index])
                 if self._createViewedFile(hashData):
                     self.cachedRet.value[Index].isWatched = True
@@ -349,7 +344,7 @@ class IPTVHost(CHostBase):
         return ret
 
     def getCurrentList(self, refresh=0):
-        if refresh == 1 and self.refreshAfterWatchedFlagChange and self.cachedRet != None:
+        if refresh == 1 and self.refreshAfterWatchedFlagChange and self.cachedRet is not None:
             ret = self.cachedRet
         else:
             ret = RetHost(RetHost.ERROR, value=[])
