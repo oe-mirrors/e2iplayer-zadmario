@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-#
-#  IplaPlayer based on SHOUTcast
+# Last Modified:: 2026-07-25 - Updated blue_pressed() and blue_pressed_next(), added YouTube user links actions in the blue menu, and added deleteFavouriteItem(); fixed missing key_green label display by correcting the Halidri1080p1 playlist.xml key_green binding and set default green button text to "Download".
+# IplaPlayer based on SHOUTcast
 #
 #  $Id$
 #
-#
+# 
 
 from time import sleep as time_sleep
 from os import remove as os_remove, path as os_path
@@ -37,6 +37,7 @@ from Plugins.Extensions.IPTVPlayer.components.confighost import ConfigHostMenu, 
 from Plugins.Extensions.IPTVPlayer.components.configgroups import ConfigGroupsMenu
 
 from Plugins.Extensions.IPTVPlayer.components.iptvfavouriteswidgets import IPTVFavouritesAddItemWidget, IPTVFavouritesMainWidget
+from Plugins.Extensions.IPTVPlayer.tools.iptvfavourites import IPTVFavourites
 
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdownloadercreator import IsUrlDownloadable
 from Plugins.Extensions.IPTVPlayer.libs.pCommon import CParsingHelper
@@ -157,7 +158,7 @@ class E2iPlayerWidget(Screen):
             self.session.nav.stopService()
 
         self["key_red"] = StaticText(_("Exit"))
-        self["key_green"] = StaticText()
+        self["key_green"] = StaticText(_("Download"))
 
         self["key_yellow"] = StaticText(_("Refresh"))
         self["key_blue"] = StaticText(_("More"))
@@ -587,11 +588,32 @@ class E2iPlayerWidget(Screen):
         self.stopAutoPlaySequencer()
         options = []
 
+        canAddUserLink = False
+        try:
+            currSelIndex = self.getSelIndex()
+            if currSelIndex > -1 and hasattr(self.host, 'canAddToUserLinks') and self.host.canAddToUserLinks(currSelIndex):
+                canAddUserLink = True
+        except Exception:
+            printExc()
+
+        if canAddUserLink:
+            options.append((_("Add to User Links"), "ADD_USER_LINK"))
+            if hasattr(self.host, 'editUserLinks'):
+                options.append((_("Edit User Links"), "EDIT_USER_LINKS"))
+
         if -1 < self.canByAddedToFavourites()[0]:
             options.append((_("Add item to favourites"), "ADD_FAV"))
             options.append((_("Edit favourites"), "EDIT_FAV"))
         elif 'favourites' == self.hostName:
             options.append((_("Edit favourites"), "EDIT_FAV"))
+            options.append((_("Remove from favourites"), "DELETE_FAV"))
+
+        if not canAddUserLink:
+            try:
+                if hasattr(self.host, 'editUserLinks'):
+                    options.append((_("Edit User Links"), "EDIT_USER_LINKS"))
+            except Exception:
+                printExc()
 
         if None is not self.activePlayer.get('player', None):
             title = _('Change active movie player')
@@ -603,14 +625,20 @@ class E2iPlayerWidget(Screen):
             options.append((_('Randomize a playlist'), "RandomizePlayableItems"))
             options.append((_('Reverse a playlist'), "ReversePlayableItems"))
 
+        self.hostActions = []
         try:
             host = __import__('Plugins.Extensions.IPTVPlayer.hosts.host' + self.hostName, globals(), locals(), ['GetConfigList'], 0) #both p2&p3 accepts absolute imports (level=0)
             if(len(host.GetConfigList()) > 0):
                 options.append((_("Configure host"), "HostConfig"))
+            if hasattr(host, 'GetHostActions'):
+                self.hostActions = host.GetHostActions()
+                for idx in range(len(self.hostActions)):
+                    options.append((self.hostActions[idx][0], "HostAction_%d" % idx))
         except Exception:
             printExc('WARNING')
         options.append((_("Info"), "info"))
         options.append((_("Download manager"), "IPTVDM"))
+        options.append((_("Exit"), "CLOSE"))
         self.session.openWithCallback(self.blue_pressed_next, ChoiceBox, title=_("Select option"), list=options)
 
     def pause_pressed(self):
@@ -754,10 +782,54 @@ class E2iPlayerWidget(Screen):
                 self.requestListFromHost('ForFavItem', currSelIndex, '')
             elif ret[1] == 'EDIT_FAV':
                 self.session.openWithCallback(self.editFavouritesCallback, IPTVFavouritesMainWidget)
+            elif ret[1] == 'DELETE_FAV':
+                self.deleteFavouriteItem()
+            elif ret[1] == 'ADD_USER_LINK':
+                try:
+                    currSelIndex = self.getSelIndex()
+                    if currSelIndex > -1 and hasattr(self.host, 'addToUserLinks'):
+                        self.host.addToUserLinks(self.session, currSelIndex)
+                except Exception:
+                    printExc()
+            elif ret[1] == 'EDIT_USER_LINKS':
+                try:
+                    if hasattr(self.host, 'editUserLinks'):
+                        self.host.editUserLinks(self.session)
+                except Exception:
+                    printExc()
             elif ret[1] == 'RandomizePlayableItems':
                 self.randomizePlayableItems()
             elif ret[1] == 'ReversePlayableItems':
                 self.reversePlayableItems()
+            elif ret[1] == 'CLOSE':
+                self.close()
+            elif ret[1].startswith('HostAction_'):
+                try:
+                    idx = int(ret[1].split('_', 1)[1])
+                    if idx >= 0 and idx < len(self.hostActions):
+                        self.requestListFromHost('PerformCustomAction', -1, self.hostActions[idx][1])
+                except Exception:
+                    printExc()
+
+    def deleteFavouriteItem(self):
+        printDBG("E2iPlayerWidget.deleteFavouriteItem")
+        if self.visible and not self.isInWorkThread() and 'favourites' == self.hostName:
+            try:
+                item = self.getSelItem()
+            except Exception:
+                printExc()
+                item = None
+            if None is not item:
+                currSelIndex = self.getSelIndex()
+                if currSelIndex > -1:
+                    del self.currList[currSelIndex]
+                    self["list"].setList([(x,) for x in self.currList])
+                    if len(self.currList) <= currSelIndex:
+                        currSelIndex = len(self.currList) - 1
+                    if currSelIndex >= 0:
+                        self["list"].moveToIndex(currSelIndex)
+                    self.changeBottomPanel()
+                    self.updateDownloadButton()
 
     def editFavouritesCallback(self, ret=False):
         if ret and 'favourites' == self.hostName:  # we must reload host
