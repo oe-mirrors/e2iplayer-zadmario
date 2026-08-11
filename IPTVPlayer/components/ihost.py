@@ -37,6 +37,10 @@ class CUrlItem:
             self.url = str(url)
 
         self.urlNeedsResolve = urlNeedsResolve  # additional request to host is needed to resolv this url (url is not direct link)
+        # transient, session-only flag: set when resolving this mirror failed, so the
+        # "Select link" list can highlight it; reset whenever the item's urlItems list
+        # is rebuilt from a fresh host request (see iptvplayerwidget.py)
+        self.failed = False
 # class CDisplayListItem
 # define attribiutes for item of diplay list
 # communicate display layer with host
@@ -78,6 +82,7 @@ class CDisplayListItem:
                 pinLocked=False,
                 isGoodForFavourites=False,
                 isWatched=False,
+                isStarted=False,
                 textColor='',
                 pinCode='',
                 imageType=None):
@@ -123,6 +128,11 @@ class CDisplayListItem:
         else:
             self.isWatched = False
 
+        if isStarted:
+            self.isStarted = True
+        else:
+            self.isStarted = False
+
         self.textColor = str(textColor)
 
         # used only for TYPE_VIDEO item
@@ -135,10 +145,9 @@ class CDisplayListItem:
         self.itemIdx = -1
 
     def getDisplayTitle(self):
-        if self.isWatched:
-            return '*' + self.name
-        else:
-            return self.name
+        # watched/started state is shown via the icon overlay badge
+        # (see components/iptvlist.py), not a title prefix
+        return self.name
 
     def getTextColor(self):
         try:
@@ -146,6 +155,8 @@ class CDisplayListItem:
                 return parseColor(self.textColor).argb()
             if self.isWatched:
                 return parseColor(config.plugins.iptvplayer.watched_item_color.value).argb()
+            if self.isStarted:
+                return parseColor(config.plugins.iptvplayer.started_item_color.value).argb()
         except Exception:
             printExc()
         return None
