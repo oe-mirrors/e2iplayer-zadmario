@@ -10,7 +10,7 @@
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, GetSkinsList, GetHostsList, GetEnabledHostsList, \
                                                           IsHostEnabled, IsExecutable, CFakeMoviePlayerOption, GetAvailableIconSize, \
                                                           IsWebInterfaceModuleAvailable, SetIconsHash, SetGraphicsHash, isOPKGinstall, \
-                                                          defaultToolPath
+                                                          defaultToolPath, GITHUB_UPDATE_REPO
 from Plugins.Extensions.IPTVPlayer.iptvupdate.updatemainwindow import IPTVUpdateWindow, UpdateMainAppImpl
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, IPTVPlayerNeedInit
 from Plugins.Extensions.IPTVPlayer.components.configbase import ConfigBaseWidget, COLORS_DEFINITONS
@@ -98,7 +98,10 @@ config.plugins.iptvplayer.plugin_autostart_method = ConfigSelection(default="wiz
 if isOPKGinstall():
     config.plugins.iptvplayer.preferredupdateserver = ConfigSelection(default="4", choices=[("", _("Default")), ("4", "opkg repo")])
 else:
-    config.plugins.iptvplayer.preferredupdateserver = ConfigSelection(default="2", choices=[("", _("Default")), ("1", "http://iptvplayer.vline.pl/"), ("2", _("http://zadmario.gitlab.io/")), ("3", _("private"))])
+    # "1" (vline) and "3" (private) both pointed at addresses that are
+    # dead now (SSL failure / cert mismatch, checked live) - "2" (GitHub)
+    # is the only one that still works, so it's the only choice left
+    config.plugins.iptvplayer.preferredupdateserver = ConfigSelection(default="2", choices=[("2", _("GitHub repository") + " (%s)" % GITHUB_UPDATE_REPO)])
 config.plugins.iptvplayer.osk_type = ConfigSelection(default="", choices=[("", _("Auto")), ("system", _("System")), ("own", _("Own model"))])
 config.plugins.iptvplayer.osk_layout = ConfigText(default="", fixed_size=False)
 config.plugins.iptvplayer.osk_allow_suggestions = ConfigYesNo(default=True)
@@ -165,8 +168,6 @@ config.plugins.iptvplayer.alternativeARMV5TMoviePlayer = ConfigSelection(default
 config.plugins.iptvplayer.SciezkaCache = ConfigDirectory(default="/hdd/IPTVCache/") #, fixed_size = False)
 config.plugins.iptvplayer.NaszaTMP = ConfigDirectory(default="/tmp/") #, fixed_size = False)
 config.plugins.iptvplayer.ZablokujWMV = ConfigYesNo(default=True)
-
-config.plugins.iptvplayer.gitlab_repo = ConfigSelection(default="zadmario", choices=[("mosz_nowy", "mosz_nowy"), ("zadmario", "zadmario"), ("maxbambi", "maxbambi")])
 
 config.plugins.iptvplayer.vkcom_login = ConfigText(default="", fixed_size=False)
 config.plugins.iptvplayer.vkcom_password = ConfigText(default="", fixed_size=False)
@@ -384,8 +385,6 @@ class ConfigMenu(ConfigBaseWidget):
         if basicConfVisible: #BASIC CONFIGURATION
             list.append(getConfigListEntry(_("Auto check for plugin update"), config.plugins.iptvplayer.autoCheckForUpdate))
             list.append(getConfigListEntry(_("The preferred update server"), config.plugins.iptvplayer.preferredupdateserver))
-            if config.plugins.iptvplayer.preferredupdateserver.value == '2':
-                list.append(getConfigListEntry(_("Add update from GitLab repository"), config.plugins.iptvplayer.gitlab_repo))
             if config.plugins.iptvplayer.preferredupdateserver.value == '3':
                 list.append(getConfigListEntry(_("%s login") % 'E2iPlayer', config.plugins.iptvplayer.iptvplayer_login))
                 list.append(getConfigListEntry(_("%s password") % 'E2iPlayer', config.plugins.iptvplayer.iptvplayer_password))

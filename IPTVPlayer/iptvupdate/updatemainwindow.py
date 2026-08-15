@@ -10,7 +10,8 @@
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, mkdirs, rmtree, FreeSpace, formatBytes, iptv_system, \
                                                                    GetIPTVDMImgDir, GetIPTVPlayerVerstion, GetShortPythonVersion, GetTmpDir, \
                                                                    GetHostsList, GetEnabledHostsList, WriteTextFile, IsExecutable, GetUpdateServerUri, \
-                                                                   GetIconsHash, SetIconsHash, GetGraphicsHash, SetGraphicsHash, rm, GetPyScriptCmd
+                                                                   GetIconsHash, SetIconsHash, GetGraphicsHash, SetGraphicsHash, rm, GetPyScriptCmd, \
+                                                                   GITHUB_UPDATE_REPO
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import enum
 from Plugins.Extensions.IPTVPlayer.iptvupdate.iptvlist import IPTVUpdateList
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdownloadercreator import UpdateDownloaderCreator
@@ -388,7 +389,7 @@ class UpdateMainAppImpl(IUpdateObjectInterface):
 
     def getStepsList(self):
         self.list = []
-        if config.plugins.iptvplayer.gitlab_repo.value and config.plugins.iptvplayer.preferredupdateserver.value == '2':
+        if config.plugins.iptvplayer.preferredupdateserver.value == '2':
             self.list.append(self.__getStepDesc(title=_("Add repository last version."), execFunction=self.stepGetGitlab, ignoreError=True))
         self.list.append(self.__getStepDesc(title=_("Obtaining server list."), execFunction=self.stepGetServerLists))
         self.list.append(self.__getStepDesc(title=_("Downloading an update packet."), execFunction=self.stepGetArchive))
@@ -430,7 +431,7 @@ class UpdateMainAppImpl(IUpdateObjectInterface):
         if not sts:
             self.stepFinished(-1, msg)
             return
-        serverUrl = "https://gitlab.com/{0}/e2iplayer/raw/master/IPTVPlayer/version.py".format(config.plugins.iptvplayer.gitlab_repo.value)
+        serverUrl = "https://raw.githubusercontent.com/{0}/master/IPTVPlayer/version.py".format(GITHUB_UPDATE_REPO)
         self.downloader = UpdateDownloaderCreator(serverUrl)
         self.downloader.subscribersFor_Finish.append(boundFunction(self.downloadFinished, self.__serversListGitlabFinished, None))
         self.downloader.start(serverUrl, os_path.join(self.tmpDir, 'lastversion.py'))
@@ -740,10 +741,17 @@ class UpdateMainAppImpl(IUpdateObjectInterface):
                 except Exception:
                     printExc()
                 if 13 == len(newVerNum):
-                    sourceUrl = "https://gitlab.com/{0}/e2iplayer/-/archive/master/e2iplayer-master.tar.gz".format(config.plugins.iptvplayer.gitlab_repo.value)
-                    self.gitlabList = {'name': 'gitlab.com', 'version': newVerNum, 'url': sourceUrl, 'subdir': 'e2iplayer-master/', 'pyver': 'X.X', 'packagetype': 'sourcecode'}
+                    repoFullName = GITHUB_UPDATE_REPO
+                    # GitHub's tarball extracts into "<repo>-<branch>/", not
+                    # "<owner>-<repo>-<branch>/" - only the repo name (after
+                    # the last "/") belongs here, same as the old code only
+                    # ever used the GitLab nick (owner), never the repo name,
+                    # because GitLab's old URL scheme hardcoded "e2iplayer"
+                    repoName = repoFullName.rsplit('/', 1)[-1]
+                    sourceUrl = "https://github.com/{0}/archive/refs/heads/master.tar.gz".format(repoFullName)
+                    self.gitlabList = {'name': 'github.com', 'version': newVerNum, 'url': sourceUrl, 'subdir': '%s-master/' % repoName, 'pyver': 'X.X', 'packagetype': 'sourcecode'}
                     printDBG("__serversListGitlabFinished: [%s]" % str(self.gitlabList))
-                    self.stepFinished(0, _("GitLab version from {0} was downloaded successfully.".format(config.plugins.iptvplayer.gitlab_repo.value)))
+                    self.stepFinished(0, _("GitHub version from {0} was downloaded successfully.".format(repoFullName)))
                 else:
                     msg = _("Wrong version: [%s].") % str(self.gitlabList)
                     self.stepFinished(-1, msg)
@@ -834,7 +842,7 @@ class UpdateMainAppImpl(IUpdateObjectInterface):
             if config.plugins.iptvplayer.hiddenAllVersionInUpdate.value:
                 self.__addLastVersion(serversList) # get last version from gitlab.com only for developers
 
-            if config.plugins.iptvplayer.gitlab_repo.value and config.plugins.iptvplayer.preferredupdateserver.value == '2':
+            if config.plugins.iptvplayer.preferredupdateserver.value == '2':
                 serversList.append(self.gitlabList)
 
             self.serversList = serversList
@@ -908,7 +916,7 @@ class UpdateMainAppImpl(IUpdateObjectInterface):
                     elif config.plugins.iptvplayer.ListaGraficzna.value:
                         list.append(self.__getStepDesc(title=_("Copy icons."), execFunction=self.stepCopyOnlyIcons))
 
-            if config.plugins.iptvplayer.gitlab_repo.value and config.plugins.iptvplayer.preferredupdateserver.value == '2':
+            if config.plugins.iptvplayer.preferredupdateserver.value == '2':
                 self.list[4:4] = list
             else:
                 self.list[3:3] = list

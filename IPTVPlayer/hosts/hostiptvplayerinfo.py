@@ -4,7 +4,7 @@
 ###################################################
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
 from Plugins.Extensions.IPTVPlayer.components.ihost import CHostBase, CBaseHostClass
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, byteify, GetIPTVPlayerComitStamp
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, byteify, GetIPTVPlayerComitStamp, GITHUB_UPDATE_REPO
 from Plugins.Extensions.IPTVPlayer.components.configbase import COLORS_DEFINITONS
 ###################################################
 
@@ -70,7 +70,7 @@ class IPTVPlayerInfo(CBaseHostClass):
         ITEMS_PER_PAGE = 40
 
         page = cItem.get('page', 0)
-        url = self.getFullUrl('/%s/e2iplayer/-/commits/master?limit=%d&offset=%d' % (config.plugins.iptvplayer.gitlab_repo.value, ITEMS_PER_PAGE, page * ITEMS_PER_PAGE))
+        url = self.getFullUrl('/%s/e2iplayer/-/commits/master?limit=%d&offset=%d' % (GITHUB_UPDATE_REPO, ITEMS_PER_PAGE, page * ITEMS_PER_PAGE))
 
         if page > 1:
             if '?' in url:
