@@ -38,6 +38,10 @@ SERVER_DOMAINS = {'vline': 'http://iptvplayer.vline.pl/', 'gitlab': 'http://zadm
 SERVER_UPDATE_PATH = {'vline': 'download/update2/', 'gitlab': 'update2/', 'private': 'update2/'}
 CACHED_DATA_DICT = {}
 
+# fixed, not user-editable - pointing this at a different repo would break
+# update checking silently, so it isn't exposed as a config option
+GITHUB_UPDATE_REPO = 'oe-mirrors/e2iplayer-zadmario'
+
 
 def GetServerKey(serverNum=None):
     if serverNum == None:
