@@ -19,6 +19,7 @@ from enigma import getDesktop, gRGB
 from Screens.Screen import Screen
 from Screens.MessageBox import MessageBox
 from Screens.ChoiceBox import ChoiceBox
+from Components.config import config
 from Components.Label import Label
 from Components.ActionMap import ActionMap
 from Tools.NumericalTextInput import NumericalTextInput
@@ -571,6 +572,8 @@ class IPTVFavouritesMainWidget(Screen):
 
     def keyNumberJump(self, digit):
         if self.reorderingMode:
+            return
+        if not config.plugins.iptvplayer.enableT9MainList.value:
             return
 
         letter = self.t9Input.getKey(int(digit))
