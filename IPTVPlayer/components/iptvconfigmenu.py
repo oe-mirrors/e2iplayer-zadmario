@@ -86,7 +86,7 @@ config.plugins.iptvplayer.requestedAudioBuffSize = ConfigInteger(256, (1, 10240)
 
 config.plugins.iptvplayer.IPTVDMRunAtStart = ConfigYesNo(default=False)
 config.plugins.iptvplayer.IPTVDMShowAfterAdd = ConfigYesNo(default=True)
-config.plugins.iptvplayer.IPTVDMMaxDownloadItem = ConfigSelection(default="1", choices=[("1", "1"), ("2", "2"), ("3", "3"), ("4", "4")])
+config.plugins.iptvplayer.IPTVDMMaxDownloadItem = ConfigSelection(default="1", choices=[("1", "1"), ("2", "2"), ("3", "3"), ("4", "4"), ("5", "5"), ("10", "10"), ("20", "20"), ("30", "30"), ("40", "40"), ("50", "50")])
 
 config.plugins.iptvplayer.AktualizacjaWmenu = ConfigYesNo(default=True)
 config.plugins.iptvplayer.sortuj = ConfigYesNo(default=True)
