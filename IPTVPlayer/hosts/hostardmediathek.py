@@ -1,37 +1,36 @@
 # -*- coding: utf-8 -*-
-
+# ARD Mediathek
+# Rewritten for the api.ardmediathek.de "page-gateway" JSON API
+# Last Modified: 28.08.2026
 ###################################################
 # LOCAL import
 ###################################################
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
 from Plugins.Extensions.IPTVPlayer.components.ihost import CHostBase, CBaseHostClass
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, byteify
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc
+from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import getDirectM3U8Playlist
-###################################################
+from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads
 from Plugins.Extensions.IPTVPlayer.p2p3.pVer import isPY2
-if not isPY2():
-    from functools import cmp_to_key
+from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote_plus
 ###################################################
 # FOREIGN import
 ###################################################
 from Components.config import config, ConfigSelection, ConfigYesNo, getConfigListEntry
-from copy import deepcopy
-from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote_plus
-try:
-    import simplejson as json
-except Exception:
-    import json
+import re
+if not isPY2():
+    from functools import cmp_to_key
 ###################################################
 
 ###################################################
 # Config options for HOST
 ###################################################
 config.plugins.iptvplayer.ardmediathek_iconquality = ConfigSelection(default="medium", choices=[("large", _("high")), ("medium", _("medium")), ("small", _("low"))])
-config.plugins.iptvplayer.ardmediathek_prefformat = ConfigSelection(default="mp4,m3u8", choices=[
-("mp4,m3u8", "mp4,m3u8"), ("m3u8,mp4", "m3u8,mp4")])
+config.plugins.iptvplayer.ardmediathek_prefformat = ConfigSelection(default="mp4,m3u8", choices=[("mp4,m3u8", "mp4,m3u8"), ("m3u8,mp4", "m3u8,mp4")])
 config.plugins.iptvplayer.ardmediathek_prefquality = ConfigSelection(default="4", choices=[("0", _("low")), ("1", _("medium")), ("2", _("high")), ("3", _("very high")), ("4", _("hd"))])
 config.plugins.iptvplayer.ardmediathek_prefmoreimportant = ConfigSelection(default="quality", choices=[("quality", _("quality")), ("format", _("format"))])
 config.plugins.iptvplayer.ardmediathek_onelinkmode = ConfigYesNo(default=True)
+config.plugins.iptvplayer.ardmediathek_audiotype = ConfigSelection(default="standard", choices=[("standard", _("standard")), ("all", _("all"))])
 
 
 def GetConfigList():
@@ -41,6 +40,7 @@ def GetConfigList():
     optionList.append(getConfigListEntry(_("Prefered quality"), config.plugins.iptvplayer.ardmediathek_prefquality))
     optionList.append(getConfigListEntry(_("More important"), config.plugins.iptvplayer.ardmediathek_prefmoreimportant))
     optionList.append(getConfigListEntry(_("One link mode"), config.plugins.iptvplayer.ardmediathek_onelinkmode))
+    optionList.append(getConfigListEntry(_("Audio track"), config.plugins.iptvplayer.ardmediathek_audiotype))
     return optionList
 ###################################################
 
@@ -51,463 +51,786 @@ def gettytul():
 
 class ARDmediathek(CBaseHostClass):
 
+    API = 'https://api.ardmediathek.de/page-gateway/'
+    CLIENT = 'ard'
+
+    HTTP_HEADER = {
+        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+        'Accept': 'application/json',
+    }
+
+    IMG_WIDTH = {'large': 1280, 'medium': 640, 'small': 320}
+    QUALITY_MAP = {'hd': 4, 'veryhigh': 3, 'high': 2, 'med': 1, 'low': 0}
+
+    VIDEO_TYPES = ('EPISODE', 'CLIP', 'EXCLUSIVE', 'MORE', 'PERMANENT_LIVESTREAM', 'LIVESTREAM', 'EVENT_LIVESTREAM')
+    FOLDER_TYPES = ('SHOW', 'SERIES', 'SEASON_SERIES', 'COLLECTION', 'GROUPING', 'COMPILATION', 'EDITORIAL_COLLECTION')
+    WIDGET_SKIP = ('navigation', 'top_navigation', 'banner', 'notification', 'region_gridlist', 'aeneas', 'grouping_header', 'headline', 'jsonld')
+
+    RUBRIKEN = [
+        (_('Films'), 'editorial/filme'),
+        (_('Series'), 'editorial/serien'),
+        (_('Documentaries'), 'editorial/dokus'),
+        (_('Sport'), 'editorial/sport'),
+        (_('Culture'), 'editorial/kultur'),
+        (_('Knowledge & Nature'), 'editorial/natur'),
+        (_('Travel'), 'editorial/reisen'),
+        (_('Food'), 'editorial/food'),
+        (_('Health'), 'editorial/gesundheit'),
+        (_('Children & Family'), 'editorial/kinderfamilie'),
+        (_('Show & Comedy'), 'editorial/shows_comedy'),
+        (_('News (tagesschau)'), 'editorial/tagesschau'),
+        (_('Accessible'), 'editorial/barrierefrei'),
+        (_('All categories'), 'compilation/alle-rubriken'),
+    ]
+
     def __init__(self):
         printDBG("ARDmediathek.__init__")
-        CBaseHostClass.__init__(self, {'history': 'ARDmediathek.tv', 'cookie': 'zdfde.cookie'})
-        self.HOST = 'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.9.2.18) Gecko/20110621 Mandriva Linux/1.9.2.18-0.1mdv2010.2 (2010.2) Firefox/3.6.18'
-        self.HEADER = {'User-Agent': self.HOST, 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'}
-        self.AJAX_HEADER = dict(self.HEADER)
-        self.AJAX_HEADER.update({'X-Requested-With': 'XMLHttpRequest', 'Connection': 'keep-alive', 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'})
+        CBaseHostClass.__init__(self, {'history': 'ARDmediathek', 'cookie': 'ardmediathek.cookie'})
+        self.MAIN_URL = 'https://www.ardmediathek.de/'
+        self.DEFAULT_ICON_URL = 'https://www.ardmediathek.de/sharing-icon-1280x720.1787634912994.png'
 
-        self.MAIN_URL = 'http://www.ardmediathek.de/'
-        self.MAIN_API_URL = 'http://www.ardmediathek.de/'
-        self.DEFAULT_ICON_URL = 'http://www.fluentu.com/german/blog/wp-content/uploads/sites/5/2014/12/how-to-hack-through-geoblocking-and-watch-german-tv-online1.png' # 'http://www.ardmediathek.de/ard/static/img/base/icon/ardlogo_weiss.png'
-        self.MAIN_CAT_TAB = [{'category': 'list_items', 'title': _('Start'), 'url': self.getFullUrl('appdata/servlet/tv?json')},
-                             {'category': 'list_items', 'title': _('Missed the show?'), 'url': self.getFullUrl('appdata/servlet/tv/sendungVerpasst?json')},
-                             {'category': 'list_items', 'title': _('Program A-Z'), 'url': self.getFullUrl('appdata/servlet/tv/sendungAbisZ?json')},
-                             {'category': 'list_items', 'title': _('Live TV'), 'url': self.getFullUrl('appdata/servlet/tv/live?json')},
-                             {'category': 'list_items', 'title': _('Live Radio'), 'url': self.getFullUrl('appdata/servlet/radio/live?json')},
-                             {'category': 'search', 'title': _('Search'), 'search_item': True},
-                             {'category': 'search_history', 'title': _('Search history')}]
+        self.MAIN_CAT_TAB = [
+            {'category': 'list_page', 'title': _('Home page'), 'url': self._pageUrl('home')},
+            {'category': 'list_az', 'title': _('Program A-Z'), 'url': self._pageUrl('editorial/experiment-a-z')},
+            {'category': 'list_rubriken', 'title': _('Categories')},
+            {'category': 'list_live', 'title': _('Live')},
+            {'category': 'audio_menu', 'title': _('Radio') + ' (ARD Audiothek)'},
+        ]
+        self.MAIN_CAT_TAB += self.searchItems()
 
-        self.ICON_QUALITY_MAP = {'large': 1080, 'medium': 640, 'small': 240}
-        self.STREAM_QUALITY_MAP = {'hd': 4, 'veryhigh': 3, 'high': 2, 'med': 1, 'low': 0}
+    ###################################################
+    # helpers
+    ###################################################
+    def _pageUrl(self, path):
+        return '%spages/%s/%s?embedded=false' % (self.API, self.CLIENT, path)
 
-    def _getQualityName(self, qualityValue):
-        for key in self.STREAM_QUALITY_MAP:
-            value = self.STREAM_QUALITY_MAP[key]
-            if value == qualityValue:
-                return key
-        return 'auto'
+    @staticmethod
+    def _normHref(href):
+        # page/item responses are huge with embedded=true - always request the slim variant
+        return (href or '').replace('embedded=true', 'embedded=false')
 
-    def getPage(self, url, params={}, post_data=None):
-        HTTP_HEADER = dict(self.HEADER)
+    @staticmethod
+    def _widgetUrl(href):
+        # a widget's own endpoint DOES need embedded=true to return its teasers
+        href = (href or '').replace('embedded=false', 'embedded=true')
+        if 'embedded=' not in href:
+            href += ('&' if '?' in href else '?') + 'embedded=true'
+        href = re.sub(r'pageSize=\d+', 'pageSize=40', href)
+        return href
+
+    def getPage(self, url, params=None, post_data=None):
+        if params is None:
+            params = {}
+        params['header'] = dict(self.HTTP_HEADER)
         return self.cm.getPage(url, params, post_data)
 
-    def getIconUrl(self, url):
-        marker = '##width##'
-        if marker in url:
-            iconQuality = config.plugins.iptvplayer.ardmediathek_iconquality.value
-            iconWidth = self.ICON_QUALITY_MAP.get(iconQuality, 240)
-            url = url.replace(marker, str(iconWidth))
-        return self.getFullUrl(url)
-
-    def getFullUrl(self, url):
-        return CBaseHostClass.getFullUrl(self, url).replace(' ', '%20')
-
-    def _getNum(self, v, default=0):
-        try:
-            return int(v)
-        except Exception:
-            try:
-                return float(v)
-            except Exception:
-                return default
-
-    def _getList(self, data, key, default=[]):
-        try:
-            if isinstance(data[key], list):
-                return data[key]
-        except Exception:
-            printExc()
-        return default
-
-    def _mapClip(self, data):
-        printDBG('_mapClip [%s]' % data)
-        item = {}
-        for type in ['audio', 'video', 'none']:
-            if type in data['kennzeichen']:
-                break
-        if type != 'none':
-            item['typ'] = type
-
-        # title
-        item['title'] = self.cleanHtmlStr(data['ueberschrift'])
-
-        # icon and alt title
-        try:
-            tmp = data['bilder'][0]
-            item['icon'] = self.getIconUrl(tmp.get('schemaUrl', ''))
-            if item['title'] == '':
-                item['title'] = self.cleanHtmlStr(tmp.get('title', ''))
-            if item['title'] == '':
-                item['title'] = self.cleanHtmlStr(tmp.get('alt', ''))
-        except Exception:
-            printExc()
-            item['icon'] = ''
-
-        # desc
-        descTab = []
-        if len(data.get('dachzeile', '')):
-            descTab.append(data['dachzeile'])
-        if len(data.get('unterzeile', '')):
-            descTab.append(data['unterzeile'])
-        if len(data.get('teaserText', '')):
-            descTab.append(data['teaserText'])
-        item['desc'] = self.cleanHtmlStr('[/br]'.join(descTab).replace('<br>', '[/br]'))
-        # url
-        item['url'] = self.getFullUrl(data['link']['url'])
-
-        item['good_for_fav'] = True
-        return item
-
-    def _copy(self, params, addParams={}):
-        params = dict(params)
-        params.pop('page', None)
-        params.update(addParams)
-        return params
-
-    def listItem(self, cItem, data, sectionIdx):
-        printDBG('listItem')
-        if data['typ'] not in ["Section"]:
-            return
-        skipButtons = list(cItem.get('skip_buttons', []))
-
-        modCons = self._getList(data, 'modCons')
-        for modCon in modCons:
-            if modCon['typ'] not in ["ModCon"]:
-                continue
-            mods = self._getList(modCon, 'mods')
-            for mod in mods:
-                if mod['typ'] not in ["Mod"]:
-                    continue
-                filters = []
-                if sectionIdx not in skipButtons:
-                    mainButtons = self._getList(mod, 'buttons')
-                    for mainButton in mainButtons:
-                        if mainButton['typ'] not in ['ButtonGroup']:
-                            continue
-                        try:
-                            mainTitle = self.cleanHtmlStr(mainButton['label']['text']) + ' '
-                        except Exception:
-                            mainTitle = ''
-                        buttons = self._getList(mainButton, 'buttons')
-                        for button in buttons:
-                            if button['typ'] in ['buttonTyp']:
-                                continue
-                            if button['buttonTyp'] == 'paging':
-                                continue # paging is handled in diffrent way
-                            #if button.get('disabled', False): continue
-                            title = self.cleanHtmlStr(button['label']['text'])
-                            try:
-                                desc = self.cleanHtmlStr(button['label']['altText'])
-                            except Exception:
-                                desc = ''
-                            url = button['buttonLink']['url']
-                            if not self.cm.isValidUrl(url):
-                                continue
-                            if len(filters) and (url.endswith('quelle.radio') or url.endswith('quelle.tv')):
-                                continue # some workaround
-                            filters.append({'good_for_fav': True, 'title': mainTitle + title, 'url': self.getFullUrl(url), 'desc': desc, 'skip_buttons': skipButtons})
-
-                # if there are filter buttons add them as subcategories
-                if len(filters) > 1:
-                    skipButtons.append(sectionIdx)
-                    for filter in filters:
-                        params = self._copy(cItem, filter)
-                        params['skip_buttons'] = skipButtons
-                        self.addDir(params)
-                    return True
-                else:
-                    inhalte = self._getList(mod, 'inhalte')
-                    for teaser in inhalte:
-                        if teaser['typ'] not in ['Teaser']:
-                            continue
-                        if 'Gruppe' in teaser['teaserTyp']: # in ['TabGruppe']:
-                            mainTitle = self.cleanHtmlStr(teaser['ueberschrift'])
-                            tab = []
-                            interInhalte = self._getList(teaser, 'inhalte')
-                            for interTeaser in interInhalte:
-                                if interTeaser['typ'] not in ['Teaser']:
-                                    continue
-                                inter2Inhalte = self._getList(interTeaser, 'inhalte')
-                                if 0 == len(inter2Inhalte):
-                                    inter2Inhalte = [interTeaser]
-                                for item in inter2Inhalte:
-                                    printDBG("************************************************")
-                                    params = self._mapClip(item)
-                                    tab.append(params)
-                            if len(tab):
-                                params = {'good_for_fav': False, 'title': mainTitle, 'category': 'list_tab', 'clips_tab': tab}
-                                params = self._copy(cItem, params)
-                                self.addDir(params)
-                        elif teaser['teaserTyp'].endswith('Clip'):
-                            printDBG("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
-                            params = self._mapClip(teaser)
-                            if params['typ'] == 'video':
-                                self.addVideo(params)
-                            if params['typ'] == 'audio':
-                                self.addAudio(params)
-                        else:
-                            printDBG("+++++++++++++++++++++++++++++++++++++++++++++++++++")
-                            params = self._mapClip(teaser)
-                            params = self._copy(cItem, params)
-                            self.addDir(params)
-        return False
-
-    def listItems(self, cItem):
-        printDBG('listItems')
-        url = cItem['url']
-        page = cItem.get('page', 1)
-
+    def _json(self, url):
         sts, data = self.getPage(url)
-        if not sts:
-            return
-
-        nextPage = self.cm.ph.getSearchGroups(data, '"(http[^"]+?page\.%s[^0-9][^"]*?)"' % (page + 1))[0].split('"')[0]
-
-        skipSections = []
-        if '/search?' in url:
-            if '&sort=date' in url or 'sort=score' in url:
-                skipSections = [0, 2]
-            else:
-                nextPage = ''
-
+        if not sts or not data:
+            return None
         try:
-            sectionIdx = 0
-            data = byteify(json.loads(data))
-            if 1 == len(data['sections']):
-                self.listItem(cItem, data['sections'][0], sectionIdx)
+            return json_loads(data)
+        except Exception:
+            printExc()
+            return None
+
+    def _imgUrl(self, images):
+        try:
+            if not isinstance(images, dict) or not images:
+                return ''
+            img = images.get('aspect16x9') or images.get('aspect16x7') or images.get('aspect3x4')
+            if img is None:
+                img = list(images.values())[0]
+            src = (img or {}).get('src', '') or ''
+            if not src:
+                return ''
+            width = str(self.IMG_WIDTH.get(config.plugins.iptvplayer.ardmediathek_iconquality.value, 640))
+            return src.replace('{width}', width).replace('%7Bwidth%7D', width)
+        except Exception:
+            printExc()
+            return ''
+
+    def _teaserTitle(self, t):
+        show = ''
+        try:
+            show = self.cleanHtmlStr((t.get('show') or {}).get('title', '') or '')
+        except Exception:
+            show = ''
+        title = self.cleanHtmlStr(t.get('mediumTitle') or t.get('shortTitle') or t.get('longTitle') or t.get('title') or '')
+        if show and title and show.lower() not in title.lower():
+            title = '%s - %s' % (show, title)
+        elif not title:
+            title = show
+        return title
+
+    def _teaserDesc(self, t):
+        parts = []
+        # full synopsis is only on the item detail page; in list teasers the best
+        # we have is the "| ..." tail of the medium/long title
+        text = self.cleanHtmlStr(t.get('synopsis') or '')
+        if not text:
+            lt = self.cleanHtmlStr(t.get('mediumTitle') or t.get('longTitle') or '')
+            if '|' in lt:
+                text = lt.split('|', 1)[1].strip()
+        if text:
+            parts.append(text)
+
+        meta = []
+        dur = t.get('duration')
+        if dur:
+            try:
+                dur = int(dur)
+                h, rem = divmod(dur, 3600)
+                m, s = divmod(rem, 60)
+                meta.append('%d:%02d:%02d' % (h, m, s) if h else '%d:%02d min' % (m, s))
+            except Exception:
+                pass
+        bcast = t.get('broadcastedOn') or ''
+        if isinstance(bcast, str) and len(bcast) >= 10:
+            meta.append(bcast[:10])
+        avail = t.get('availableTo') or ''
+        if isinstance(avail, str) and len(avail) >= 10:
+            meta.append(_('available until %s') % avail[:10])
+        fsk = t.get('maturityContentRating') or ''
+        if fsk:
+            meta.append(str(fsk))
+        if meta:
+            parts.append(' | '.join(meta))
+        return '[/br]'.join(parts)
+
+    @staticmethod
+    def _href(links, *keys):
+        links = links or {}
+        for key in keys:
+            href = ((links.get(key) or {}).get('href')) or ''
+            if href:
+                return href
+        return ''
+
+    def _teasers(self, widget):
+        tab = widget.get('teasers')
+        return tab if isinstance(tab, list) else []
+
+    ###################################################
+    # teaser -> dir / video
+    ###################################################
+    def _addTeaser(self, cItem, t):
+        try:
+            if not isinstance(t, dict):
+                return
+            href = self._href(t.get('links'), 'target', 'self')
+            if not href:
+                return
+            cat = (t.get('coreAssetType') or t.get('type') or '').upper()
+            title = self._teaserTitle(t)
+            if not title:
+                return
+            params = dict(cItem)
+            params.pop('page', None)
+            params.pop('w_teasers', None)
+            params.update({'title': title, 'url': self._normHref(href), 'icon': self._imgUrl(t.get('images')), 'desc': self._teaserDesc(t), 'good_for_fav': True})
+
+            isFolder = cat in self.FOLDER_TYPES or '/grouping/' in href or '/editorial/' in href or '/compilation/' in href
+            isVideo = (cat in self.VIDEO_TYPES or '/item/' in href) and not isFolder
+            if isVideo:
+                if 'LIVESTREAM' in cat:
+                    params['live'] = True
+                    params['title'] = '[L] ' + title
+                self.addVideo(params)
             else:
-                sectionIdx = -1
-                for section in data['sections']:
-                    sectionIdx += 1
-                    if sectionIdx in skipSections:
-                        continue
-                    if section['typ'] not in ["Section"]:
-                        continue
-                    processed = False
-                    modCons = self._getList(section, 'modCons')
-                    for modCon in modCons:
-                        if modCon['typ'] not in ["ModCon"]:
-                            continue
-                        mods = self._getList(modCon, 'mods')
-                        for mod in mods:
-                            if mod['typ'] not in ["Mod"]:
-                                continue
-
-                            try:
-                                url = mod['allesLink']['url']
-                            except Exception:
-                                printExc()
-                                continue
-                            if not self.cm.isValidUrl(url):
-                                continue
-
-                            title = self.cleanHtmlStr(mod['titel'])
-                            try:
-                                if title == '':
-                                    title = url.split('/')[6].split('?')[0].title()
-                            except Exception:
-                                printExc()
-
-                            params = self._copy(cItem, {'good_for_fav': True, 'title': title, 'url': url})
-                            self.addDir(params)
-                            processed = True
-                    if not processed:
-                        if self.listItem(cItem, section, sectionIdx):
-                            break
+                params['category'] = 'list_page'
+                self.addDir(params)
         except Exception:
             printExc()
 
-        if nextPage != '':
-            params = deepcopy(cItem)
-            params.update({'good_for_fav': False, 'url': nextPage, 'title': _('Next page'), 'page': page + 1})
+    ###################################################
+    # page (pages/.../...) -> widgets
+    ###################################################
+    def listPage(self, cItem):
+        printDBG('ARDmediathek.listPage [%s]' % cItem['url'])
+        data = self._json(self._normHref(cItem['url']))
+        if not data:
+            return
+        widgets = data.get('widgets')
+        if not isinstance(widgets, list):
+            widgets = [data]
+
+        contentWidgets = []
+        for w in widgets:
+            if not isinstance(w, dict):
+                continue
+            wtype = (w.get('type') or '').lower()
+            if wtype in self.WIDGET_SKIP:
+                continue
+            if w.get('mediaCollection'):
+                continue
+            selfHref = self._href(w.get('links'), 'self')
+            inlineTeasers = self._teasers(w)
+            if not selfHref and not inlineTeasers:
+                continue
+            contentWidgets.append((w, selfHref, inlineTeasers))
+
+        # a single content widget -> flatten it straight away
+        if len(contentWidgets) == 1:
+            w, selfHref, inlineTeasers = contentWidgets[0]
+            if inlineTeasers:
+                self._listWidget(cItem, w)
+            else:
+                self.listWidget(dict(cItem, url=self._widgetUrl(selfHref)))
+            return
+
+        for w, selfHref, inlineTeasers in contentWidgets:
+            title = self.cleanHtmlStr(w.get('title') or '') or _('Section')
+            params = dict(cItem)
+            params.pop('page', None)
+            params.update({'title': title, 'good_for_fav': False, 'icon': self._imgUrl(inlineTeasers[0].get('images')) if inlineTeasers else ''})
+            if inlineTeasers and not selfHref:
+                params.update({'category': 'list_widget_inline', 'w_teasers': inlineTeasers})
+            else:
+                params.update({'category': 'list_widget', 'url': self._widgetUrl(selfHref)})
             self.addDir(params)
 
-    def listTab(self, cItem):
-        printDBG('listTab')
-        tab = cItem.get('clips_tab', [])
-        for item in tab:
-            if 'typ' not in item:
-                params = self._copy(cItem, item)
-                params.update({'category': 'list_items'})
-                self.addDir(params)
-            elif item['typ'] == 'video':
-                self.addVideo(item)
-            elif item['typ'] == 'audio':
-                self.addAudio(item)
+    def listWidget(self, cItem):
+        printDBG('ARDmediathek.listWidget [%s]' % cItem['url'])
+        data = self._json(cItem['url'])
+        if not data:
+            return
+        if isinstance(data.get('widgets'), list) and data['widgets']:
+            data = data['widgets'][0]
+        self._listWidget(cItem, data)
 
-    def listSearchResult(self, cItem, searchPattern, searchType):
-        printDBG("ARDmediathek.listSearchResult cItem[%s], searchPattern[%s] searchType[%s]" % (cItem, searchPattern, searchType))
-        cItem = dict(cItem)
-        if 'url' not in cItem:
-            cItem['url'] = self.getFullUrl('appdata/servlet/-/search?json&searchText={0}'.format(urllib_quote_plus(searchPattern)))
-        self.listItems(cItem)
-
-    def getLinksForVideo(self, cItem):
-        printDBG("ARDmediathek.getLinksForVideo url[%s]" % cItem['url'])
-
-        sts, data = self.getPage(cItem['url'])
-        if not sts:
-            return []
-
+    def _listWidget(self, cItem, widget):
+        for t in self._teasers(widget):
+            self._addTeaser(cItem, t)
         try:
-            data = byteify(json.loads(data))
-            url = data['sections'][0]['modCons'][0]['mods'][0]['inhalte'][0]['mediaCollection']['url']
+            pag = widget.get('pagination') or {}
+            pageNo = int(pag.get('pageNumber', 0))
+            pageSize = int(pag.get('pageSize', 0))
+            total = int(pag.get('totalElements', 0))
+            selfHref = self._widgetUrl(self._href(widget.get('links'), 'self'))
+            if selfHref and pageSize and total and (pageNo + 1) * pageSize < total:
+                if re.search(r'pageNumber=\d+', selfHref):
+                    nextHref = re.sub(r'pageNumber=\d+', 'pageNumber=%d' % (pageNo + 1), selfHref)
+                else:
+                    nextHref = selfHref + ('&' if '?' in selfHref else '?') + 'pageNumber=%d' % (pageNo + 1)
+                params = dict(cItem)
+                params.update({'category': 'list_widget', 'title': _('Next page'), 'url': nextHref, 'good_for_fav': False})
+                self.addDir(params)
         except Exception:
             printExc()
+
+    def listWidgetInline(self, cItem):
+        for t in cItem.get('w_teasers', []):
+            self._addTeaser(cItem, t)
+
+    ###################################################
+    # A-Z
+    ###################################################
+    def listAZ(self, cItem):
+        data = self._json(self._normHref(cItem['url']))
+        if not data:
+            return
+        for w in data.get('widgets', []):
+            if not isinstance(w, dict):
+                continue
+            title = self.cleanHtmlStr(w.get('title') or '')
+            selfHref = self._href(w.get('links'), 'self')
+            teasers = self._teasers(w)
+            if not title or (not selfHref and not teasers):
+                continue
+            params = dict(cItem)
+            params.pop('page', None)
+            params.update({'title': title, 'good_for_fav': False, 'icon': ''})
+            if teasers and not selfHref:
+                params.update({'category': 'list_widget_inline', 'w_teasers': teasers})
+            else:
+                params.update({'category': 'list_widget', 'url': self._widgetUrl(selfHref)})
+            self.addDir(params)
+
+    ###################################################
+    # Rubriken
+    ###################################################
+    def listRubriken(self, cItem):
+        for title, path in self.RUBRIKEN:
+            params = dict(cItem)
+            params.pop('page', None)
+            params.update({'category': 'list_page', 'title': title, 'url': self._pageUrl(path), 'good_for_fav': True, 'icon': ''})
+            self.addDir(params)
+
+    ###################################################
+    # Live
+    ###################################################
+    def listLive(self, cItem):
+        data = self._json(self._pageUrl('home'))
+        if not data:
+            return
+        liveHref = ''
+        for w in data.get('widgets', []):
+            if not isinstance(w, dict):
+                continue
+            title = (w.get('title') or '').lower()
+            if 'live' in title and (w.get('type') or '') in ('gridlist', 'extended_gridlist', 'compilation'):
+                liveHref = self._href(w.get('links'), 'self')
+                if 'tv-programme live' in title or 'livestream' in title:
+                    break
+        if not liveHref:
+            return
+        wdata = self._json(self._widgetUrl(liveHref))
+        if not wdata:
+            return
+        if isinstance(wdata.get('widgets'), list) and wdata['widgets']:
+            wdata = wdata['widgets'][0]
+        for t in self._teasers(wdata):
+            self._addTeaser(cItem, t)
+
+    ###################################################
+    # search
+    ###################################################
+    def listSearchResult(self, cItem, searchPattern, searchType):
+        printDBG("ARDmediathek.listSearchResult [%s]" % searchPattern)
+        page = cItem.get('page', 0)
+        query = cItem.get('query') or urllib_quote_plus(searchPattern)
+        url = '%spages/%s/search?searchString=%s&embedded=false&vodPageNumber=%d&showPageNumber=%d' % (self.API, self.CLIENT, query, page, page)
+        data = self._json(url)
+        if not data:
+            return
+        if page == 0:
+            for t in data.get('showResults') or []:
+                self._addTeaser(cItem, t)
+        for t in data.get('vodResults') or []:
+            self._addTeaser(cItem, t)
+        try:
+            total = int(data.get('vodTotal', 0))
+            pageSize = int(data.get('vodPageSize', 24)) or 24
+            if (page + 1) * pageSize < total:
+                params = dict(cItem)
+                params.update({'title': _('Next page'), 'page': page + 1, 'query': query})
+                self.addDir(params)
+        except Exception:
+            printExc()
+
+    ###################################################
+    # stream links
+    ###################################################
+    def _subtitles(self, embedded):
+        subTracks = []
+        try:
+            for sub in embedded.get('subtitles', []) or []:
+                best = ''
+                for src in sub.get('sources', []) or []:
+                    surl = src.get('url', '') or ''
+                    if not surl:
+                        continue
+                    if 'webvtt' in surl or surl.endswith('.vtt'):
+                        best = surl
+                        break
+                    best = surl
+                if best:
+                    if best.startswith('//'):
+                        best = 'https:' + best
+                    subTracks.append({'title': _('German'), 'url': best, 'lang': 'de', 'format': 'vtt' if ('vtt' in best) else 'ttml'})
+        except Exception:
+            printExc()
+        return subTracks
+
+    def getLinksForVideo(self, cItem):
+        printDBG("ARDmediathek.getLinksForVideo [%s]" % cItem.get('url', ''))
+        if cItem.get('audio_url'):
+            return [{'need_resolve': 0, 'name': _('Audio'), 'url': cItem['audio_url']}]
+        url = self._normHref(cItem.get('url', ''))
+        if '/item/' not in url:
+            return []
+        data = self._json(url)
+        if not data:
             return []
 
-        sts, data = self.getPage(url)
-        if not sts:
+        embedded = None
+        live = bool(cItem.get('live'))
+        for w in data.get('widgets', []):
+            if not isinstance(w, dict):
+                continue
+            mc = w.get('mediaCollection')
+            if not mc:
+                continue
+            embedded = mc.get('embedded')
+            if not embedded and mc.get('href'):
+                embedded = self._json(mc['href'])
+            if 'live' in (w.get('type') or '').lower():
+                live = True
+            break
+        if not isinstance(embedded, dict):
             return []
 
         preferedQuality = int(config.plugins.iptvplayer.ardmediathek_prefquality.value)
         preferedFormat = config.plugins.iptvplayer.ardmediathek_prefformat.value
-        tmp = preferedFormat.split(',')
         formatMap = {}
+        tmp = preferedFormat.split(',')
         for i in range(len(tmp)):
             formatMap[tmp[i]] = i
+        allowAllAudio = config.plugins.iptvplayer.ardmediathek_audiotype.value == 'all'
 
+        subTracks = self._subtitles(embedded)
+        tmpUrlTab = []
         try:
-            urlTab = []
-            tmpUrlTab = []
-            data = byteify(json.loads(data))
-            live = data['_isLive']
-            subtitleUrl = data.get('_subtitleUrl', '')
-            itemType = data['_type']
-            try:
-                data = data['_mediaArray']
-                for media in data:
-                    mediaTab = media['_mediaStreamArray']
-                    for item in mediaTab:
-                        quality = item['_quality']
-                        urls = item['_stream']
-                        if isinstance(urls, list):
-                            url = urls[-1]
-                        else:
-                            url = urls
+            for stream in embedded.get('streams', []) or []:
+                for media in stream.get('media', []) or []:
+                    murl = media.get('url', '') or ''
+                    if not murl:
+                        continue
+                    audios = media.get('audios', []) or []
+                    audioKind = (audios[0].get('kind') if audios else 'standard') or 'standard'
+                    if audioKind != 'standard' and not allowAllAudio:
+                        continue
+                    if murl.startswith('//'):
+                        murl = 'https:' + murl
+                    mime = (media.get('mimeType') or '').lower()
+                    isHls = 'mpegurl' in mime or '.m3u8' in murl.lower()
+                    audioSuffix = '' if audioKind == 'standard' else ' [%s]' % audioKind
 
-                        if url.startswith('https://'):
-                            url = 'http' + url[5:]
-                        for type in [{'pattern': '.m3u8', 'name': 'm3u8'}, {'pattern': '.mp4', 'name': 'mp4'}]:
-                            if itemType == 'audio':
-                                typeName = 'mp4'
-                            elif not url.endswith(type['pattern']):
-                                continue
-                            else:
-                                typeName = type['name']
-                            if typeName == 'mp4':
-                                quality = self._getQualityName(int(quality))
-                                qualityVal = self.STREAM_QUALITY_MAP.get(quality, 10)
-                                qualityPref = abs(qualityVal - preferedQuality)
-                                formatPref = formatMap.get(typeName, 10)
-                                tmpUrlTab.append({'url': url, 'quality_name': quality, 'quality': qualityVal, 'quality_pref': qualityPref, 'format_name': typeName, 'format_pref': formatPref})
-                            elif typeName == 'm3u8':
-                                if quality != 'auto':
-                                    break
-                                tmpList = getDirectM3U8Playlist(url, checkExt=False)
-                                for tmpItem in tmpList:
-                                    res = tmpItem['with']
-                                    if res == 0:
-                                        continue
-                                    if res > 300:
-                                        quality = 'low'
-                                    if res > 600:
-                                        quality = 'med'
-                                    if res > 800:
-                                        quality = 'high'
-                                    if res > 950:
-                                        quality = 'veryhigh'
-                                    if res > 1200:
-                                        quality = 'hd'
-                                    qualityVal = self.STREAM_QUALITY_MAP.get(quality, 10)
-                                    qualityPref = abs(qualityVal - preferedQuality)
-                                    formatPref = formatMap.get(typeName, 10)
-                                    tmpUrlTab.append({'url': tmpItem['url'], 'quality_name': quality + ' {0}x{1}'.format(tmpItem['with'], tmpItem['heigth']), 'quality': qualityVal, 'quality_pref': qualityPref, 'format_name': type['name'], 'format_pref': formatPref})
-            except Exception:
-                printExc()
-
-            def _cmpLinks(it1, it2):
-                prefmoreimportantly = config.plugins.iptvplayer.ardmediathek_prefmoreimportant.value
-                if 'quality' == prefmoreimportantly:
-                    if it1['quality_pref'] < it2['quality_pref']:
-                        return -1
-                    elif it1['quality_pref'] > it2['quality_pref']:
-                        return 1
+                    if isHls and live:
+                        # hand the master playlist straight to the player for live
+                        tmpUrlTab.append({'url': murl, 'quality_name': 'auto' + audioSuffix, 'quality': 10,
+                                          'quality_pref': 0, 'format_name': 'm3u8', 'format_pref': formatMap.get('m3u8', 10)})
+                    elif isHls:
+                        try:
+                            hlsList = getDirectM3U8Playlist(strwithmeta(murl, {'iptv_proto': 'm3u8'}), checkExt=False)
+                        except Exception:
+                            hlsList = []
+                        for it in hlsList:
+                            res = it.get('with', 0) or 0
+                            quality = 'low'
+                            if res > 320:
+                                quality = 'med'
+                            if res > 600:
+                                quality = 'high'
+                            if res > 800:
+                                quality = 'veryhigh'
+                            if res > 1200:
+                                quality = 'hd'
+                            qVal = self.QUALITY_MAP.get(quality, 10)
+                            tmpUrlTab.append({'url': it['url'], 'quality_name': '%s %sx%s' % (quality, res, it.get('heigth', 0)) + audioSuffix,
+                                              'quality': qVal, 'quality_pref': abs(qVal - preferedQuality),
+                                              'format_name': 'm3u8', 'format_pref': formatMap.get('m3u8', 10)})
+                        if not hlsList:
+                            tmpUrlTab.append({'url': murl, 'quality_name': 'auto' + audioSuffix, 'quality': 10,
+                                              'quality_pref': 0, 'format_name': 'm3u8', 'format_pref': formatMap.get('m3u8', 10)})
                     else:
-                        if it1['quality'] < it2['quality']:
-                            return -1
-                        elif it1['quality'] > it2['quality']:
-                            return 1
+                        label = media.get('forcedLabel') or ''
+                        height = 0
+                        m = re.search(r'(\d{3,4})\s*[pi]', label)
+                        if m:
+                            height = int(m.group(1))
                         else:
-                            if it1['format_pref'] < it2['format_pref']:
-                                return -1
-                            elif it1['format_pref'] > it2['format_pref']:
-                                return 1
-                            else:
-                                return 0
-                else:
-                    if it1['format_pref'] < it2['format_pref']:
-                        return -1
-                    elif it1['format_pref'] > it2['format_pref']:
-                        return 1
-                    else:
-                        if it1['quality_pref'] < it2['quality_pref']:
-                            return -1
-                        elif it1['quality_pref'] > it2['quality_pref']:
-                            return 1
-                        else:
-                            if it1['quality'] < it2['quality']:
-                                return -1
-                            elif it1['quality'] > it2['quality']:
-                                return 1
-                            else:
-                                return 0
-            if isPY2():
-                tmpUrlTab.sort(_cmpLinks)
-            else:
-                tmpUrlTab.sort(key=cmp_to_key(_cmpLinks))
-            onelinkmode = config.plugins.iptvplayer.ardmediathek_onelinkmode.value
-            for item in tmpUrlTab:
-                url = item['url']
-                name = item['quality_name'] + ' ' + item['format_name']
-                if self.cm.isValidUrl(url):
-                    decorateParams = {'iptv_livestream': live}
-                    if self.cm.isValidUrl(subtitleUrl):
-                        decorateParams['external_sub_tracks'] = [{'title': _('German'), 'url': subtitleUrl, 'lang': _('de'), 'format': 'ttml'}]
-                    urlTab.append({'need_resolve': 0, 'name': name, 'url': self.up.decorateUrl(url, decorateParams)})
-                    if onelinkmode:
-                        break
-            printDBG(tmpUrlTab)
+                            try:
+                                height = int(media.get('maxVResolutionPx') or 0)
+                            except Exception:
+                                height = 0
+                        quality = 'low'
+                        if height >= 360:
+                            quality = 'med'
+                        if height >= 540:
+                            quality = 'high'
+                        if height >= 720:
+                            quality = 'veryhigh'
+                        if height >= 1080:
+                            quality = 'hd'
+                        if not label:
+                            label = quality
+                        qVal = self.QUALITY_MAP.get(quality, 10)
+                        tmpUrlTab.append({'url': murl, 'quality_name': str(label) + audioSuffix,
+                                          'quality': qVal, 'quality_pref': abs(qVal - preferedQuality),
+                                          'format_name': 'mp4', 'format_pref': formatMap.get('mp4', 10)})
         except Exception:
             printExc()
 
+        if not tmpUrlTab:
+            return []
+
+        def _cmpLinks(it1, it2):
+            moreImportant = config.plugins.iptvplayer.ardmediathek_prefmoreimportant.value
+            # lower is better for *_pref, higher is better for raw quality
+            if moreImportant == 'quality':
+                order = (('quality_pref', 1), ('quality', -1), ('format_pref', 1))
+            else:
+                order = (('format_pref', 1), ('quality_pref', 1), ('quality', -1))
+            for key, direction in order:
+                if it1[key] != it2[key]:
+                    return -direction if it1[key] < it2[key] else direction
+            return 0
+
+        if isPY2():
+            tmpUrlTab.sort(_cmpLinks)
+        else:
+            tmpUrlTab.sort(key=cmp_to_key(_cmpLinks))
+
+        onelinkmode = config.plugins.iptvplayer.ardmediathek_onelinkmode.value
+        urlTab = []
+        for item in tmpUrlTab:
+            if not self.cm.isValidUrl(item['url']):
+                continue
+            decorateParams = {'iptv_livestream': live}
+            if item['format_name'] == 'm3u8':
+                decorateParams['iptv_proto'] = 'm3u8'
+            if subTracks:
+                decorateParams['external_sub_tracks'] = subTracks
+            urlTab.append({'need_resolve': 0, 'name': '%s %s' % (item['quality_name'], item['format_name']), 'url': self.up.decorateUrl(item['url'], decorateParams)})
+            if onelinkmode:
+                break
         return urlTab
 
+    ###################################################
+    # article / info window
+    ###################################################
+    def getArticleContent(self, cItem):
+        url = self._normHref(cItem.get('url', ''))
+        if '/item/' not in url:
+            return [{'title': cItem.get('title', ''), 'text': cItem.get('desc', ''), 'images': [{'title': '', 'url': cItem.get('icon', '')}]}]
+        data = self._json(url)
+        widget = {}
+        for w in ((data or {}).get('widgets') or []):
+            if isinstance(w, dict) and (w.get('synopsis') or w.get('mediaCollection')):
+                widget = w
+                break
+        title = self.cleanHtmlStr(widget.get('title') or cItem.get('title', ''))
+        text = self.cleanHtmlStr(widget.get('synopsis') or cItem.get('desc', ''))
+        otherInfo = {}
+        show = (widget.get('show') or {}).get('title') or ''
+        if show:
+            otherInfo['title'] = self.cleanHtmlStr(show)
+        bcast = widget.get('broadcastedOn') or ''
+        if isinstance(bcast, str) and len(bcast) >= 10:
+            otherInfo['premiere'] = bcast[:10]
+        avail = widget.get('availableTo') or ''
+        if isinstance(avail, str) and len(avail) >= 10:
+            otherInfo['remaining'] = _('available until %s') % avail[:10]
+        fsk = widget.get('maturityContentRating') or ''
+        if fsk:
+            otherInfo['fsk'] = str(fsk)
+        return [{'title': title, 'text': text, 'images': [{'title': '', 'url': cItem.get('icon', '')}], 'other_info': otherInfo}]
+
+    ###################################################
+    # ARD Audiothek (Radio) - separate REST API
+    ###################################################
+    AUDIO_API = 'https://api.ardaudiothek.de/'
+    AUDIO_LIMIT = 40
+
+    def _audioJson(self, path):
+        url = path if path.startswith('http') else self.AUDIO_API + path.lstrip('/')
+        sts, data = self.getPage(url)
+        if not sts or not data:
+            return None
+        try:
+            return json_loads(data)
+        except Exception:
+            printExc()
+            return None
+
+    def _audioImg(self, node):
+        src = ((node or {}).get('image') or {}).get('url') or ''
+        if not src:
+            return ''
+        width = str(self.IMG_WIDTH.get(config.plugins.iptvplayer.ardmediathek_iconquality.value, 640))
+        return src.replace('{width}', width).replace('%7Bwidth%7D', width)
+
+    def listAudioMenu(self, cItem):
+        for cat, title in (('audio_live', _('Live')), ('audio_categories', _('Categories'))):
+            params = dict(cItem)
+            params.update({'category': cat, 'title': title})
+            self.addDir(params)
+        for it in self.searchItems():
+            params = dict(cItem)
+            params.update(it)
+            params['f_audio'] = True
+            self.addDir(params)
+
+    def listAudioLive(self, cItem):
+        data = self._audioJson('organizations')
+        try:
+            orgs = data['data']['organizations']['nodes']
+        except Exception:
+            return
+        for org in orgs:
+            orgName = self.cleanHtmlStr(org.get('name') or '')
+            for ps in ((org.get('publicationServices') or {}).get('nodes') or []):
+                items = ((ps.get('liveStreams') or {}).get('items')) or []
+                streams = []
+                for it in items:
+                    st = it.get('stream') or {}
+                    surl = st.get('streamUrl') or ''
+                    if surl:
+                        streams.append((self.cleanHtmlStr(st.get('shortTitle') or st.get('sender') or ps.get('title') or ''), surl))
+                if not streams:
+                    continue
+                psTitle = self.cleanHtmlStr(ps.get('title') or '')
+                label = '%s - %s' % (orgName, psTitle) if orgName and orgName not in psTitle else psTitle
+                icon = self._audioImg(ps)
+                if len(streams) == 1:
+                    params = dict(cItem)
+                    params.update({'title': label, 'audio_url': streams[0][1], 'live': True, 'icon': icon, 'good_for_fav': True})
+                    self.addAudio(params)
+                else:
+                    params = dict(cItem)
+                    params.update({'category': 'audio_live_variants', 'title': label, 'icon': icon,
+                                   'a_streams': streams, 'good_for_fav': False})
+                    self.addDir(params)
+
+    def listAudioLiveVariants(self, cItem):
+        for name, surl in cItem.get('a_streams', []):
+            params = dict(cItem)
+            params.pop('a_streams', None)
+            params.update({'title': name, 'audio_url': surl, 'live': True, 'good_for_fav': True})
+            self.addAudio(params)
+
+    def listAudioCategories(self, cItem):
+        data = self._audioJson('editorialcategories')
+        try:
+            nodes = data['data']['editorialCategories']['nodes']
+        except Exception:
+            return
+        for n in nodes:
+            if not n.get('id'):
+                continue
+            params = dict(cItem)
+            params.update({'category': 'audio_category', 'title': self.cleanHtmlStr(n.get('title') or ''),
+                           'url': 'editorialcategories/%s?limit=%d' % (n['id'], self.AUDIO_LIMIT), 'icon': self._audioImg(n), 'good_for_fav': True})
+            self.addDir(params)
+
+    def listAudioCategory(self, cItem):
+        data = self._audioJson(cItem['url'])
+        try:
+            sections = data['data']['editorialCategory']['sections']
+        except Exception:
+            return
+        seen = set()
+        for sec in sections:
+            for n in (sec.get('nodes') or []):
+                pid = n.get('id')
+                if not pid or pid in seen or not n.get('title'):
+                    continue
+                seen.add(pid)
+                self._addProgramSet(cItem, n)
+
+    def _addProgramSet(self, cItem, n):
+        params = dict(cItem)
+        params.pop('page', None)
+        desc = self.cleanHtmlStr(n.get('synopsis') or '')
+        cnt = n.get('numberOfElements')
+        if cnt:
+            desc = (_('%s episodes') % cnt) + ('[/br]' + desc if desc else '')
+        params.update({'category': 'audio_programset', 'title': self.cleanHtmlStr(n.get('title') or ''),
+                       'url': 'programsets/%s?offset=0&limit=%d' % (n['id'], self.AUDIO_LIMIT),
+                       'p_offset': 0, 'p_total': int(cnt) if cnt else 0,
+                       'icon': self._audioImg(n), 'desc': desc, 'good_for_fav': True})
+        self.addDir(params)
+
+    def listAudioProgramSet(self, cItem):
+        data = self._audioJson(cItem['url'])
+        try:
+            ps = data['data']['programSet']
+            nodes = ps['items']['nodes']
+        except Exception:
+            return
+        total = cItem.get('p_total') or ps.get('numberOfElements') or 0
+        for it in nodes:
+            audios = it.get('audios') or []
+            aurl = (audios[0].get('url') if audios else '') or ''
+            if not aurl:
+                continue
+            descTab = []
+            dur = it.get('duration')
+            if dur:
+                try:
+                    m, s = divmod(int(dur), 60)
+                    descTab.append('%d:%02d' % (m, s))
+                except Exception:
+                    pass
+            pub = it.get('publicationStartDateAndTime') or ''
+            if isinstance(pub, str) and len(pub) >= 10:
+                descTab.append(pub[:10])
+            syn = self.cleanHtmlStr(it.get('synopsis') or '')
+            params = dict(cItem)
+            params.pop('page', None)
+            params.pop('p_offset', None)
+            params.update({'title': self.cleanHtmlStr(it.get('title') or ''), 'audio_url': aurl,
+                           'icon': self._audioImg(it) or cItem.get('icon', ''),
+                           'desc': '[/br]'.join([x for x in (', '.join(descTab), syn) if x]), 'good_for_fav': True})
+            self.addAudio(params)
+        offset = int(cItem.get('p_offset', 0)) + len(nodes)
+        if nodes and total and offset < int(total):
+            params = dict(cItem)
+            params.update({'title': _('Next page'), 'p_offset': offset,
+                           'url': re.sub(r'offset=\d+', 'offset=%d' % offset, cItem['url']), 'good_for_fav': False})
+            self.addDir(params)
+
+    def listAudioSearch(self, cItem, searchPattern):
+        page = cItem.get('page', 0)
+        offset = page * self.AUDIO_LIMIT
+        url = 'search/programsets?query=%s&offset=%d&limit=%d' % (urllib_quote_plus(searchPattern), offset, self.AUDIO_LIMIT)
+        data = self._audioJson(url)
+        try:
+            ps = data['data']['search']['programSets']
+            nodes = ps['nodes']
+        except Exception:
+            return
+        for n in nodes:
+            if n.get('id') and n.get('title'):
+                self._addProgramSet(cItem, n)
+        total = ps.get('numberOfElements') or 0
+        if nodes and total and offset + len(nodes) < int(total):
+            params = dict(cItem)
+            params.update({'title': _('Next page'), 'page': page + 1})
+            self.addDir(params)
+
+    ###################################################
+    # dispatcher
+    ###################################################
     def handleService(self, index, refresh=0, searchPattern='', searchType=''):
         printDBG('ARDmediathek.handleService start')
         CBaseHostClass.handleService(self, index, refresh, searchPattern, searchType)
         name = self.currItem.get("name", None)
         category = self.currItem.get("category", '')
-        printDBG("ARDmediathek.handleService: ---------> name[%s], category[%s] " % (name, category))
+        printDBG("ARDmediathek.handleService: name[%s], category[%s]" % (name, category))
         searchPattern = self.currItem.get("search_pattern", searchPattern)
         self.currList = []
 
-        if None == name:
+        if name is None:
             self.listsTab(self.MAIN_CAT_TAB, {'name': 'category'})
-        elif 'list_items' == category:
-            self.listItems(self.currItem)
-        elif 'list_tab' == category:
-            self.listTab(self.currItem)
-
-        elif 'missed_date' == category:
-            self.listMissedDate(self.currItem)
-        elif 'list_missed' == category:
-            self.listSendungverpasst(self.currItem)
-        elif 'list_cluster' == category:
-            self.listCluster(self.currItem)
-        elif 'list_content' == category:
-            self.listContent(self.currItem)
-    #WYSZUKAJ
-        elif category in ["search", "search_next_page"]:
+        elif category == 'list_page':
+            self.listPage(self.currItem)
+        elif category == 'list_widget':
+            self.listWidget(self.currItem)
+        elif category == 'list_widget_inline':
+            self.listWidgetInline(self.currItem)
+        elif category == 'list_az':
+            self.listAZ(self.currItem)
+        elif category == 'list_rubriken':
+            self.listRubriken(self.currItem)
+        elif category == 'list_live':
+            self.listLive(self.currItem)
+        elif category == 'audio_menu':
+            self.listAudioMenu(self.currItem)
+        elif category == 'audio_categories':
+            self.listAudioCategories(self.currItem)
+        elif category == 'audio_live':
+            self.listAudioLive(self.currItem)
+        elif category == 'audio_live_variants':
+            self.listAudioLiveVariants(self.currItem)
+        elif category == 'audio_category':
+            self.listAudioCategory(self.currItem)
+        elif category == 'audio_programset':
+            self.listAudioProgramSet(self.currItem)
+        elif category in ("search", "search_next_page"):
             cItem = dict(self.currItem)
             cItem.update({'search_item': False, 'name': 'category', 'category': 'search_next_page'})
-            self.listSearchResult(cItem, searchPattern, searchType)
-    #HISTORIA WYSZUKIWANIA
+            if self.currItem.get('f_audio'):
+                self.listAudioSearch(cItem, searchPattern)
+            else:
+                self.listSearchResult(cItem, searchPattern, searchType)
         elif category == "search_history":
-            self.listsHistory({'name': 'history', 'category': 'search'}, 'desc', _("Type: "))
+            baseItem = {'name': 'history', 'category': 'search'}
+            if self.currItem.get('f_audio'):
+                baseItem['f_audio'] = True
+            self.listsHistory(baseItem, 'desc', _("Type: "))
         else:
             printExc()
         CBaseHostClass.endHandleService(self, index, refresh)
@@ -517,3 +840,6 @@ class IPTVHost(CHostBase):
 
     def __init__(self):
         CHostBase.__init__(self, ARDmediathek(), True)
+
+    def withArticleContent(self, cItem):
+        return cItem.get('type') == 'video'

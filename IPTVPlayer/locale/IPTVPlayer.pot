@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: IPTVPlayer VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-19 18:17+0200\n"
+"POT-Creation-Date: 2026-08-28 20:57+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1081,6 +1081,12 @@ msgstr ""
 msgid "The number of items in the search history"
 msgstr ""
 
+msgid "Remember last search history selection"
+msgstr ""
+
+msgid "T9 letter jump in lists"
+msgstr ""
+
 msgid "Block wmv files"
 msgstr ""
 
@@ -1963,22 +1969,84 @@ msgstr ""
 msgid "One link mode"
 msgstr ""
 
-msgid "Missed the show?"
+msgid "Audio track"
+msgstr ""
+
+msgid "Films"
+msgstr ""
+
+msgid "Series"
+msgstr ""
+
+msgid "Documentaries"
+msgstr ""
+
+msgid "Sport"
+msgstr ""
+
+msgid "Culture"
+msgstr ""
+
+msgid "Knowledge & Nature"
+msgstr ""
+
+msgid "Travel"
+msgstr ""
+
+msgid "Food"
+msgstr ""
+
+msgid "Health"
+msgstr ""
+
+msgid "Children & Family"
+msgstr ""
+
+msgid "Show & Comedy"
+msgstr ""
+
+msgid "News (tagesschau)"
+msgstr ""
+
+msgid "Accessible"
+msgstr ""
+
+msgid "All categories"
+msgstr ""
+
+msgid "Home page"
 msgstr ""
 
 msgid "Program A-Z"
 msgstr ""
 
-msgid "Live TV"
+msgid "Categories"
 msgstr ""
 
-msgid "Live Radio"
+msgid "Live"
+msgstr ""
+
+msgid "Radio"
+msgstr ""
+
+#, python-format
+msgid "available until %s"
+msgstr ""
+
+msgid "Section"
 msgstr ""
 
 msgid "German"
 msgstr ""
 
-msgid "de"
+msgid "Audio"
+msgstr ""
+
+#, python-format
+msgid "%s episodes"
+msgstr ""
+
+msgid "Language"
 msgstr ""
 
 msgid "Show only best quality of streams:"
@@ -1987,20 +2055,46 @@ msgstr ""
 msgid "Show only audio in selected language:"
 msgstr ""
 
+msgid "News"
+msgstr ""
+
+msgid "Society"
+msgstr ""
+
+msgid "Movies"
+msgstr ""
+
+msgid "Science"
+msgstr ""
+
+msgid "History"
+msgstr ""
+
+msgid "Discovery"
+msgstr ""
+
+msgid "Culture and pop"
+msgstr ""
+
+msgid "Children"
+msgstr ""
+
+msgid "Shows"
+msgstr ""
+
 msgid "Duration"
 msgstr ""
 
-#, python-format
-msgid "Broadcast begins at %s"
+msgid "Now"
 msgstr ""
 
-msgid "Most recent"
+msgid "Today"
 msgstr ""
 
-msgid "Most viewed"
+msgid "Concert"
 msgstr ""
 
-msgid "Last chance"
+msgid "Season"
 msgstr ""
 
 msgid "Default video quality:"
@@ -2018,13 +2112,7 @@ msgstr ""
 msgid "Channels"
 msgstr ""
 
-msgid "Categories"
-msgstr ""
-
 msgid "Most Popular"
-msgstr ""
-
-msgid "Live"
 msgstr ""
 
 msgid "Highlights"
@@ -2083,6 +2171,9 @@ msgstr ""
 msgid "Lastest"
 msgstr ""
 
+msgid "Most viewed"
+msgstr ""
+
 msgid "Longest"
 msgstr ""
 
@@ -2090,9 +2181,6 @@ msgid "Top rated"
 msgstr ""
 
 msgid "Random"
-msgstr ""
-
-msgid "Season"
 msgstr ""
 
 msgid "Episode title"
@@ -2153,6 +2241,9 @@ msgstr ""
 msgid "Localization"
 msgstr ""
 
+msgid "Most recent"
+msgstr ""
+
 msgid "Most rated"
 msgstr ""
 
@@ -2195,13 +2286,7 @@ msgstr ""
 msgid "Video"
 msgstr ""
 
-msgid "Audio"
-msgstr ""
-
 msgid "Web proxy"
-msgstr ""
-
-msgid "Language"
 msgstr ""
 
 msgid "Use proxy"
@@ -2282,9 +2367,6 @@ msgstr ""
 msgid "Radio stations"
 msgstr ""
 
-msgid "Movies"
-msgstr ""
-
 msgid "Latest added"
 msgstr ""
 
@@ -2354,9 +2436,6 @@ msgstr ""
 msgid "All Sports"
 msgstr ""
 
-msgid "Today"
-msgstr ""
-
 #, python-format
 msgid "Username in settings is different from %sdataattributesusername"
 msgstr ""
@@ -2383,12 +2462,6 @@ msgid "TV Series"
 msgstr ""
 
 msgid "Duration:"
-msgstr ""
-
-msgid "Children"
-msgstr ""
-
-msgid "Series"
 msgstr ""
 
 msgid "Movies genres"
@@ -2528,7 +2601,7 @@ msgstr ""
 msgid "Cinema movies"
 msgstr ""
 
-msgid "Country"
+msgid "The website returned a server error for this request."
 msgstr ""
 
 msgid "Countries"
@@ -2604,9 +2677,6 @@ msgid "%s - subtitles provider"
 msgstr ""
 
 msgid "Bypass geo-blocking for VODs (it may be illegal):"
-msgstr ""
-
-msgid "Shows"
 msgstr ""
 
 msgid "Connection to server failed!"
@@ -2838,9 +2908,6 @@ msgstr ""
 msgid "Portuguese"
 msgstr ""
 
-msgid "Home page"
-msgstr ""
-
 msgid "TOP 10"
 msgstr ""
 
@@ -2855,7 +2922,13 @@ msgstr ""
 msgid "Player %s"
 msgstr ""
 
-msgid "Documentaries"
+msgid "All results"
+msgstr ""
+
+msgid "All shows"
+msgstr ""
+
+msgid "List by day"
 msgstr ""
 
 msgid "All Leagues"
@@ -2879,10 +2952,10 @@ msgstr ""
 msgid "Best Pinkbike Videos"
 msgstr ""
 
-msgid "TV"
+msgid "Use HLS streams (adaptive):"
 msgstr ""
 
-msgid "Radio"
+msgid "This content is not available in your region."
 msgstr ""
 
 msgid "Latest"
@@ -2891,45 +2964,22 @@ msgstr ""
 msgid "Most popular"
 msgstr ""
 
-msgid "List by day"
+msgid "Shows A-Z"
 msgstr ""
 
-msgid "AZ"
+msgid "Show"
 msgstr ""
 
-msgid "Older"
+msgid "This content is only available in Switzerland."
 msgstr ""
 
-msgid "geoblocked"
-msgstr ""
-
-#, python-format
-msgid "%s episodes"
-msgstr ""
-
-msgid "SHOWS"
-msgstr ""
-
-#, python-format
-msgid "Search for \"%s\", %s, %s %s"
-msgstr ""
-
-msgid "shows"
-msgstr ""
-
-#, python-format
-msgid "%s shows"
-msgstr ""
-
-#, python-format
-msgid "%s "
-msgstr ""
-
-#, python-format
-msgid "Download %s"
+msgid "Content not available"
 msgstr ""
 
 msgid "Discover"
+msgstr ""
+
+msgid "TV"
 msgstr ""
 
 msgid "Calendar"
@@ -2971,6 +3021,9 @@ msgid "Use legacy title format"
 msgstr ""
 
 msgid "host"
+msgstr ""
+
+msgid "Country"
 msgstr ""
 
 msgid "Persons"
@@ -3046,6 +3099,9 @@ msgid "Latest programs"
 msgstr ""
 
 msgid "Latest news broadcast"
+msgstr ""
+
+msgid "Last chance"
 msgstr ""
 
 msgid "Live broadcasts"
@@ -3467,16 +3523,10 @@ msgstr ""
 msgid "Release"
 msgstr ""
 
-msgid "News"
-msgstr ""
-
 msgid "Shorts"
 msgstr ""
 
 msgid "Podcasts"
-msgstr ""
-
-msgid "Sport"
 msgstr ""
 
 msgid "Knowledge"
@@ -3489,6 +3539,9 @@ msgid "Streamed"
 msgstr ""
 
 msgid "Icons size"
+msgstr ""
+
+msgid "Missed the show?"
 msgstr ""
 
 #, python-format
