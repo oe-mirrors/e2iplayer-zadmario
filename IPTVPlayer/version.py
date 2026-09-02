@@ -1,4 +1,4 @@
 # -*- coding: utf-8 -*-
 # YYYY.MM.DD.DAY_RELEASE
 # zadmario Version
-IPTV_VERSION="2026.09.02.02"
+IPTV_VERSION="2026.09.02.03"
