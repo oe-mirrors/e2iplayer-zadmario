@@ -97,6 +97,17 @@ class HDFilmeTV(CBaseHostClass):
             url = "https:" + url if url.startswith("//") else url
             if "/vod/" in url:
                 continue
+            if "meinecloud.click/movie/" in url:
+                # meinecloud is a mirror-list page, not a hoster - expand it to the
+                # real hoster embeds it links (voe / dr0pstream / mixdrop / ...)
+                mts, mdata = self.getPage(url)
+                if mts:
+                    for sub in re.findall(r'data-link="([^"]+)"', mdata):
+                        sub = "https:" + sub if sub.startswith("//") else sub
+                        if "meinecloud" in sub or "/vod/" in sub or not self.cm.isValidUrl(sub):
+                            continue
+                        urltab.append({"name": self.up.getHostName(sub).capitalize(), "url": strwithmeta(sub, {"Referer": "https://meinecloud.click/"}), "need_resolve": 1})
+                continue
             title = self.up.getHostName(url).capitalize()
             if "youtube" in url:
                 title = "Trailer"
@@ -151,7 +162,7 @@ class HDFilmeTV(CBaseHostClass):
             cItem.update({"search_item": False, "name": "category"})
             self.listSearchResult(cItem, searchPattern, searchType)
         elif category == "search_history":
-            self.listsHistory({"name": "history", "category": "search"}, "desc", _("Type: "))
+            self.listsHistory({"name": "history", "category": "search"}, "desc")
         else:
             printExc()
         CBaseHostClass.endHandleService(self, index, refresh)
