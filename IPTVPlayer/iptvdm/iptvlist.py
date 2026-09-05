@@ -4,6 +4,14 @@
 #
 #  $Id$
 #
+# Last Modified: 05.09.2026 - buildEntry() now encodes every text value to a
+# plain UTF-8 str before handing it to eListboxPythonMultiContent.TYPE_TEXT.
+# That native listbox binding (like setText()) requires a genuine UTF-8 str,
+# not a unicode object and not a str subclass (e.g. e2iPlayer's own
+# "strwithmeta"). item.fileName can be unicode after a downloader rename
+# (see iptvdmapi.py's ensureText() normalization), and passing that straight
+# into TYPE_TEXT is exactly what produced ">not-a-string>" in the download
+# list, even though the underlying file and download were completely fine.
 #
 ###################################################
 # LOCAL import
@@ -22,6 +30,36 @@ from Tools.LoadPixmap import LoadPixmap
 import skin
 from datetime import timedelta
 ###################################################
+
+
+def _guiStr(value):
+    ''' Normalize any text value (str / unicode / str-subclass / None) into
+    a plain UTF-8 encoded str, exactly what eListboxPythonMultiContent.TYPE_TEXT
+    (and setText()) require natively. Never raises. This is the same kind of
+    normalization iptvdmapi.py does for GUI notify text - needed here too
+    since list entries go through a different native code path. '''
+    try:
+        if value is None:
+            return ''
+        if isinstance(value, unicode):
+            return value.encode('utf-8')
+        if isinstance(value, str):
+            # covers plain str AND any str subclass (e.g. "strwithmeta");
+            # round-trip through unicode to strip the subclass wrapper and
+            # fix up anything that isn't valid utf-8/ascii on its own
+            try:
+                return unicode(value, 'utf-8').encode('utf-8')
+            except Exception:
+                try:
+                    return unicode(value, 'utf-8', 'replace').encode('utf-8')
+                except Exception:
+                    return str(value)
+        return str(value)
+    except Exception:
+        try:
+            return str(value)
+        except Exception:
+            return ''
 
 
 class IPTVDownloadManagerList(IPTVListComponentBase):
@@ -110,8 +148,15 @@ class IPTVDownloadManagerList(IPTVListComponentBase):
             fileName = item.fileName.split('/')[-1]
         except Exception:
             fileName = ''
+
+        # Normalize every text value to a plain UTF-8 str right before it
+        # goes into TYPE_TEXT - this native binding needs a real str, not
+        # unicode and not a str subclass, or it renders as ">not-a-string>"
+        fileName = _guiStr(fileName)
+        urlText = _guiStr(item.url)
+
         res.append((eListboxPythonMultiContent.TYPE_TEXT, 70, 0, width - 70, self.fonts[0][2], 0, RT_HALIGN_LEFT | RT_VALIGN_CENTER, fileName))
-        res.append((eListboxPythonMultiContent.TYPE_TEXT, 70, self.fonts[0][2], width - 70, self.fonts[1][2], 1, RT_HALIGN_LEFT | RT_VALIGN_CENTER, item.url))
+        res.append((eListboxPythonMultiContent.TYPE_TEXT, 70, self.fonts[0][2], width - 70, self.fonts[1][2], 1, RT_HALIGN_LEFT | RT_VALIGN_CENTER, urlText))
 
         status = ""
         info = ""
@@ -128,6 +173,9 @@ class IPTVDownloadManagerList(IPTVListComponentBase):
             info = info1
         elif DMHelper.STS.ERROR == item.status:
             status += _("DOWNLOAD ERROR")
+
+        status = _guiStr(status)
+        info = _guiStr(info)
 
         res.append((eListboxPythonMultiContent.TYPE_TEXT, width - 240, self.fonts[0][2] + self.fonts[1][2], 240, self.fonts[2][2], 2, RT_HALIGN_RIGHT | RT_VALIGN_CENTER, status))
         res.append((eListboxPythonMultiContent.TYPE_TEXT, 45, self.fonts[0][2] + self.fonts[1][2], width - 45 - 240, self.fonts[2][2], 2, RT_HALIGN_LEFT | RT_VALIGN_CENTER, info))
