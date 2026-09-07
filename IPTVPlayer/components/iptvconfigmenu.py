@@ -253,6 +253,18 @@ config.plugins.iptvplayer.watched_item_color = ConfigSelection(default="#808080"
 config.plugins.iptvplayer.started_item_color = ConfigSelection(default="#FFFF00", choices=COLORS_DEFINITONS)
 config.plugins.iptvplayer.sidecar_enabled = ConfigYesNo(default=True)
 config.plugins.iptvplayer.normalize_media_names = ConfigYesNo(default=True)
+# OFF by default. Some link resolvers (parserVIDEASY / VIDCORE / VIDLINK /
+# PEACHIFY) cannot decrypt their tokens on the box - they POST the site's
+# encrypted stream token (which carries the TMDb id being played) to the
+# third-party web service enc-dec.app. The settings screen makes the user
+# confirm twice before this can be turned on (see ConfigMenu._confirmExternalResolve).
+config.plugins.iptvplayer.allow_external_resolve = ConfigYesNo(default=False)
+
+
+def IsExternalResolveAllowed():
+    # asked by parserVIDEASY / parserVIDCORE / parserVIDLINK / parserPEACHIFY
+    # before they contact enc-dec.app
+    return config.plugins.iptvplayer.allow_external_resolve.value
 
 
 def IsSidecarEnabled():
@@ -442,6 +454,7 @@ class ConfigMenu(ConfigBaseWidget):
 
             list.append(getConfigListEntry(_("Use the PyCurl for HTTP(S) requests"), config.plugins.iptvplayer.usepycurl))
             list.append(getConfigListEntry(_("https - validate SSL certificates"), config.plugins.iptvplayer.httpssslcertvalidation))
+            list.append(getConfigListEntry(_("Allow external link-decryption service (enc-dec.app)"), config.plugins.iptvplayer.allow_external_resolve))
 
         list.append(getConfigListEntry('\\c00289496' + _("----- PROXIES CONFIGURATION (OK) -----"), config.plugins.iptvplayer.prxyConfVisible))
         if prxyConfVisible: #PROXIES CONFIGURATION
@@ -714,6 +727,49 @@ class ConfigMenu(ConfigBaseWidget):
             self.runSetup()
         else:
             ConfigBaseWidget.keyOK(self)
+
+    def keyLeft(self):
+        ConfigBaseWidget.keyLeft(self)
+        self._confirmExternalResolve()
+
+    def keyRight(self):
+        ConfigBaseWidget.keyRight(self)
+        self._confirmExternalResolve()
+
+    def _confirmExternalResolve(self):
+        # fires only when the "Allow external link-decryption service" row was
+        # just switched ON - shows an info screen, then a separate yes/no
+        # confirmation, and flips the option back off unless the user confirms.
+        try:
+            cur = self["config"].getCurrent()
+            if not cur or len(cur) < 2 or cur[1] is not config.plugins.iptvplayer.allow_external_resolve:
+                return
+            if not config.plugins.iptvplayer.allow_external_resolve.value:
+                return
+
+            def revert(confirmed):
+                if not confirmed:
+                    config.plugins.iptvplayer.allow_external_resolve.value = False
+                    self.runSetup()
+
+            def askConfirm(unused=None):
+                self.session.openWithCallback(
+                    revert, MessageBox,
+                    text=_("Send data to enc-dec.app on every link resolve?"),
+                    type=MessageBox.TYPE_YESNO, default=False)
+
+            info = _("Some link resolvers ('VidEasy', 'VidCore/VidFast', 'VidLink', "
+                     "'Peachify') cannot decrypt their links on the receiver.\n\n"
+                     "With this option ON, every time you open one of them E2iPlayer "
+                     "sends the site's encrypted stream token - which contains the "
+                     "TMDb id of the movie or episode you are opening - to the "
+                     "third-party web service enc-dec.app (operated by a private "
+                     "individual). That server then sees the id and your IP address "
+                     "on each play. Nothing else is transmitted.\n\n"
+                     "Leave this OFF if you do not want that.")
+            self.session.openWithCallback(askConfirm, MessageBox, text=info, type=MessageBox.TYPE_INFO)
+        except Exception:
+            printExc()
 
     def getSubOptionsList(self):
         tab = [config.plugins.iptvplayer.buforowanie,
