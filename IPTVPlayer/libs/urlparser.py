@@ -28,7 +28,7 @@ from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import captchaParser, de
 from Plugins.Extensions.IPTVPlayer.libs.youtube_dl.utils import clean_html
 from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_binary, ensure_str
 from Plugins.Extensions.IPTVPlayer.p2p3.pVer import isPY2
-from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_unquote, urllib_urlencode
+from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote, urllib_unquote, urllib_urlencode
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlParse import parse_qs, urljoin, urlparse
 from Plugins.Extensions.IPTVPlayer.tools.e2ijs import js_execute, js_execute_ext
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import CSelOneLink, GetCookieDir, GetDefaultLang, GetJSScriptFile, GetPluginDir, printDBG, printExc, rm
@@ -443,6 +443,7 @@ class urlparser:
             "odysseusa.cc": self.pp.parserSTREAMUP,
             "ok.ru": self.pp.parserOKRU,
             # p
+            "peachify.top": self.pp.parserPEACHIFY,
             "peytonepre.com": self.pp.parserJWPLAYER,
             "player.upn.one": self.pp.parserSBS,
             "playerwish.com": self.pp.parserJWPLAYER,
@@ -536,8 +537,15 @@ class urlparser:
             "veev.to": self.pp.parserVEEV,
             "vide0.net": self.pp.parserDOOD,
             "vidply.com": self.pp.parserDOOD,
+            "vidcore.io": self.pp.parserVIDCORE,
+            "vidcore.net": self.pp.parserVIDCORE,
+            "vidfast.pro": self.pp.parserVIDCORE,
+            "vidfast.vc": self.pp.parserVIDCORE,
+            "vidlink.pro": self.pp.parserVIDLINK,
             "videa.hu": self.pp.parserVIDEA,
             "videakid.hu": self.pp.parserVIDEA,
+            "videasy.net": self.pp.parserVIDEASY,
+            "videasy.to": self.pp.parserVIDEASY,
             "vidaraa.cc": self.pp.parserSTREAMUP,
             "vidarax.cc": self.pp.parserSTREAMUP,
             "vidavaca.net": self.pp.parserSTREAMUP,
@@ -554,19 +562,24 @@ class urlparser:
             "vidmoly.net": self.pp.parserVIDMOLYME,
             "vidmoly.to": self.pp.parserVIDMOLYME,
             "vidneo.cc": self.pp.parserVIDNEO,
+            "vidnest.fun": self.pp.parserVIDNEST,
             "vidnest.io": self.pp.parserJWPLAYER,
             "vidoza.co": self.pp.parserJWPLAYER,
             "vidoza.net": self.pp.parserJWPLAYER,
             "vidoza.org": self.pp.parserJWPLAYER,
+            "vidrock.net": self.pp.parserVIDROCK,
+            "vids.st": self.pp.parserVIDSST,
             "vidsonic.net": self.pp.parserVIDSONIC,
             "vidsrc.bz": self.pp.parserVIDSRC,
             "vidsrc.cc": self.pp.parserMEGAFILES,
             "vidsrc.do": self.pp.parserVIDSRC,
+            "vidsrc.fyi": self.pp.parserVIDSRCMOV,
             "vidsrc.gd": self.pp.parserVIDSRC,
             "vidsrc.in": self.pp.parserVIDSRC,
             "vidsrc.io": self.pp.parserVIDSRC,
             "vidsrc.me": self.pp.parserVIDSRC,
             "vidsrc.mn": self.pp.parserVIDSRC,
+            "vidsrc.mov": self.pp.parserVIDSRCMOV,
             "vidsrc.net": self.pp.parserVIDSRC,
             "vidsrc.pm": self.pp.parserVIDSRC,
             "vidsrc.tw": self.pp.parserVIDSRC,
@@ -578,6 +591,7 @@ class urlparser:
             "vidsrc-me.su": self.pp.parserVIDSRC,
             "vidsrcme.ru": self.pp.parserVIDSRC,
             "vidsrcme.su": self.pp.parserVIDSRC,
+            "vidup.to": self.pp.parserVIDCORE,
             "vixeo.io": self.pp.parserVIXEO,
             "vixsrc.to": self.pp.parserVIXSRC,
             "vsrc.su": self.pp.parserVIDSRC,
@@ -1127,7 +1141,7 @@ class pageParser(CaptchaHelper):
                         else:
                             urlsTab.append({"name": quality, "url": media_url})
             except Exception:
-                printExc
+                printExc()
         return urlsTab
 
     def parserVK(self, baseUrl):  # Partly work, Login not work
@@ -2487,7 +2501,13 @@ class pageParser(CaptchaHelper):
 
         embed = ""
         detailsUrl = "%sapi/videos/%s/details" % (ref, mid)
-        sts, data = self.cm.getPage(detailsUrl, {"header": dict(HTTP_HEADER)})
+        # with_metadata=True is required for statusCode() below to see the
+        # real HTTP status: getPageWithPyCurl() treats a 404 as sts=True by
+        # default (ignore_http_code_ranges), and only attaches .meta when
+        # asked to - without it, statusCode() always fell through to its
+        # sts-based 200/0 guess and this 404 retry never actually fired,
+        # even though the site returns a valid JSON body on 404s.
+        sts, data = self.cm.getPage(detailsUrl, {"header": dict(HTTP_HEADER), "with_metadata": True})
         details = tryJson(data) if sts else None
         if details is None or statusCode(data, sts) == 404:
             embed = "embed/"
@@ -2807,7 +2827,10 @@ class pageParser(CaptchaHelper):
         if match:
             match = match.group(1).replace("&quot;", '"').replace("&amp;", "&")
             js = json_loads(match).get("flashvars", {}).get("metadata")
-            js = json_loads(js)
+            if isinstance(js, str):
+                js = json_loads(js) if js else {}
+            if not isinstance(js, dict):
+                js = {}
             url = js.get("hlsManifestUrl") or js.get("ondemandHls") or js.get("hlsMasterPlaylistUrl")
             if url:
                 url = urlparser.decorateUrl(url, {"User-Agent": HTTP_HEADER["User-Agent"], "Referer": host, "Origin": host[:-1]})
@@ -2849,6 +2872,19 @@ class pageParser(CaptchaHelper):
                 if ".m3u8" in url:
                     urltab.extend(getDirectM3U8Playlist(url, sortWithMaxBitrate=99999999))
         return urltab
+
+    def parserVIDSRCMOV(self, baseUrl):  # add 240826
+        printDBG("parserVIDSRCMOV baseUrl[%s]" % baseUrl)
+        HTTP_HEADER = self.cm.getDefaultHeader()
+        sts, data = self.cm.getPage(baseUrl, {"header": HTTP_HEADER})
+        if not sts:
+            return []
+        inner = re.search(r'<iframe[^>]+src=["\']([^"\']+)["\']', data)
+        if not inner:
+            return []
+        innerUrl = inner.group(1)
+        innerUrl = "https:" + innerUrl if innerUrl.startswith("//") else innerUrl
+        return self.parserVIDSRC(innerUrl)
 
     def parserGUPLOAD(self, baseUrl):
         printDBG("parserGUPLOAD baseUrl[%s]" % baseUrl)
@@ -3095,6 +3131,50 @@ class pageParser(CaptchaHelper):
                 urltab.extend(getDirectM3U8Playlist(url, sortWithMaxBitrate=99999999))
         return urltab
 
+    def parserVIDROCK(self, baseUrl):  # add 030926 - vidrock.net (7reels "AdRock"); per-server AES-256-GCM blobs from a plain JSON API
+        printDBG("parserVIDROCK baseUrl[%s]" % baseUrl)
+        m = re.search(r"vidrock\.net/(?:api/)?(movie/\d+|tv/\d+/\d+/\d+)", baseUrl)
+        if not m:
+            return []
+        HTTP_HEADER = self.cm.getDefaultHeader()
+        HTTP_HEADER["Referer"] = "https://vidrock.net/"
+        sts, data = self.cm.getPage("https://vidrock.net/api/" + m.group(1), {"header": HTTP_HEADER})
+        if not sts:
+            return []
+        try:
+            servers = json_loads(data)
+        except Exception:
+            printExc()
+            return []
+        cipher = python_aesgcm.new(unhexlify("7f3e9c2a8b5d1f4e6a9c3b7d2e5f8a1c4b6d9e2f5a8c1b4d7e9f2a5c8b1d4e7f"))
+        urltab = []
+        for name, info in servers.items():
+            enc = (info or {}).get("url")
+            if not enc:
+                continue
+            try:
+                blob = base64.b64decode(enc.replace("-", "+").replace("_", "/") + "=" * (-len(enc) % 4))
+                plain = cipher.open(blob[:12], blob[12:])
+            except Exception:
+                printExc()
+                continue
+            if not plain:
+                continue
+            if isinstance(plain, (bytes, bytearray)):
+                url = plain.decode("utf-8", "ignore").strip()
+            else:
+                url = str(plain).strip()
+            if not url.startswith("http"):
+                continue
+            url = urlparser.decorateUrl(url, {"User-Agent": HTTP_HEADER["User-Agent"], "Referer": "https://vidrock.net/", "Origin": "https://vidrock.net"})
+            if ".m3u8" in url:
+                for item in getDirectM3U8Playlist(url, sortWithMaxBitrate=99999999):
+                    item["name"] = "%s %s" % (name, item.get("name", ""))
+                    urltab.append(item)
+            else:
+                urltab.append({"name": name, "url": url})
+        return urltab
+
     def parserVIDNEO(self, baseUrl):  # fix 060726
         printDBG("parserVIDNEO baseUrl[%s]" % baseUrl)
         host = urlparser.getDomain(baseUrl, False)
@@ -3132,4 +3212,461 @@ class pageParser(CaptchaHelper):
                 printExc()
                 return []
 
+        return urltab
+
+    def parserVIDNEST(self, baseUrl):  # add 250826
+        def vidnestB64Decode(s):
+            alphabet = "RB0fpH8ZEyVLkv7c2i6MAJ5u3IKFDxlS1NTsnGaqmXYdUrtzjwObCgQP94hoeW+/="
+            rev = {c: i for i, c in enumerate(alphabet)}
+            s = s + "=" * ((-len(s)) % 4)
+            out = bytearray()
+            for i in range(0, len(s), 4):
+                chunk = s[i:i + 4]
+                c0 = rev.get(chunk[0], 64)
+                c1 = rev.get(chunk[1], 64)
+                c2 = 64 if chunk[2] == "=" else rev.get(chunk[2], 64)
+                c3 = 64 if chunk[3] == "=" else rev.get(chunk[3], 64)
+                out.append(((c0 << 2) | (c1 >> 4)) & 0xFF)
+                if c2 != 64:
+                    out.append((((c1 & 0x0F) << 4) | (c2 >> 2)) & 0xFF)
+                if c3 != 64:
+                    out.append((((c2 & 0x03) << 6) | c3) & 0xFF)
+            return bytes(out).decode("utf-8", "replace")
+
+        def extractLinks(server, root):
+            links = []
+            try:
+                if server == "moviebox":
+                    for item in root.get("url", []) or []:
+                        if item.get("link"):
+                            links.append((item["link"], item.get("resolution", "")))
+                elif server in ("allmovies", "delta"):
+                    for item in root.get("streams", []) or []:
+                        if item.get("url"):
+                            links.append((item["url"], item.get("language", "")))
+                elif server == "hollymoviehd":
+                    for item in root.get("sources", []) or []:
+                        if item.get("file"):
+                            links.append((item["file"], item.get("label", "")))
+                elif server in ("purstream", "klikxxi"):
+                    for item in root.get("sources", []) or []:
+                        if item.get("url"):
+                            links.append((item["url"], item.get("quality", item.get("name", ""))))
+                elif server == "vidlink":
+                    playlist = root.get("data", {}).get("stream", {}).get("playlist")
+                    if playlist:
+                        links.append((playlist, ""))
+                elif server == "onehd":
+                    if root.get("url"):
+                        links.append((root["url"], ""))
+            except Exception:
+                printExc()
+            return links
+
+        printDBG("parserVIDNEST baseUrl[%s]" % baseUrl)
+        urltab = []
+        m = re.search(r"/(movie|tv)/(\d+)(?:/(\d+)/(\d+))?", baseUrl)
+        if not m:
+            return []
+        mediaType, tmdbId, season, episode = m.group(1), m.group(2), m.group(3), m.group(4)
+        HTTP_HEADER = self.cm.getDefaultHeader()
+        HTTP_HEADER["Referer"] = "https://vidnest.fun/"
+        HTTP_HEADER["Origin"] = "https://vidnest.fun"
+        servers = ["moviebox", "allmovies", "catflix", "purstream", "hollymoviehd", "lamda", "flixhq", "vidlink", "onehd", "klikxxi"]
+        for server in servers:
+            if mediaType == "tv" and season and episode:
+                apiUrl = "https://new.vidnest.fun/%s/tv/%s/%s/%s" % (server, tmdbId, season, episode)
+            else:
+                apiUrl = "https://new.vidnest.fun/%s/movie/%s" % (server, tmdbId)
+            if server == "onehd":
+                apiUrl += "?server=upcloud"
+            sts, data = self.cm.getPage(apiUrl, {"header": dict(HTTP_HEADER), "timeout": 10})
+            if not sts:
+                continue
+            try:
+                resp = json_loads(data)
+                payload = resp.get("data")
+                if not payload:
+                    continue
+                if resp.get("encrypted"):
+                    payload = vidnestB64Decode(payload)
+                root = json_loads(payload)
+            except Exception:
+                continue
+            for url, label in extractLinks(server, root):
+                if url.startswith("//"):
+                    url = "https:" + url
+                decoUrl = urlparser.decorateUrl(url, {"User-Agent": HTTP_HEADER["User-Agent"], "Referer": "https://vidnest.fun/"})
+                name = "VidNest %s" % server.capitalize()
+                if label:
+                    name += " %s" % label
+                if ".m3u8" in url.lower():
+                    urltab.extend(getDirectM3U8Playlist(decoUrl, sortWithMaxBitrate=99999999))
+                else:
+                    urltab.append({"name": name, "url": decoUrl})
+        return urltab
+
+    def _externalResolveAllowed(self, who):
+        # parserVIDEASY/VIDCORE/VIDLINK/PEACHIFY need the third-party enc-dec.app
+        # service to decrypt their links; it is opt-in (off by default) and the
+        # settings screen makes the user confirm twice - see iptvconfigmenu.
+        try:
+            from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import IsExternalResolveAllowed
+            if not IsExternalResolveAllowed():
+                printDBG("%s: external link-decryption (enc-dec.app) disabled in config" % who)
+                return False
+        except Exception:
+            printExc()
+        return True
+
+    def parserPEACHIFY(self, baseUrl):  # add 250826
+        printDBG("parserPEACHIFY baseUrl[%s]" % baseUrl)
+        if not self._externalResolveAllowed("parserPEACHIFY"):
+            return []
+        urltab = []
+        m = re.search(r"/(movie|tv)/(\d+)(?:/(\d+)/(\d+))?", baseUrl)
+        if not m:
+            return []
+        mediaType, tmdbId, season, episode = m.group(1), m.group(2), m.group(3), m.group(4)
+        HTTP_HEADER = self.cm.getDefaultHeader()
+        HTTP_HEADER["Referer"] = "https://peachify.top/"
+        HTTP_HEADER["Origin"] = "https://peachify.top"
+        apiBase = "https://x.eat-peach.sbs"
+        servers = ["moviebox", "air", "holly", "hr", "multi"]
+        for server in servers:
+            if mediaType == "tv" and season and episode:
+                apiUrl = "%s/%s/tv/%s/%s/%s" % (apiBase, server, tmdbId, season, episode)
+            else:
+                apiUrl = "%s/%s/movie/%s" % (apiBase, server, tmdbId)
+            sts, data = self.cm.getPage(apiUrl, {"header": dict(HTTP_HEADER), "timeout": 10})
+            if not sts:
+                continue
+            try:
+                payload = json_loads(data).get("data")
+                if not payload:
+                    continue
+                sts2, decData = self.cm.getPage(
+                    "https://enc-dec.app/api/dec-peachify",
+                    {"header": {"Content-Type": "application/json"}, "raw_post_data": True, "timeout": 10},
+                    json_dumps({"text": payload}),
+                )
+                if not sts2:
+                    continue
+                decResp = json_loads(decData)
+                if decResp.get("status") != 200:
+                    continue
+                sources = decResp.get("result", {}).get("sources", [])
+            except Exception:
+                continue
+            for src in sources or []:
+                url = src.get("url")
+                if not url:
+                    continue
+                name = "Peachify %s" % server.capitalize()
+                if src.get("dub"):
+                    name += " %s" % src["dub"]
+                if src.get("quality"):
+                    name += " %sp" % src["quality"]
+                decoUrl = urlparser.decorateUrl(url, {"User-Agent": HTTP_HEADER["User-Agent"], "Referer": "https://peachify.top/", "Origin": "https://peachify.top"})
+                if ".m3u8" in url.lower():
+                    urltab.extend(getDirectM3U8Playlist(decoUrl, sortWithMaxBitrate=99999999))
+                else:
+                    urltab.append({"name": name, "url": decoUrl})
+        return urltab
+
+    def parserVIDEASY(self, baseUrl):  # updated 040926 - site moved its backend from api.videasy.net to api.speedracelight.com and now requires a /seed step plus a (double URL-encoded) title for sources-with-title
+        printDBG("parserVIDEASY baseUrl[%s]" % baseUrl)
+        if not self._externalResolveAllowed("parserVIDEASY"):
+            return []
+        urltab = []
+        m = re.search(r"/(movie|tv)/(\d+)(?:/(\d+)/(\d+))?", baseUrl)
+        if not m:
+            return []
+        mediaType, tmdbId, season, episode = m.group(1), m.group(2), m.group(3), m.group(4)
+
+        # title/year travel as plain query params on the candidate URL itself
+        # (decorateParamsFromUrl only whitelists header-ish keys into .meta, so
+        # we read them back out of the raw url text here instead).
+        titleMatch = re.search(r"[?&]title=([^&]+)", baseUrl)
+        yearMatch = re.search(r"[?&]year=([^&]+)", baseUrl)
+        title = urllib_unquote(titleMatch.group(1)) if titleMatch else ""
+        year = urllib_unquote(yearMatch.group(1)) if yearMatch else ""
+        encTitle = urllib_quote(urllib_quote(title, safe=""), safe="")
+
+        HTTP_HEADER = self.cm.getDefaultHeader()
+        HTTP_HEADER["Referer"] = "https://player.videasy.to/"
+        HTTP_HEADER["Origin"] = "https://player.videasy.to"
+
+        sts0, seedData = self.cm.getPage("https://api.speedracelight.com/seed?mediaId=%s" % tmdbId, {"header": dict(HTTP_HEADER), "timeout": 10})
+        if not sts0:
+            return []
+        try:
+            seed = json_loads(seedData).get("seed")
+        except Exception:
+            seed = None
+        if not seed:
+            return []
+
+        # server list per smy778/EncDecEndpoints samples/videasy.py
+        # ("vsrc" / "meine" endpoints 404 on the live API, left out)
+        servers = ["cdn", "hdmovie", "m4uhd", "lamovie", "superflix"]
+        for name in servers:
+            apiUrl = ("https://api.speedracelight.com/%s/sources-with-title"
+                      "?title=%s&mediaType=%s&year=%s&tmdbId=%s&imdbId=&episodeId=%s&seasonId=%s&enc=2&seed=%s"
+                      % (name, encTitle, mediaType, year, tmdbId, episode or "1", season or "1", seed))
+            sts, data = self.cm.getPage(apiUrl, {"header": dict(HTTP_HEADER), "timeout": 10})
+            if not sts:
+                continue
+            blob = data.strip()
+            if not blob or len(blob) < 10:
+                continue
+            sts2, decData = self.cm.getPage(
+                "https://enc-dec.app/api/dec-videasy",
+                {"header": {"Content-Type": "application/json"}, "raw_post_data": True, "timeout": 10},
+                json_dumps({"text": blob, "id": tmdbId, "seed": seed}),
+            )
+            if not sts2:
+                continue
+            try:
+                decResp = json_loads(decData)
+                if decResp.get("status") != 200:
+                    continue
+                result = decResp.get("result", {})
+            except Exception:
+                continue
+
+            sources = result.get("sources") if isinstance(result, dict) else None
+            found = []
+            if sources:
+                for src in sources:
+                    u = src.get("url")
+                    if u:
+                        found.append((u, src.get("quality")))
+            else:
+                # schema-agnostic fallback: walk the whole result for any
+                # http(s) link ending up as a playable stream
+                stack = [result]
+                while stack:
+                    node = stack.pop()
+                    if isinstance(node, dict):
+                        stack.extend(node.values())
+                    elif isinstance(node, list):
+                        stack.extend(node)
+                    elif isinstance(node, basestring) and node.startswith("http") and (".m3u8" in node or ".mp4" in node):
+                        found.append((node, None))
+
+            for url, quality in found:
+                itemName = "Videasy %s" % name.capitalize()
+                decoUrl = urlparser.decorateUrl(url, {"User-Agent": HTTP_HEADER["User-Agent"], "Referer": "https://player.videasy.to/", "Origin": "https://player.videasy.to", "iptv_use_ffmpeg": True})
+                qm = re.search(r"(\d{3,4})p", url)
+                if quality or qm:
+                    # this link already names its own single quality (either the
+                    # API told us, or it's baked into the URL, e.g. .../s1080p-.../
+                    # ...m3u8) - no need to probe the playlist to discover it.
+                    itemName += " %s" % (quality or ("%sp" % qm.group(1)))
+                    urltab.append({"name": itemName, "url": decoUrl})
+                elif ".m3u8" in url.lower():
+                    # genuine multi-variant master playlist - let the helper
+                    # discover the actual qualities inside it.
+                    for item in getDirectM3U8Playlist(decoUrl, sortWithMaxBitrate=99999999):
+                        item["name"] = ("%s %s" % (itemName, item.get("name", ""))).strip()
+                        urltab.append(item)
+                else:
+                    urltab.append({"name": itemName, "url": decoUrl})
+            if urltab:
+                return urltab
+        return urltab
+
+    def parserVIDLINK(self, baseUrl):  # add 060926 - vidlink.pro; enc-dec.app encrypts the tmdb id, /api/b returns the sources json directly (no 2nd decrypt)
+        printDBG("parserVIDLINK baseUrl[%s]" % baseUrl)
+        if not self._externalResolveAllowed("parserVIDLINK"):
+            return []
+        urltab = []
+        m = re.search(r"/(movie|tv)/(\d+)(?:/(\d+)/(\d+))?", baseUrl)
+        if not m:
+            return []
+        mediaType, tmdbId, season, episode = m.group(1), m.group(2), m.group(3), m.group(4)
+        api = "https://enc-dec.app/api"
+        HTTP_HEADER = self.cm.getDefaultHeader()
+        sts, data = self.cm.getPage("%s/enc-vidlink?%s" % (api, urllib_urlencode({"text": tmdbId})), {"header": {"User-Agent": HTTP_HEADER["User-Agent"]}})
+        if not sts:
+            return []
+        try:
+            enc = json_loads(data).get("result")
+        except Exception:
+            printExc()
+            return []
+        if not enc:
+            return []
+        if mediaType == "tv":
+            apiUrl = "https://vidlink.pro/api/b/tv/%s/%s/%s" % (enc, season or "1", episode or "1")
+        else:
+            apiUrl = "https://vidlink.pro/api/b/movie/%s" % enc
+        provHdr = {"User-Agent": HTTP_HEADER["User-Agent"], "Origin": "https://vidlink.pro", "Referer": "https://vidlink.pro/"}
+        sts, data = self.cm.getPage(apiUrl, {"header": provHdr})
+        if not sts:
+            return []
+        try:
+            res = json_loads(data)
+        except Exception:
+            printExc()
+            return []
+        if not isinstance(res, dict):
+            return []
+        subTracks = []
+        try:
+            for c in (((res.get("stream") or {}) if isinstance(res.get("stream"), dict) else {}).get("captions") or res.get("captions") or []):
+                cu = c.get("url") or c.get("file")
+                if cu:
+                    subTracks.append({"title": c.get("label", ""), "url": cu, "lang": c.get("language", c.get("label", ""))})
+        except Exception:
+            printExc()
+        found = []
+        stack = [res]
+        seen = set()
+        while stack:
+            node = stack.pop()
+            if isinstance(node, dict):
+                stack.extend(node.values())
+            elif isinstance(node, list):
+                stack.extend(node)
+            elif isinstance(node, basestring) and node.startswith("http") and node not in seen and (".m3u8" in node or ".mp4" in node):
+                seen.add(node)
+                found.append(node)
+        for url in found:
+            deco = {"User-Agent": provHdr["User-Agent"], "Referer": "https://vidlink.pro/", "Origin": "https://vidlink.pro", "iptv_use_ffmpeg": True}
+            if subTracks:
+                deco["external_sub_tracks"] = subTracks
+            decoUrl = urlparser.decorateUrl(url, deco)
+            if ".m3u8" in url.lower():
+                for item in getDirectM3U8Playlist(decoUrl, sortWithMaxBitrate=99999999):
+                    item["name"] = ("Vidlink %s" % item.get("name", "")).strip()
+                    urltab.append(item)
+            else:
+                urltab.append({"name": "Vidlink", "url": decoUrl})
+        return urltab
+
+    def parserVIDCORE(self, baseUrl):  # add 030926 / upd 060926 - vidcore.net/.io + vidup.to + vidfast.pro/.vc (shared codebase); page token -> enc-dec.app enc/dec chain
+        printDBG("parserVIDCORE baseUrl[%s]" % baseUrl)
+        if not self._externalResolveAllowed("parserVIDCORE"):
+            return []
+        urltab = []
+        m = re.search(r"/(movie|tv)/([A-Za-z0-9]+)(?:/(\d+)/(\d+))?", baseUrl)
+        if not m:
+            return []
+        mediaType, mid, season, episode = m.group(1), m.group(2), m.group(3), m.group(4)
+        lowUrl = baseUrl.lower()
+        if "vidfast" in lowUrl:
+            host = "vidfast.vc" if "vidfast.vc" in lowUrl else "vidfast.pro"
+            name = "vidfast"
+        elif "vidup" in lowUrl:
+            host, name = "vidup.to", "vidup"
+        else:
+            host, name = "vidcore.io", "vidcore"
+        ref = "https://%s/" % host
+        api = "https://enc-dec.app/api"
+        HTTP_HEADER = self.cm.getDefaultHeader()
+        HTTP_HEADER["Referer"] = ref
+        if mediaType == "tv" and season and episode:
+            pageUrl = "%stv/%s/%s/%s/" % (ref, mid, season, episode)
+        else:
+            pageUrl = "%smovie/%s/" % (ref, mid)
+        sts, data = self.cm.getPage(pageUrl, {"header": HTTP_HEADER})
+        if not sts:
+            return []
+        # the page carries the real request token as \"en\":\"...\"; a Firebase
+        # service-worker registration on the same page also has a \"token\":\"APA91...\"
+        # - prefer "en", and never hand a Firebase FCM token to the API
+        token = None
+        for pat in (r'\\"en\\":\\"([^\\"]+)', r'\\"token\\":\\"([^\\"]+)'):
+            for cand in re.findall(pat, data):
+                if cand.startswith("APA91") or len(cand) > 400:
+                    continue
+                token = cand
+                break
+            if token:
+                break
+        if not token:
+            return []
+        sts, data = self.cm.getPage("%s/enc-%s?%s" % (api, name, urllib_urlencode({"text": token})), {"header": {"User-Agent": HTTP_HEADER["User-Agent"]}})
+        if not sts:
+            return []
+        try:
+            parts = json_loads(data)["result"]
+            serversUrl, streamBase, csrf = parts["servers"], parts["stream"], parts["token"]
+        except Exception:
+            printExc()
+            return []
+        provHdr = {"User-Agent": HTTP_HEADER["User-Agent"], "Referer": ref, "X-Requested-With": "XMLHttpRequest", "X-CSRF-Token": csrf}
+        sts, serversEnc = self.cm.getPage(serversUrl, {"header": provHdr, "raw_post_data": True}, "")
+        if not sts:
+            return []
+        sts, data = self.cm.getPage("%s/dec-%s" % (api, name), {"header": {"Content-Type": "application/json"}, "raw_post_data": True}, json_dumps({"text": serversEnc}))
+        if not sts:
+            return []
+        try:
+            serverList = json_loads(data).get("result") or []
+        except Exception:
+            printExc()
+            return []
+        for srv in serverList[:5]:
+            srvData = srv.get("data")
+            if not srvData:
+                continue
+            sts, streamEnc = self.cm.getPage("%s/%s" % (streamBase, srvData), {"header": provHdr, "raw_post_data": True}, "")
+            if not sts:
+                continue
+            sts, data = self.cm.getPage("%s/dec-%s" % (api, name), {"header": {"Content-Type": "application/json"}, "raw_post_data": True}, json_dumps({"text": streamEnc}))
+            if not sts:
+                continue
+            try:
+                res = json_loads(data)
+                if res.get("status") != 200:
+                    continue
+                streamUrl = res.get("result", {}).get("url")
+            except Exception:
+                continue
+            if not streamUrl:
+                continue
+            label = ("%s %s" % (name.capitalize(), srv.get("name", ""))).strip()
+            decoUrl = urlparser.decorateUrl(streamUrl, {"User-Agent": HTTP_HEADER["User-Agent"], "Referer": ref, "Origin": ref[:-1], "iptv_use_ffmpeg": True})
+            if ".m3u8" in streamUrl:
+                for item in getDirectM3U8Playlist(decoUrl, sortWithMaxBitrate=99999999):
+                    item["name"] = "%s %s" % (label, item.get("name", ""))
+                    urltab.append(item)
+            else:
+                urltab.append({"name": label, "url": decoUrl})
+        return urltab
+
+    def parserVIDSST(self, baseUrl):  # add 050926 - vids.st (premiumsmart.eu "VidsST" mirror), bespoke ArtPlayer host
+        printDBG("parserVIDSST baseUrl[%s]" % baseUrl)
+        urltab = []
+        host = urlparser.getDomain(baseUrl, False)
+        HTTP_HEADER = self.cm.getDefaultHeader()
+        HTTP_HEADER["Referer"] = baseUrl
+        sts, data = self.cm.getPage(baseUrl, {"header": HTTP_HEADER})
+        if not sts:
+            return []
+        # the /e/<id> embed page carries the master playlist url in a plain JS const
+        m = re.search(r'''const\s+url\s*=\s*["'](https?:[^"']+\.m3u8[^"']*)["']''', data)
+        if not m:
+            m = re.search(r'''["'](https?:(?:\\?/){2}[^"']+?/master\.m3u8[^"']*)["']''', data)
+        if not m:
+            return []
+        url = m.group(1).replace("\\/", "/")
+        subTracks = []
+        sm = re.search(r'"subtitleUrl"\s*:\s*"([^"]+)"', data)
+        if sm and sm.group(1):
+            lm = re.search(r'"subtitleLabel"\s*:\s*"([^"]*)"', data)
+            label = lm.group(1) if lm else ""
+            subTracks.append({"title": label, "url": sm.group(1).replace("\\/", "/"), "lang": label})
+        url = urlparser.decorateUrl(url, {
+            "User-Agent": HTTP_HEADER["User-Agent"],
+            "Referer": baseUrl,
+            "Origin": host[:-1] if host.endswith("/") else host,
+            "external_sub_tracks": subTracks,
+        })
+        urltab.extend(getDirectM3U8Playlist(url, checkExt=False, checkContent=True))
+        if not urltab:
+            urltab.append({"name": "vids.st", "url": url, "need_resolve": 0})
         return urltab
