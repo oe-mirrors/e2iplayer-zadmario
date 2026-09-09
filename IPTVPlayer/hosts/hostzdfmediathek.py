@@ -15,7 +15,7 @@ from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import getDirectM3U8Play
 from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads
 ###################################################
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
-from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote, urllib_unquote
+from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote
 from Plugins.Extensions.IPTVPlayer.p2p3.pVer import isPY2
 
 ###################################################
@@ -100,7 +100,6 @@ class ZDFmediathek(GenericFolderWatchedScraperMixin, CBaseHostClass):
         CBaseHostClass.__init__(self, {'history': 'ZDFmediathek.tv', 'cookie': 'zdfde.cookie'})
         self.DEFAULT_ICON_URL = 'https://brandguide.zdf.de/pictures/447/2f865620700065672dbce9582f77ad83569beb7f/ZDF_DE_Logo_02.png'
 
-
         # NOTE: MAIN_CAT_TAB is a class attribute - build a fresh instance list,
         # otherwise "+=" mutates the shared class list on every re-instantiation
         # and the search block piles up (4x etc.)
@@ -144,11 +143,6 @@ class ZDFmediathek(GenericFolderWatchedScraperMixin, CBaseHostClass):
         HTTP_HEADER = dict(self.HEADER)
         params.update({'header': HTTP_HEADER})
 
-        if 'zdf-cdn.live.cellular.de' in url and False:
-            proxy = 'http://www.proxy-german.de/index.php?q={0}&hl=2e1'.format(urllib_quote(url, ''))
-            params['header']['Referer'] = proxy
-            # params['header']['Cookie'] = 'flags=2e5;'
-            url = proxy
         sts, data = self.cm.getPage(url, params, post_data)
         if sts and None is data:
             sts = False
@@ -157,23 +151,7 @@ class ZDFmediathek(GenericFolderWatchedScraperMixin, CBaseHostClass):
         return sts, data
 
     def getIconUrl(self, url):
-        url = self.getFullUrl(url)
-        if 'zdf-cdn.live.cellular.de' in url and False:
-            proxy = 'http://www.proxy-german.de/index.php?q={0}&hl=2e1'.format(urllib_quote(url, ''))
-            params = {}
-            params['User-Agent'] = self.HEADER['User-Agent'],
-            params['Referer'] = proxy
-            params['Cookie'] = 'flags=2e5;'
-            url = strwithmeta(proxy, params)
-        elif url.startswith('https://'):
-            url = 'http' + url[5:]
-
-        return url
-
-    def getFullUrl(self, url):
-        if 'proxy-german.de' in url:
-            url = urllib_unquote(self.cm.ph.getSearchGroups(url + '&', r'''\?q=(http[^&]+?)&''')[0])
-        return CBaseHostClass.getFullUrl(self, url)
+        return self.getFullUrl(url)
 
     def _getNum(self, v, default=0):
         try:
@@ -433,9 +411,11 @@ class ZDFmediathek(GenericFolderWatchedScraperMixin, CBaseHostClass):
                 for item in data:
                     quality = item['quality']
                     url = item['url']
-                    if url.startswith('https://'):
-                        url = 'http' + url[5:]
-                    for type in [{'pattern': 'http_m3u8_http', 'name': 'm3u8'}, {'pattern': 'mp4_http', 'name': 'mp4'}]:
+                    # keep the https URLs ZDF actually serves - the old
+                    # 'http' + url[5:] downgrade was a workaround for ancient
+                    # enigma2 images that could not do TLS to the Akamai CDN;
+                    # modern images do, and the CDN answers both schemes.
+                    for type in [{'pattern': 'm3u8', 'name': 'm3u8'}, {'pattern': 'mp4_', 'name': 'mp4'}]:
                         if type['pattern'] not in item['type']:
                             continue
                         if type['name'] == 'mp4':

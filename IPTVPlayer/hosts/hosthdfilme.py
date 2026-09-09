@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+# 09.09.2026 - the meinecloud player now base64-encodes its data-link values, so the choice box
+# showed empty (unresolvable) entries; _decodeDataLink() decodes them back to //host/e/id before
+# they reach getHostName()/getVideoLinkExt().
 # Last Modified: 05.09.2026 - added "Create MKV" option (config.plugins.iptvplayer.hdfilme_mkv),
 # mirroring hostfilmpalast.py's MKV toggle: GetConfigList() now exposes it and getVideoLinks()
 # passes it straight through to decorateResolvedLinkItems(), which already wires the correct
@@ -6,6 +9,7 @@
 # filmpalast, no extra downloader-forcing needed.
 # 25.08.2026 - strip the leading "S<n> E<n>" NUMBERS from the site's raw episode label and keep whatever separator character the site itself already uses (dash or em-dash) untouched, instead of re-building a custom separator; removed the unnecessary EM_DASH/EN_DASH constants and literal-unicode-escape decoding machinery from the previous iteration.
 
+import base64
 import re
 
 from Components.config import config, ConfigYesNo, getConfigListEntry
@@ -40,6 +44,21 @@ def _parseLeadingSxEx(label):
     if m:
         return int(m.group(1)), int(m.group(2))
     return None, None
+
+
+def _decodeDataLink(raw):
+    """The meinecloud player now base64-encodes its data-link values (e.g. 'Ly9teGRyb3AudG8v...'
+    -> '//mxdrop.to/e/...'); older pages still ship a plain //host/e/id. Decode only when the
+    value isn't already a URL."""
+    if not raw or raw.startswith(("http", "//")):
+        return raw
+    try:
+        decoded = base64.b64decode(raw + "=" * (-len(raw) % 4)).decode("utf-8", "ignore").strip()
+        if decoded.startswith(("http", "//")):
+            return decoded
+    except Exception:
+        pass
+    return raw
 
 
 def _trimTrailingDashPart(title):
@@ -187,6 +206,7 @@ class HDFilme(CBaseHostClass):
         episodes = []
         episodeMatches = re.findall(r'data-link="([^"]+)"[^>]*?data-label="([^"]+)"', blocksById.get(seasonId, ""))
         for episodeIndex, (link, label) in enumerate(episodeMatches, start=1):
+            link = _decodeDataLink(link)
             cleanLabelRaw = self.cleanHtmlStr(label)
             if not IsMediaNamingNormalized():
                 # normalisation off: keep the site's raw episode label
@@ -358,9 +378,9 @@ class HDFilme(CBaseHostClass):
             sts, data = self.getPage(streamUrl, self.defaultParams)
             if not sts:
                 return linksTab
-            data = re.findall('data-link="([^"]+)', data, re.DOTALL)
+            data = [_decodeDataLink(x) for x in re.findall('data-link="([^"]+)', data, re.DOTALL)]
         else:
-            data = [streamUrl]
+            data = [_decodeDataLink(streamUrl)]
         for url in data:
             if "meinecloud" in url or "player.php" in url:
                 continue
