@@ -180,14 +180,16 @@ class HLSDownloader(BaseDownloader, SidecarMixin):
         self.localFileSize = DMHelper.getFileSize(fsPath(finalPath))
         if self.localFileSize > 0:
             self.remoteFileSize = self.localFileSize
-        self.status = DMHelper.STS.DOWNLOADED
+            self.status = DMHelper.STS.DOWNLOADED
 
-        self._writeTxtSidecar(finalPath)
+            self._writeTxtSidecar(finalPath)
 
-        if self.sidecarEnabled and self.sidecarImg:
-            self._startImgSidecarDownload(finalPath)
-            return
+            if self.sidecarEnabled and self.sidecarImg:
+                self._startImgSidecarDownload(finalPath)
+                return
         else:
+            # remuxed/finalized file is empty -> treat as interrupted, and
+            # don't write a TXT/image sidecar for a video that isn't there
             self.status = DMHelper.STS.INTERRUPTED
 
         self._finishDownloadFlow()

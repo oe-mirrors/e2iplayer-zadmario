@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: IPTVPlayer VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-28 20:57+0200\n"
+"POT-Creation-Date: 2026-09-11 16:15+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -907,6 +907,9 @@ msgstr ""
 msgid "Create sidecar files (.txt/.jpg)"
 msgstr ""
 
+msgid "Normalize item / file names (Show - SxxExx - Title)"
+msgstr ""
+
 msgid "Initialize web interface (experimental)"
 msgstr ""
 
@@ -953,6 +956,9 @@ msgid "Use the PyCurl for HTTP(S) requests"
 msgstr ""
 
 msgid "https - validate SSL certificates"
+msgstr ""
+
+msgid "Allow external link-decryption service (enc-dec.app)"
 msgstr ""
 
 msgid "----- PROXIES CONFIGURATION (OK) -----"
@@ -1114,6 +1120,22 @@ msgid ""
 msgstr ""
 
 msgid "Select directory"
+msgstr ""
+
+msgid "Send data to enc-dec.app on every link resolve?"
+msgstr ""
+
+msgid ""
+"Some link resolvers ('VidEasy', 'VidCore/VidFast', 'VidLink', 'Peachify')"
+" cannot decrypt their links on the receiver.\n"
+"\n"
+"With this option ON, every time you open one of them E2iPlayer sends the "
+"site's encrypted stream token - which contains the TMDb id of the movie "
+"or episode you are opening - to the third-party web service enc-dec.app "
+"(operated by a private individual). That server then sees the id and your"
+" IP address on each play. Nothing else is transmitted.\n"
+"\n"
+"Leave this OFF if you do not want that."
 msgstr ""
 
 msgid "Enter old pin"
@@ -2044,6 +2066,9 @@ msgstr ""
 
 #, python-format
 msgid "%s episodes"
+msgstr ""
+
+msgid "Type:"
 msgstr ""
 
 msgid "Language"
@@ -3015,9 +3040,6 @@ msgid "Use login"
 msgstr ""
 
 msgid "OMDb API Key"
-msgstr ""
-
-msgid "Use legacy title format"
 msgstr ""
 
 msgid "host"

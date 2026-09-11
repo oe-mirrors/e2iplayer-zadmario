@@ -1344,16 +1344,26 @@ class pageParser(CaptchaHelper):
         cUrl = self.cm.meta["url"]
         if "/embed" not in cUrl:
             url = self.cm.getFullUrl("/embed/" + cUrl.rsplit("/", 1)[(-1)], cUrl)
-            sts, tmp = self.cm.getPage(baseUrl, {"header": HTTP_HEADER})
+            sts, tmp = self.cm.getPage(url, {"header": HTTP_HEADER})
             if not sts:
                 return False
             data += tmp
             cUrl = self.cm.meta["url"]
-        data = ph.search(data, """['"]([a-zA-Z0-9=]{128,512})['"]""")[0]
+        blob = ph.search(data, """['"]([a-zA-Z0-9=]{128,512})['"]""")[0]
+        if not blob:
+            # upzone.cc caps free-user transfer and then serves a stripped
+            # "premium only" page with no player payload (Polish: "Transfer dla
+            # darmowych uzytkownikow zostal wyczerpany ... PREMIUM").
+            if "wyczerpany" in data or "PREMIUM" in data:
+                SetIPTVPlayerLastHostError(_("upzone.cc: free transfer limit reached - PREMIUM account required."))
+            return False
         js_params = [{"path": GetJSScriptFile("upzonecc.byte")}]
-        js_params.append({"code": "print(cnc(atob('%s')));" % data})
+        js_params.append({"code": "print(cnc(atob('%s')));" % blob})
         ret = js_execute_ext(js_params)
-        url = self.cm.getFullUrl(ret["data"].strip(), cUrl)
+        streamUrl = (ret.get("data", "") if ret else "").strip()
+        if not streamUrl:
+            return False
+        url = self.cm.getFullUrl(streamUrl, cUrl)
         return strwithmeta(url, {"Referer": cUrl, "User-Agent": HTTP_HEADER["User-Agent"]})
 
     def parser1FICHIERCOM(self, baseUrl):  # Need test
@@ -1978,10 +1988,21 @@ class pageParser(CaptchaHelper):
                     subLang = self.cm.ph.getSearchGroups(track, 'srclang="([^"]+?)"')[0]
                     subLabel = self.cm.ph.getSearchGroups(track, 'label="([^"]+?)"')[0]
                     subTracks.append({"title": subLabel + "_" + subLang, "url": subUrl, "lang": subLang, "format": "srt"})
-            t = self.cm.ph.getSearchGroups(data, """innerHTML = ([^;]+?);""")[0] + ";"
+            t = self.cm.ph.getSearchGroups(data, """innerHTML = ([^;]+?);""")[0]
+            if not t:
+                # no player token in the page - streamtape now serves a
+                # bot/geo wall (HTTP 200 with an interstitial) instead of the
+                # real embed; bail out cleanly instead of eval()-ing garbage.
+                printDBG("parserSTREAMTAPE no innerHTML token - page blocked?")
+                return urltabs
+            t = t + ";"
             printDBG("parserSTREAMTAPE t[%s]" % t)
             t = t.replace(".substring(", "[", 1).replace(").substring(", ":][").replace(");", ":]") + "[1:]"
-            t = eval(t)
+            try:
+                t = eval(t)
+            except Exception:
+                printExc()
+                return urltabs
             if t.startswith("/"):
                 t = "https:/" + t
             if self.cm.isValidUrl(t):
@@ -2240,7 +2261,13 @@ class pageParser(CaptchaHelper):
         sts, data = self.cm.getPage(host + "api/stream", {"header": HTTP_HEADER, "raw_post_data": True}, post)
         if not sts:
             return []
-        data = json_loads(data)
+        try:
+            # a dead strmup mirror redirects /api/stream to a parked domain that
+            # answers 200 with a few bytes of HTML - don't crash on that
+            data = json_loads(data)
+        except Exception:
+            printDBG("parserSTREAMUP non-JSON response - host down/parked?")
+            return []
         url = data.get("streaming_url")
         if isinstance(data.get("subtitles"), list):
             subTracks = [{"title": "", "url": sub.get("file_path"), "lang": sub.get("language")} for sub in data.get("subtitles", []) if sub.get("file_path") and sub.get("language")]
@@ -2365,7 +2392,8 @@ class pageParser(CaptchaHelper):
         def xn(e, v):
             if v:
                 v = int(v)
-                e = [e[v - 1], e[len(e) - v]]
+                if 0 < v <= len(e):
+                    e = [e[v - 1], e[len(e) - v]]
             t = list(map(ft, e))
             return b"".join(t)
 
@@ -2487,13 +2515,27 @@ class pageParser(CaptchaHelper):
             except Exception:
                 return None
 
+        def jsonPost():
+            # params for the API POST endpoints (challenge/attest/captcha/
+            # verify/playback). Send a real JSON Content-Type (pycurl otherwise
+            # defaults to application/x-www-form-urlencoded) and disable the
+            # automatic "Expect: 100-continue" handshake, matching the site's
+            # own frontend and upstream ResolveURL (jdata=True).
+            hdr = dict(HTTP_HEADER)
+            hdr["Content-Type"] = "application/json"
+            hdr["Expect"] = ""
+            return {"header": hdr, "raw_post_data": True, "timeout": 40}
+
         baseUrl = baseUrl.replace("/d/", "/e/")
         printDBG("parserBYSE baseUrl[%s]" % baseUrl)
         urltab = []
         for redirectDomain in ["boosteradx.online", "byse.sx", "streamlyplayer.online"]:
             baseUrl = baseUrl.replace(redirectDomain, "streamlyplayero.online")
         ref = urlparser.getDomain(baseUrl, False)
-        mid = re.search(r"/(?:e|d|download)/([0-9a-zA-Z]+)", baseUrl).group(1)
+        midMatch = re.search(r"/(?:e|d|download)/([0-9a-zA-Z]+)", baseUrl)
+        if not midMatch:
+            return []
+        mid = midMatch.group(1)
         HTTP_HEADER = self.cm.getDefaultHeader()
         HTTP_HEADER["User-Agent"] = UA
         HTTP_HEADER["Referer"] = ref
@@ -2534,20 +2576,20 @@ class pageParser(CaptchaHelper):
 
         if settings.get("captcha_required"):
             challengeUrl = "%sapi/videos/access/challenge" % ref
-            sts, data = self.cm.getPage(challengeUrl, {"header": dict(HTTP_HEADER), "raw_post_data": True, "timeout": 40}, "")
+            sts, data = self.cm.getPage(challengeUrl, jsonPost(), "")
             challenge = tryJson(data) if sts else None
             if challenge is None:
                 return []
 
             attestUrl = "%sapi/videos/access/attest" % ref
-            sts, data = self.cm.getPage(attestUrl, {"header": dict(HTTP_HEADER), "raw_post_data": True, "timeout": 40}, json_dumps(wn(challenge)))
+            sts, data = self.cm.getPage(attestUrl, jsonPost(), json_dumps(wn(challenge)))
             attest = tryJson(data) if sts else None
             if attest is None:
                 return []
             fingerprint = {"token": attest.get("token"), "viewer_id": attest.get("viewer_id"), "device_id": attest.get("device_id"), "confidence": attest.get("confidence")}
 
             captchaUrl = "%sapi/videos/%s/%scaptcha" % (ref, mid, embed)
-            sts, data = self.cm.getPage(captchaUrl, {"header": dict(HTTP_HEADER), "raw_post_data": True, "timeout": 40}, json_dumps({"fingerprint": fingerprint}))
+            sts, data = self.cm.getPage(captchaUrl, jsonPost(), json_dumps({"fingerprint": fingerprint}))
             captcha = tryJson(data) if sts else None
             if captcha is None:
                 return []
@@ -2557,17 +2599,17 @@ class pageParser(CaptchaHelper):
 
             verifyUrl = "%sapi/videos/%s/%scaptcha/verify" % (ref, mid, embed)
             verifyPost = {"pow_token": captcha.get("pow_token"), "solution": solution, "fingerprint": fingerprint}
-            sts, data = self.cm.getPage(verifyUrl, {"header": dict(HTTP_HEADER), "raw_post_data": True, "timeout": 40}, json_dumps(verifyPost))
+            sts, data = self.cm.getPage(verifyUrl, jsonPost(), json_dumps(verifyPost))
             verify = tryJson(data) if sts else None
             if verify is None:
                 return []
             HTTP_HEADER["X-Captcha-Token"] = verify.get("token", "")
 
             playbackUrl = "%sapi/videos/%s/%splayback" % (ref, mid, embed)
-            sts, data = self.cm.getPage(playbackUrl, {"header": dict(HTTP_HEADER), "raw_post_data": True, "timeout": 40}, json_dumps({"fingerprint": fingerprint}))
+            sts, data = self.cm.getPage(playbackUrl, jsonPost(), json_dumps({"fingerprint": fingerprint}))
         else:
             playbackUrl = "%sapi/videos/%s/%splayback" % (ref, mid, embed)
-            sts, data = self.cm.getPage(playbackUrl, {"header": dict(HTTP_HEADER), "raw_post_data": True}, json_dumps(fp(16, 0.83, 0.94)))
+            sts, data = self.cm.getPage(playbackUrl, jsonPost(), json_dumps(fp(16, 0.83, 0.94)))
         if not sts:
             return []
 

@@ -16,12 +16,14 @@ from Plugins.Extensions.IPTVPlayer.p2p3.UrlParse import urljoin, urlparse, urlun
 from Plugins.Extensions.IPTVPlayer.p2p3.pVer import isPY2
 if isPY2():
     import cookielib
+    from httplib import IncompleteRead
     try:
         from cStringIO import StringIO
     except Exception:
         from StringIO import StringIO
 else:
     import http.cookiejar as cookielib
+    from http.client import IncompleteRead
     from io import BytesIO
     basestring = str
     file = open
@@ -947,6 +949,23 @@ class common:
             for header, value in iterDictItems(responseHeaders):
                 metadata[header.lower()] = responseHeaders[header]
 
+    def _readHttpResponse(self, fp, maxSize=-1):
+        # Some servers close the connection before delivering the full
+        # response promised by Content-Length. httplib/http.client then
+        # raises IncompleteRead and the partial body would otherwise be
+        # lost entirely - use what was actually received instead. Doing
+        # it once here, at the only place that actually calls read(),
+        # covers every caller of getPage()/getURLRequestData() without
+        # touching process-wide state (e.g. a global
+        # httplib.HTTPResponse.read monkeypatch).
+        try:
+            if maxSize == -1:
+                return fp.read()
+            return fp.read(maxSize)
+        except IncompleteRead as e:
+            printDBG("common._readHttpResponse: IncompleteRead, using partial data (%d bytes)" % len(e.partial or b''))
+            return e.partial
+
     def getPage(self, url, addParams={}, post_data=None):
         ''' wraps getURLRequestData '''
 
@@ -976,7 +995,7 @@ class common:
                     metadata['status_code'] = e.code
                     self.fillHeaderItems(metadata, e.fp.info(), True, collectAllHeaders=addParams.get('collect_all_headers'))
 
-                    data = e.fp.read(addParams.get('max_data_size', -1))
+                    data = self._readHttpResponse(e.fp, addParams.get('max_data_size', -1))
                     if e.fp.info().get('Content-Encoding', '') == 'gzip':
                         data = DecodeGzipped(data)
 
@@ -1364,10 +1383,7 @@ class common:
                     pass
 
                 max = params.get('max_data_size', -1)
-                if max == -1:
-                    data = response.read()
-                else:
-                    data = response.read(max)
+                data = self._readHttpResponse(response, max)
                 response.close()
             except urllib2_HTTPError as e:
                 ignoreCodeRanges = params.get('ignore_http_code_ranges', [(404, 404), (500, 500)])
@@ -1388,10 +1404,7 @@ class common:
                     except Exception:
                         pass
                     max = params.get('max_data_size', -1)
-                    if max == -1:
-                        data = e.fp.read()
-                    else:
-                        data = e.fp.read(max)
+                    data = self._readHttpResponse(e.fp, max)
                     #e.msg
                     #e.headers
                 elif e.code == 503:
