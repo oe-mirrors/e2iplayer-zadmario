@@ -881,7 +881,7 @@ class ARDmediathek(GenericFolderWatchedScraperMixin, CBaseHostClass):
             baseItem = {'name': 'history', 'category': 'search'}
             if self.currItem.get('f_audio'):
                 baseItem['f_audio'] = True
-            self.listsHistory(baseItem, 'desc', _("Type: "))
+            self.listsHistory(baseItem, 'desc', _("Type:") + " ")
         else:
             printExc()
         CBaseHostClass.endHandleService(self, index, refresh)

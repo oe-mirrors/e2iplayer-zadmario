@@ -80,7 +80,6 @@ class ZDFmediathek(GenericFolderWatchedScraperMixin, CBaseHostClass):
     LOGIN_GOOGLE_URL = ZDF_API_URL + 'identity/thirdparty/google/login'
     REGISTER_URL = MAIN_URL + 'mein-zdf#start'
     SUBSCRIPTIONS_API_URL = MAIN_API_URL + 'mediathekV2/user/subscriptions'
-    PUSH_SUBSCRIBE_URL = 'http://push.live.cellular.de/api/device/'
     BOOKMARKS_API_URL = MAIN_API_URL + 'mediathekV2/user/bookmarks'
     AUTH_TOKEN_API_URL = MAIN_API_URL + 'mediathekV2/token'
     AKAMAI_TOKEN_API_URL = 'https://tg2cl15.zdf.de/generate'
