@@ -62,7 +62,7 @@ def IsHlsLikeUrl(url):
 ###################################################
 #29.05.26
 ###################################################
-def DownloaderCreator(url):
+def DownloaderCreator(url, forDownload=False):
     printDBG("DownloaderCreator url[%r]" % url)
 
     downloader = None
@@ -129,8 +129,34 @@ def DownloaderCreator(url):
         useFFmpeg = False
 
     printDBG("DownloaderCreator url[%s]" % url)
-    printDBG("DownloaderCreator iptv_proto[%s] iptv_use_ffmpeg[%s] iptv_ffmpeg_case[%s]" % (proto, useFFmpeg, ffmpegCase))
+    printDBG("DownloaderCreator iptv_proto[%s] iptv_use_ffmpeg[%s] iptv_ffmpeg_case[%s] forDownload[%s]" % (proto, useFFmpeg, ffmpegCase, forDownload))
     printDBG("DownloaderCreator downloaderParams[%s]" % downloaderParams)
+
+    #################################################
+    # Ein echter Download-Manager-Download eines YouTube
+    # merge:// (progressiv, Audio+Video getrennt; erkennbar
+    # am youtube_id-Meta-Key, den youtubeparser.py/
+    # urlparser.py auf diesen URLs immer setzen) bevorzugt
+    # MergeDownloader vor dem iptv_use_ffmpeg-Zwang unten:
+    # nur der hat Sidecar- (.txt/.jpg) und MKV-Kapitel-
+    # Unterstützung, sowie eine belastbarere
+    # Vollständigkeitsprüfung für genau diesen Fall.
+    # iptv_use_ffmpeg existiert auf diesen URLs nur, um die
+    # gepufferte *Wiedergabe* zu beschleunigen (progressives
+    # Muxen statt erst komplett herunterladen), und darf
+    # einen echten Download nicht ebenfalls umleiten.
+    # Bewusst auf youtube_id eingegrenzt (nicht merge://
+    # allgemein), damit andere iptv_use_ffmpeg-merge://-Nutzer
+    # (z.B. ARTEs getrennte CMAF/fMP4-Renditions, die ffmpeg
+    # für Wiedergabe UND Download wirklich brauchen)
+    # unberührt bleiben.
+    #################################################
+    if forDownload and proto == 'merge' and urlMeta.get('youtube_id'):
+        printDBG("DownloaderCreator: echter Download von YouTube merge:// -> MergeDownloader")
+        try:
+            return MergeDownloader()
+        except Exception:
+            printExc()
 
     #################################################
     # WICHTIG:

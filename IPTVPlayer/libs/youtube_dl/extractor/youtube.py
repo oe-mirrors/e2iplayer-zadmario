@@ -19,6 +19,21 @@ from Plugins.Extensions.IPTVPlayer.tools.e2ijs import js_execute_ext, is_js_cach
 
 from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str
 
+# InnerTube ANDROID player client. It hands unthrottled, un-ciphered
+# progressive/adaptive URLs to an anonymous caller (verified: no &n=
+# throttle param, full CDN speed), so no player-JS / signature / nsig
+# work is needed on this path.
+#
+# Deliberately NOT yt-dlp's current fingerprint (21.x + androidSdkVersion
+# 30 + Android 11 + contentCheckOk/racyCheckOk): YouTube challenges that
+# exact combo with the "sign in to confirm you're not a bot" wall within
+# a handful of requests. These are the older values the plain python3
+# host has used for months without ever tripping it - keep them in step
+# with origin/python3, do not chase yt-dlp here.
+YT_ANDROID_CLIENT_VERSION = "20.32.35"
+YT_ANDROID_SDK_VERSION = 35
+YT_ANDROID_OS_VERSION = "15"
+
 
 class CYTSignAlgoExtractor:
     MAX_REC_DEPTH = 5  # MAX RECURSION Depth for security
@@ -169,7 +184,11 @@ class CYTSignAlgoExtractor:
         return decSignatures
 
 
-def ExtractorError(text):
+def reportExtractorError(text):
+    # Not an exception. This used to be named ExtractorError, shadowing the
+    # real class from youtube_dl.utils, so `raise ExtractorError(...)` raised
+    # None -> a spurious TypeError on every deep failure. It only surfaces
+    # the message now; callers return an empty result themselves.
     printDBG(text)
     SetIPTVPlayerLastHostError(_(text))
 
@@ -196,70 +215,8 @@ class YoutubeIE(object):
                      ([0-9A-Za-z_-]+)                                         # here is it! the YouTube video ID
                      (?(1).+)?                                                # if we found the ID, everything can follow
                      $"""
-    _LANG_URL = r"https://www.youtube.com/?hl=en&persist_hl=1&gl=US&persist_gl=1&opt_out_ackd=1"
-    _LOGIN_URL = "https://accounts.google.com/ServiceLogin"
-    _AGE_URL = "http://www.youtube.com/verify_age?next_url=/&gl=US&hl=en"
     _NEXT_URL_RE = r"[\?&]next_url=([^&]+)"
-    _NETRC_MACHINE = "youtube"
     # Listed in order of quality
-    _available_formats = [
-        "38",
-        "37",
-        "46",
-        "22",
-        "45",
-        "35",
-        "44",
-        "34",
-        "18",
-        "43",
-        "6",
-        "5",
-        "36",
-        "17",
-        "13",
-        # Apple HTTP Live Streaming
-        "96",
-        "95",
-        "94",
-        "93",
-        "92",
-        "132",
-        "151",
-        # 3D
-        "85",
-        "84",
-        "102",
-        "83",
-        "101",
-        "82",
-        "100",
-        # Dash video
-        "138",
-        "137",
-        "248",
-        "136",
-        "247",
-        "135",
-        "246",
-        "245",
-        "244",
-        "134",
-        "243",
-        "133",
-        "242",
-        "160",
-        "298",
-        "299",
-        "313",
-        "271",
-        # Dash audio
-        "141",
-        "172",
-        "140",
-        "171",
-        "139",
-    ]
     _available_formats_prefer_free = [
         "38",
         "46",
@@ -317,42 +274,6 @@ class YoutubeIE(object):
         "139",
     ]
 
-    _supported_formats = [
-        "18",
-        "22",
-        "37",
-        "38",  # mp4
-        "82",
-        "83",
-        "84",
-        "85",  # mp4 3D
-        "92",
-        "93",
-        "94",
-        "95",
-        "96",
-        "132",
-        "151",  # Apple HTTP Live Streaming
-        "133",
-        "134",
-        "135",
-        "136",
-        "137",
-        "138",
-        "160",
-        "298",
-        "299",  # Dash mp4
-        "139",
-        "140",
-        "141",  # Dash mp4 audio
-    ]
-
-    _video_formats_map = {
-        "flv": ["35", "34", "6", "5"],
-        "3gp": ["36", "17", "13"],
-        "mp4": ["38", "37", "22", "18"],
-        "webm": ["46", "45", "44", "43"],
-    }
     _video_extensions = {
         "13": "3gp",
         "17": "3gp",
@@ -464,38 +385,6 @@ class YoutubeIE(object):
         "313": "2160p",
     }
 
-    _special_itags = {
-        "82": "3D",
-        "83": "3D",
-        "84": "3D",
-        "85": "3D",
-        "100": "3D",
-        "101": "3D",
-        "102": "3D",
-        "133": "DASH Video",
-        "134": "DASH Video",
-        "135": "DASH Video",
-        "136": "DASH Video",
-        "137": "DASH Video",
-        "138": "DASH Video",
-        "139": "DASH Audio",
-        "140": "DASH Audio",
-        "141": "DASH Audio",
-        "160": "DASH Video",
-        "171": "DASH Audio",
-        "172": "DASH Audio",
-        "242": "DASH Video",
-        "243": "DASH Video",
-        "244": "DASH Video",
-        "245": "DASH Video",
-        "246": "DASH Video",
-        "247": "DASH Video",
-        "248": "DASH Video",
-        "298": "DASH Video",
-        "299": "DASH Video",
-        "271": "DASH Video",
-        "313": "DASH Video",
-    }
     IE_NAME = "youtube"
 
     def __init__(self, params={}):
@@ -519,135 +408,215 @@ class YoutubeIE(object):
     def _extract_yt_initial_variable(self, webpage, regex, video_id, name):
         return json_loads(self._search_regex((r"%s\s*%s" % (regex, self._YT_INITIAL_BOUNDARY_RE), regex), webpage, name, default="{}"))
 
-    def _get_automatic_captions(self, video_id, webpage=None):
-        sub_tracks = []
-        if None == webpage:
-            url = "http://www.youtube.com/watch?v=%s&hl=%s&has_verified=1" % (video_id, GetDefaultLang())
-            sts, webpage = self.cm.getPage(url)
-            player_response = self._extract_yt_initial_variable(webpage, self._YT_INITIAL_PLAYER_RESPONSE_RE, video_id, "initial player response")
+
+    def _extract_caption_tracks(self, video_id, source=None):
+        # source may be a player_response dict, a watch-page HTML string, or
+        # None (fetch the watch page). YouTube dropped the old
+        # api/timedtext?type=list endpoint; captionTracks in the player
+        # response is the only listing now.
+        if isinstance(source, dict):
+            player_response = source
         else:
-            player_response = webpage
+            webpage = source
+            if webpage is None:
+                url = "https://www.youtube.com/watch?v=%s&hl=%s&has_verified=1" % (video_id, GetDefaultLang())
+                sts, webpage = self.cm.getPage(url)
+                if not sts:
+                    return []
+            player_response = self._extract_yt_initial_variable(webpage, self._YT_INITIAL_PLAYER_RESPONSE_RE, video_id, "initial player response")
         try:
-            player_captions = player_response["captions"]["playerCaptionsTracklistRenderer"]["captionTracks"]
+            return player_response["captions"]["playerCaptionsTracklistRenderer"]["captionTracks"] or []
         except Exception:
-            printDBG("youtube - _get_automatic_captions(): [captionTracks] NOT found in player_response")
-            return sub_tracks
-        try:
-            for lang in player_captions:
-                printDBG("_get_automatic_captions %s" % lang)
+            printDBG("youtube - captionTracks not found in player response")
+            return []
+
+    @staticmethod
+    def _caption_track_name(lang):
+        name = lang.get("name", {})
+        if isinstance(name, dict):
+            if name.get("simpleText"):
+                return name["simpleText"]
+            for run in name.get("runs", []):
+                if run.get("text"):
+                    return run["text"]
+        return lang.get("languageCode", "")
+
+    def _caption_tracks_to_subs(self, tracks, want_asr, start_idx=0):
+        sub_tracks = []
+        for lang in tracks or []:
+            try:
+                if (lang.get("kind") == "asr") != want_asr:
+                    continue
                 sub_url = urllib_unquote_plus(lang["baseUrl"])
-                sub_format = self.cm.ph.getSearchGroups(sub_url + "&", "[\?&]fmt=([^\?^&]+)[\?&]")[0]
+                sub_format = self.cm.ph.getSearchGroups(sub_url + "&", r"[\?&]fmt=([^\?^&]+)[\?&]")[0]
                 if sub_format != "":
                     sub_url = sub_url.replace(sub_format, "vtt")
                 else:
                     sub_url = sub_url + "&fmt=vtt"
                 sub_lang = lang["languageCode"]
-                sub_tracks.append({"title": sub_lang.encode("utf-8"), "url": sub_url, "lang": sub_lang.encode("utf-8"), "ytid": len(sub_tracks), "format": "vtt"})
-        except Exception:
-            printExc()
+                sub_tracks.append({"title": self._caption_track_name(lang) or sub_lang, "url": sub_url, "lang": sub_lang, "ytid": start_idx + len(sub_tracks), "format": "vtt"})
+            except Exception:
+                printExc()
         return sub_tracks
 
-    def _get_subtitles(self, video_id):
-        sub_tracks = []
-        try:
-            url = "https://www.youtube.com/api/timedtext?hl=%s&type=list&v=%s" % (GetDefaultLang(), video_id)
-            sts, data = self.cm.getPage(url)
-            if not sts:
-                return sub_tracks
+    def _get_automatic_captions(self, video_id, webpage=None):
+        # ASR (auto-generated) caption tracks
+        return self._caption_tracks_to_subs(self._extract_caption_tracks(video_id, webpage), want_asr=True)
 
-            encoding = self.cm.ph.getDataBeetwenMarkers(data, 'encoding="', '"', False)[1]
+    def _get_subtitles(self, video_id, source=None):
+        # manually authored / community caption tracks
+        return self._caption_tracks_to_subs(self._extract_caption_tracks(video_id, source), want_asr=False)
 
-            def getArg(item, name):
-                val = self.cm.ph.getDataBeetwenMarkers(item, '%s="' % name, '"', False)[1]
-                return val.decode(encoding).encode(encoding)
+    def _real_extract(self, url, allowVP9=False, authHeader=None):
+        # authHeader: {"Authorization": "Bearer ..."} when the user is signed
+        # in - lets the player request reach members-only / age-restricted
+        # content. Broken into named steps below (was one 250+ line function);
+        # each step's inputs/outputs are just what's in its signature/return.
+        authHeader = authHeader or {}
+        url = self._followNextUrlRedirect(url)
+        video_id = self._extract_id(url)
 
-            data = data.split("/>")
-            for item in data:
-                if "lang_code" not in item:
-                    continue
-                id = getArg(item, "id")
-                name = getArg(item, "name")
-                lang_code = getArg(item, "lang_code")
-                lang_original = getArg(item, "lang_original")
-                lang_translated = getArg(item, "lang_translated")
+        isGoogleDoc, video_id, sts, video_webpage, player_response, cookieFile = \
+            self._resolvePlayerResponse(url, video_id, authHeader)
 
-                title = (name + " " + lang_translated).strip()
-                params = {"lang": lang_code, "v": video_id, "fmt": "vtt", "name": name}
-                url = "https://www.youtube.com/api/timedtext?" + urllib_urlencode(params)
-                sub_tracks.append({"title": title, "url": url, "lang": lang_code, "ytid": id, "format": "vtt"})
-        except Exception:
-            printExc()
-        printDBG(sub_tracks)
-        return sub_tracks
+        if isGoogleDoc and not sts:
+            reportExtractorError("Unable to download video webpage")
+            return []
+        if not player_response:
+            reportExtractorError("Unable to get player response")
+            return []
 
-    def _real_extract(self, url, allowVP9=False, allowAgeGate=False):
-        # Extract original video URL from URL with redirection, like age verification, using next_url parameter
+        video_info = player_response.get("videoDetails", {})
+        video_duration = video_info.get("lengthSeconds", "")
 
+        video_url_list, is_m3u8 = self._extractFormatUrls(player_response, video_info, video_id, allowVP9)
+        if not video_url_list:
+            return []
+
+        if not self._decryptSignedUrls(video_url_list, video_webpage, video_id):
+            return []
+
+        cookieHeader = self.cm.getCookieHeader(cookieFile) if isGoogleDoc else None
+        return self._buildResults(video_id, player_response, video_url_list, video_duration, is_m3u8, isGoogleDoc, cookieHeader)
+
+    def _followNextUrlRedirect(self, url):
+        # follow a next_url= redirect (old age-verification style link) if present
         mobj = re.search(self._NEXT_URL_RE, url)
         if mobj:
             # https
-            url = "http://www.youtube.com/" + compat_urllib_parse.unquote(mobj.group(1)).lstrip("/")
-        video_id = self._extract_id(url)
+            return "https://www.youtube.com/" + _unquote(mobj.group(1)).lstrip("/")
+        return url
 
+    def _resolvePlayerResponse(self, url, video_id, authHeader):
+        # Resolves the player response for a video, or for a legacy embedded
+        # Google Doc ("yt-video-id" placeholder). Returns (isGoogleDoc,
+        # video_id, sts, video_webpage, player_response, cookieFile) -
+        # player_response is None when nothing playable was found.
         player_response = None
         if "yt-video-id" == video_id:
-            video_id = self.cm.ph.getSearchGroups(url + "&", "[\?&]docid=([^\?^&]+)[\?&]")[0]
+            video_id = self.cm.ph.getSearchGroups(url + "&", r"[\?&]docid=([^\?^&]+)[\?&]")[0]
             isGoogleDoc = True
-            url = url
-            videoKey = "docid"
-            COOKIE_FILE = GetCookieDir("docs.google.com.cookie")
-            videoInfoparams = {"cookiefile": COOKIE_FILE, "use_cookie": True, "load_cookie": False, "save_cookie": True}
+            cookieFile = GetCookieDir("docs.google.com.cookie")
             sts, video_webpage = self.cm.getPage(url)
-        else:
-            tries = 0
-            while tries < 3:
-                tries += 1
-                url = "https://www.youtube.com/youtubei/v1/player?prettyPrint=false"
-                isGoogleDoc = False
-                videoKey = "video_id"
-                videoInfoparams = {}
+            return isGoogleDoc, video_id, sts, video_webpage, player_response, cookieFile
 
-                http_params = {"header": {"User-Agent": "com.google.android.youtube/20.32.35(Linux; U; Android 15) gzip", "Content-Type": "application/json", "Origin": "https://www.youtube.com", "X-YouTube-Client-Name": "3", "X-YouTube-Client-Version": "20.32.35"}}
-                http_params["raw_post_data"] = True
-                post_data = "{'videoId': '%s', 'params': '2AMB', 'context': {'client': {'hl': '%s', 'clientVersion': '20.32.35', 'clientName': 'ANDROID', 'androidSdkVersion': 35, 'osName': 'Android', 'osVersion': '15',}}}" % (video_id, GetDefaultLang())
-                sts, video_webpage = self.cm.getPage(url, http_params, post_data)
-                if sts:
-                    if allowAgeGate and "LOGIN_REQUIRED" in video_webpage:
-                        http_params["header"]["X-YouTube-Client-Name"] = "85"
-                        post_data = "{'videoId': '%s', 'thirdParty': 'https://www.youtube.com/', 'context': {'client': {'clientName': 'TVHTML5_SIMPLY_EMBEDDED_PLAYER', 'clientVersion': '2.0', 'clientScreen': 'EMBED'}}}" % video_id
-                        sts, video_webpage = self.cm.getPage(url, http_params, post_data)
-                    player_response = json_loads(video_webpage)
-                else:
-                    url = "http://www.youtube.com/watch?v=%s&bpctr=9999999999&has_verified=1&" % video_id
-                    sts, video_webpage = self.cm.getPage(url)
-                    if sts:
-                        player_response = self._extract_yt_initial_variable(video_webpage, self._YT_INITIAL_PLAYER_RESPONSE_RE, video_id, "initial player response")
-                printDBG("_real_extract tries %s" % tries)
-                if player_response and player_response.get("streamingData"):
-                    break
+        isGoogleDoc = False
+        cookieFile = None
+        playerRequestUrl = "https://www.youtube.com/youtubei/v1/player?prettyPrint=false"
+        lang = GetDefaultLang()
+        # Anonymous: ANDROID only, one request per video - the same
+        # footprint the plain python3 host runs at without ever tripping
+        # the bot wall. No IOS second request (also a yt-dlp fingerprint).
+        it_clients = [
+            ("3", YT_ANDROID_CLIENT_VERSION, False,
+             "com.google.android.youtube/%s(Linux; U; Android %s) gzip" % (YT_ANDROID_CLIENT_VERSION, YT_ANDROID_OS_VERSION),
+             "'clientVersion': '%s', 'clientName': 'ANDROID', 'androidSdkVersion': %s, 'osName': 'Android', 'osVersion': '%s'" % (YT_ANDROID_CLIENT_VERSION, YT_ANDROID_SDK_VERSION, YT_ANDROID_OS_VERSION)),
+        ]
+        video_webpage = ""
+        ageReason = ""
+        if authHeader:
+            # Signed in: InnerTube only accepts the OAuth bearer token on
+            # the TVHTML5 client (ANDROID/IOS/WEB + bearer -> HTTP 400), so
+            # it is added as a last-resort client and is the only one the
+            # token is attached to. It honours the token for age-restricted
+            # / members content and gets past the bot wall (authenticated),
+            # so it is tried even after an anonymous LOGIN_REQUIRED.
+            it_clients.append(("7", "7.20250101.10.00", True,
+                               "Mozilla/5.0 (ChromiumStylePlatform) Cobalt/Version",
+                               "'clientName': 'TVHTML5', 'clientVersion': '7.20250101.10.00'"))
+        botWalled = False
+        sts = False
+        for cname, cver, extraChecks, ua, client_ctx in it_clients:
+            header = {"User-Agent": ua, "Content-Type": "application/json", "Origin": "https://www.youtube.com", "X-YouTube-Client-Name": cname, "X-YouTube-Client-Version": cver}
+            if cname == "7":
+                header.update(authHeader)
+            http_params = {"header": header, "raw_post_data": True}
+            # contentCheckOk/racyCheckOk only on the authenticated client -
+            # sending them anonymously is part of the yt-dlp fingerprint
+            checks = " 'contentCheckOk': true, 'racyCheckOk': true," if extraChecks else ""
+            post_data = "{'videoId': '%s',%s 'params': '2AMB', 'context': {'client': {'hl': '%s', %s,}}}" % (video_id, checks, lang, client_ctx)
+            sts, data = self.cm.getPage(playerRequestUrl, http_params, post_data)
+            if not sts:
+                continue
+            try:
+                pr = json_loads(data)
+            except Exception:
+                continue
+            status = pr.get("playabilityStatus", {}).get("status", "") if isinstance(pr, dict) else ""
+            printDBG("_real_extract: player client %s -> %s" % (cname, status or "no status"))
+            if isinstance(pr, dict) and pr.get("streamingData"):
+                player_response, video_webpage = pr, data
+                break
+            if status in ("LOGIN_REQUIRED", "ERROR", "UNPLAYABLE", "AGE_VERIFICATION_REQUIRED"):
+                player_response = pr
+                ageReason = pr.get("playabilityStatus", {}).get("reason", "") or ageReason
+                reason = (pr.get("playabilityStatus", {}).get("reason", "") or "").lower()
+                if status == "LOGIN_REQUIRED" and ("bot" in reason or "sign in to confirm" in reason):
+                    # YouTube's "sign in to confirm you're not a bot" wall.
+                    # Every anonymous client and the watch page is gated the
+                    # same way from the same IP, so hammering the rest just
+                    # piles more flagged requests on and deepens the block.
+                    # Anonymous -> stop now. Signed in -> keep going so the
+                    # authenticated TVHTML5 client (7) still gets its try.
+                    botWalled = True
+                    if not authHeader:
+                        break
 
-        if not sts:
-            raise ExtractorError("Unable to download video webpage")
+        # last resort: the watch page's ytInitialPlayerResponse (its URLs
+        # need sig + nsig descrambling, so worse quality, but sometimes the
+        # only thing left) - skip it when we're already bot-walled, it is
+        # gated too and only adds another flagged request
+        if not botWalled and not (player_response and player_response.get("streamingData")):
+            sts, wp = self.cm.getPage("https://www.youtube.com/watch?v=%s&bpctr=9999999999&has_verified=1&" % video_id)
+            if sts:
+                video_webpage = wp
+                wr = self._extract_yt_initial_variable(wp, self._YT_INITIAL_PLAYER_RESPONSE_RE, video_id, "initial player response")
+                if wr and wr.get("streamingData"):
+                    player_response = wr
 
-        if not player_response:
-            raise ExtractorError("Unable to get player response")
+        if not (player_response and player_response.get("streamingData")):
+            # nothing playable - almost always an age / sign-in wall, which
+            # no anonymous YouTube client can pass any more
+            SetIPTVPlayerLastHostError(ageReason or _("This video requires you to sign in to a YouTube account."))
 
-        video_info = player_response.get("videoDetails", {})
-        # subtitles
-        video_duration = video_info.get("lengthSeconds", "")
+        return isGoogleDoc, video_id, sts, video_webpage, player_response, cookieFile
 
+    def _extractFormatUrls(self, player_response, video_info, video_id, allowVP9):
+        # Returns (video_url_list, is_m3u8) built from streamingData's
+        # formats/adaptiveFormats (with cipher/signatureCipher decoding), or
+        # from the HLS manifest instead when it's a live broadcast or nothing
+        # else was playable.
         url_map = {}
         video_url_list = {}
 
         try:
             is_m3u8 = "no"
             cipher = {}
-            url_data_str = []
-            url_data_str = player_response["streamingData"]["formats"]
-            try:
-                url_data_str += player_response["streamingData"]["adaptiveFormats"]
-            except Exception:
-                printExc()
+            streaming_data = player_response.get("streamingData", {}) or {}
+            # some clients (TVHTML5, a few age/members responses) return only
+            # adaptiveFormats and no muxed "formats" list at all
+            url_data_str = list(streaming_data.get("formats", []) or [])
+            url_data_str += list(streaming_data.get("adaptiveFormats", []) or [])
 
             for url_data in url_data_str:
 
@@ -660,10 +629,10 @@ class YoutubeIE(object):
                     printDBG(cipher)
 
                     cipher = cipher.split("&")
+                    sig_item = ""
+                    s_item = ""
+                    sp_item = ""
                     for item in cipher:
-                        # sig_item = ''
-                        # s_item = ''
-                        # sp_item = ''
                         if "url=" in item:
                             url_item = {"url": _unquote(item.replace("url=", ""), None)}
                         if "sig=" in item:
@@ -672,7 +641,7 @@ class YoutubeIE(object):
                             s_item = item.replace("s=", "")
                         if "sp=" in item:
                             sp_item = item.replace("sp=", "")
-                    if "sig" in cipher:
+                    if sig_item:
                         signature = sig_item
                         url_item["url"] += "&signature=" + signature
                     elif len(s_item):
@@ -681,7 +650,7 @@ class YoutubeIE(object):
                             url_item["url"] += "&%s={0}" % sp_item
                         else:
                             url_item["url"] += "&signature={0}"
-                    if not "ratebypass" in url_item["url"]:
+                    if "ratebypass" not in url_item["url"]:
                         url_item["url"] += "&ratebypass=yes"
 
                 url_map[str(url_data["itag"])] = url_item
@@ -689,15 +658,30 @@ class YoutubeIE(object):
         except Exception:
             printExc()
 
-        if video_info.get("isLive", True) and not video_url_list:  # j00zek needs verification if default value should be True or False, for now assuming yes
-            is_m3u8 = "yes"
-            manifest_url = _unquote(player_response["streamingData"]["hlsManifestUrl"], None)
-            url_map = self._extract_from_m3u8(manifest_url, video_id)
-            video_url_list = self._get_video_url_list(url_map, allowVP9)
+        # A currently-running live stream is served as server-side fragmented
+        # DASH from googlevideo - a plain GET of those adaptiveFormats URLs
+        # yields a stream exteplayer3/ffmpeg cannot demux (and the merge://
+        # A/V downloader only ever grabs one fragment), so for a live video
+        # the HLS manifest is the only thing that actually plays. Prefer it
+        # even though adaptiveFormats are present. isLive is only set while
+        # the broadcast is live; a finished stream's VOD has isLive absent
+        # and keeps the normal DASH path.
+        is_live = bool(video_info.get("isLive"))
+        manifest_url = player_response.get("streamingData", {}).get("hlsManifestUrl")
+        if manifest_url and (not video_url_list or is_live):
+            hls_url_map = self._extract_from_m3u8(_unquote(manifest_url, None), video_id)
+            hls_url_list = self._get_video_url_list(hls_url_map, allowVP9)
+            if hls_url_list:
+                is_m3u8 = "yes"
+                video_url_list = hls_url_list
 
-        if not video_url_list:
-            return []
+        return video_url_list, is_m3u8
 
+    def _decryptSignedUrls(self, video_url_list, video_webpage, video_id):
+        # Fills signItems' final URLs in place (dicts are mutable, so this
+        # propagates straight into video_url_list). Returns False when the
+        # caller should abort extraction with [], True otherwise (including
+        # the common case of no ciphered formats at all).
         signItems = []
         signatures = []
         for idx in range(len(video_url_list)):
@@ -705,35 +689,45 @@ class YoutubeIE(object):
                 signItems.append(video_url_list[idx][1])
                 signatures.append(video_url_list[idx][1]["esign"])
 
-        if len(signatures):
-            # decrypt signatures
-            printDBG("signatures: %s" % signatures)
-            playerUrl = ""
-            tmp = ph.find(video_webpage, ("<script", ">", "player/base"))[1]
-            playerUrl = ph.getattr(tmp, "src")
-            if not playerUrl:
-                for reObj in ['"assets"\:[^\}]+?"js"\s*:\s*"([^"]+?)"', 'src="([^"]+?)"[^>]+?name="player.*?/base"', '"jsUrl":"([^"]+?)"']:
-                    playerUrl = ph.search(video_webpage, reObj)[0]
-                    if playerUrl:
-                        break
-            playerUrl = self.cm.getFullUrl(playerUrl.replace("\\", ""), self.cm.meta["url"])
-            if playerUrl:
-                decSignatures = CYTSignAlgoExtractor(self.cm).decryptSignatures(signatures, playerUrl)
-                if len(signatures) == len(signItems):
-                    try:
-                        for idx in range(len(signItems)):
-                            signItems[idx]["url"] = signItems[idx]["url"].format(decSignatures[idx])
-                    except Exception:
-                        printExc()
-                        SetIPTVPlayerLastHostError(_("Decrypt Signatures Error"))
-                        return []
-                else:
-                    return []
+        if not signatures:
+            return True
 
-        if isGoogleDoc:
-            cookieHeader = self.cm.getCookieHeader(COOKIE_FILE)
+        # decrypt signatures
+        printDBG("signatures: %s" % signatures)
+        playerUrl = ""
+        tmp = ph.find(video_webpage, ("<script", ">", "player/base"))[1]
+        playerUrl = ph.getattr(tmp, "src")
+        if not playerUrl:
+            for reObj in [r'"assets"\:[^\}]+?"js"\s*:\s*"([^"]+?)"', 'src="([^"]+?)"[^>]+?name="player.*?/base"', '"jsUrl":"([^"]+?)"']:
+                playerUrl = ph.search(video_webpage, reObj)[0]
+                if playerUrl:
+                    break
+        if not playerUrl:
+            # video_webpage is the InnerTube JSON, not HTML - grab base.js
+            # from the watch page instead
+            sts, wp = self.cm.getPage("https://www.youtube.com/watch?v=%s" % video_id)
+            if sts:
+                playerUrl = self._search_regex([r'"jsUrl":"([^"]+?)"', r'"(?:PLAYER_JS_URL|jsUrl)"\s*:\s*"([^"]+base\.js)"'], wp, "player URL", default="")
+        playerUrl = self.cm.getFullUrl(playerUrl.replace("\\", ""), self.cm.meta["url"])
+        if playerUrl:
+            decSignatures = CYTSignAlgoExtractor(self.cm).decryptSignatures(signatures, playerUrl)
+            if len(signatures) == len(signItems):
+                try:
+                    for idx in range(len(signItems)):
+                        signItems[idx]["url"] = signItems[idx]["url"].format(decSignatures[idx])
+                except Exception:
+                    printExc()
+                    SetIPTVPlayerLastHostError(_("Decrypt Signatures Error"))
+                    return False
+            else:
+                return False
+        return True
 
-        sub_tracks = self._get_automatic_captions(video_id, player_response)
+
+    def _buildResults(self, video_id, player_response, video_url_list, video_duration, is_m3u8, isGoogleDoc, cookieHeader):
+        caption_tracks = self._extract_caption_tracks(video_id, player_response)
+        manual_sub_tracks = self._caption_tracks_to_subs(caption_tracks, False)
+        sub_tracks = manual_sub_tracks + self._caption_tracks_to_subs(caption_tracks, True, start_idx=len(manual_sub_tracks))
         results = []
         for format_param, url_item in video_url_list:
             # Extension
@@ -774,14 +768,17 @@ class YoutubeIE(object):
             return urls
 
         sts, manifest = self.cm.getPage(manifest_url)
-        formats_urls = _get_urls(manifest)
-        for format_url in formats_urls:
-            itag = self._search_regex(r"itag/(\d+?)/", format_url, "itag")
-            url_map[itag] = {"url": format_url}
+        if not sts:
+            return url_map
+        for format_url in _get_urls(manifest):
+            itag = self._search_regex(r"itag/(\d+?)/", format_url, "itag", default="")
+            if itag:
+                url_map[itag] = {"url": format_url}
         return url_map
 
     def _search_regex(self, pattern, string, name, default=None, fatal=True, flags=0):
         compiled_regex_type = type(re.compile(""))
+        mobj = None
         if isinstance(pattern, (str, compat_str, compiled_regex_type)):
             mobj = re.search(pattern, string, flags)
         else:
@@ -796,10 +793,9 @@ class YoutubeIE(object):
         elif default is not None:
             return default
         elif fatal:
-            printDBG("Unable to extract %s" % name)
-            raise
+            raise Exception("Unable to extract %s" % name)
         else:
-            printDBG("unable to extract %s; please report this issue on http://yt-dl.org/bug" % name)
+            printDBG("unable to extract %s" % name)
             return None
 
     def _get_video_url_list(self, url_map, allowVP9=False):

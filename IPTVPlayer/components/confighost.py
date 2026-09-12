@@ -48,6 +48,36 @@ class ConfigHostMenu(ConfigBaseWidget):
         self.list = self.host.GetConfigList()
         ConfigBaseWidget.runSetup(self)
 
+    def keyOK(self):
+        # A host may expose an "action row" in its GetConfigList() - a config
+        # element carrying an `iptv_host_action` attribute - to run something
+        # interactive (a sign-in dialog, a device pairing) straight from its
+        # settings screen, which otherwise only edits plain config values.
+        # The host module then handles it in a module-level HandleConfigAction
+        # (session, action, callback) and calls the callback to have the list
+        # redrawn (e.g. a "Sign in" row becoming "Sign out").
+        try:
+            currItem = self["config"].getCurrent()[1]
+        except Exception:
+            printExc()
+            currItem = None
+        action = getattr(currItem, "iptv_host_action", "") if currItem is not None else ""
+        if action:
+            handler = getattr(self.host, "HandleConfigAction", None)
+            if callable(handler):
+                try:
+                    handler(self.session, action, boundFunction(self._afterConfigAction))
+                except Exception:
+                    printExc()
+                return
+        ConfigBaseWidget.keyOK(self)
+
+    def _afterConfigAction(self, *args):
+        try:
+            self.runSetup()
+        except Exception:
+            printExc()
+
     def changeSubOptions(self):
         try:
             if not isinstance(self["config"].getCurrent()[1], NumericalTextInput):

@@ -317,7 +317,7 @@ class IPTVDMApi():
         self.queueUD[listUDIdx].originalFileName = item.fileName
 
         url, downloaderParams = DMHelper.getDownloaderParamFromUrl(item.url)
-        self.queueUD[listUDIdx].downloader = DownloaderCreator(url)
+        self.queueUD[listUDIdx].downloader = DownloaderCreator(url, forDownload=True)
         # this is a real download (not buffered playback) -> the downloader may
         # rename the finished file to its true container extension
         try:

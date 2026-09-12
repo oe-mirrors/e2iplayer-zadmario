@@ -37,7 +37,7 @@ def GetConfigList():
 class YoutubeComProvider(CBaseSubProviderClass):
 
     def __init__(self, params={}):
-        self.MAIN_URL = 'http://youtube.com/'
+        self.MAIN_URL = 'https://youtube.com/'
         self.USER_AGENT = 'Mozilla/5.0 (X11; Linux i686) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/37.0.2062.120 Chrome/37.0.2062.120 Safari/537.36'
         self.HTTP_HEADER = {'User-Agent': self.USER_AGENT, 'Referer': self.MAIN_URL, 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 'Accept-Encoding': 'gzip, deflate'}
 
@@ -58,10 +58,10 @@ class YoutubeComProvider(CBaseSubProviderClass):
         from Plugins.Extensions.IPTVPlayer.libs.youtube_dl.extractor.youtube import YoutubeIE
 
         ytExtractor = YoutubeIE()
-        # get normal langs
-        tab = ytExtractor._get_subtitles(self.youtubeId)
-        tab2 = ytExtractor._get_automatic_captions(self.youtubeId)
-        for item in tab2:
+        # one listing, split into manually authored vs auto-generated tracks
+        tracks = ytExtractor._extract_caption_tracks(self.youtubeId)
+        tab = ytExtractor._caption_tracks_to_subs(tracks, want_asr=False)
+        for item in ytExtractor._caption_tracks_to_subs(tracks, want_asr=True, start_idx=len(tab)):
             item['title'] = '[%s] %s' % (_('Auto-translate'), item['title'])
             tab.append(item)
         defaultLang = GetDefaultLang()

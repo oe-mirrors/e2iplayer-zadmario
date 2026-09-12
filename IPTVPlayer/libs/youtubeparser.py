@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
-# Last Modified: 12.07.2026 - Change: improved configurable YouTube display language, configurable channel name shown in info view and downloaded files, absolute published date shortened to YYYY-MM-DD in info view, normalized escaped text
+# Last Modified: 01.07.2026 - Change: configurable YouTube display language, configurable channel name for downloaded files, absolute published date in info view
 # LOCAL import
 from Plugins.Extensions.IPTVPlayer.libs.youtube_dl.extractor.youtube import YoutubeIE
+from Plugins.Extensions.IPTVPlayer.libs.youtube_oauth import YouTubeOAuth
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, IsExecutable
-from Plugins.Extensions.IPTVPlayer.libs.pCommon import common, CParsingHelper
+from Plugins.Extensions.IPTVPlayer.libs.pCommon import common
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
 from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import decorateUrl
-from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import getDirectM3U8Playlist, getMPDLinksWithMeta
+from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import getMPDLinksWithMeta
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads, dumps as json_dumps
 from Plugins.Extensions.IPTVPlayer.libs import ph
@@ -17,36 +18,91 @@ from Plugins.Extensions.IPTVPlayer.p2p3.pVer import isPY2
 
 # FOREIGN import
 import re
-import codecs
 import time
 from datetime import timedelta
 from Components.Language import language
 from Components.config import config, ConfigSelection, ConfigYesNo
 
 # Config options for HOST
-config.plugins.iptvplayer.ytformat = ConfigSelection(default="mp4", choices=[("flv, mp4", "flv, mp4"), ("flv", "flv"), ("mp4", "mp4")])
 config.plugins.iptvplayer.ytDefaultformat = ConfigSelection(default="720", choices=[("0", _("the worst")), ("144", "144p"), ("240", "240p"), ("360", "360p"), ("720", "720p"), ("1080", "1080p"), ("1440", "1440p"), ("2160", "2160p"), ("9999", _("the best"))])
 config.plugins.iptvplayer.ytUseDF = ConfigYesNo(default=True)
-config.plugins.iptvplayer.ytAgeGate = ConfigYesNo(default=False)
 config.plugins.iptvplayer.ytVP9 = ConfigYesNo(default=False)
 config.plugins.iptvplayer.ytShowDash = ConfigSelection(default="auto", choices=[("auto", _("Auto")), ("true", _("Yes")), ("false", _("No"))])
 config.plugins.iptvplayer.ytSortBy = ConfigSelection(default="A", choices=[("A", _("Relevance")), ("I", _("Upload date")), ("M", _("View count")), ("E", _("Rating"))])
+config.plugins.iptvplayer.youtube_search_region = ConfigSelection(default="auto", choices=[("auto", _("Automatic"))] + [(c, c) for c in ("US", "GB", "DE", "AT", "CH", "FR", "IT", "ES", "PL", "NL", "BE", "CZ", "RU", "UA", "TR", "GR", "SE", "PT", "BR", "MX", "IN", "JP", "KR", "CA", "AU")])
+config.plugins.iptvplayer.youtube_safe_search = ConfigYesNo(default=False)
+
+# InnerTube WEB client. The API key is the long-lived public youtube.com one
+# (unchanged for years, also used by yt-dlp); the client version and
+# visitorData rot and are refreshed at runtime from ytcfg - see
+# YouTubeParser._absorbPageConfig() / _getYtConfig(). These are only the
+# fallbacks for when that scrape fails.
+YT_INNERTUBE_API_KEY = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"
+YT_CLIENT_VERSION_FALLBACK = "2.20260904.01.00"
+
+# Fallback region (YouTube gl=) per selectable UI language - only the codes
+# where it isn't simply the language code upper-cased.
+_YT_LANG_DEFAULT_REGION = {
+    "en": "US", "cs": "CZ", "el": "GR", "da": "DK", "sv": "SE", "uk": "UA",
+    "ja": "JP", "ko": "KR", "zh": "CN", "ar": "SA", "sr": "RS", "he": "IL",
+    "hi": "IN", "no": "NO", "nb": "NO", "sl": "SI", "et": "EE",
+}
 
 
-class YouTubeParser():
+class YouTubeParser:
+
+    # process-wide cache: {"client_version": str, "api_key": str, "visitor_data": str}
+    _ytConfig = None
 
     def __init__(self):
         self.cm = common()
         self.HTTP_HEADER = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
             "X-YouTube-Client-Name": "1",
-            "X-YouTube-Client-Version": "2.20201112.04.01",
+            "X-YouTube-Client-Version": YT_CLIENT_VERSION_FALLBACK,
             "X-Requested-With": "XMLHttpRequest"
         }
         self.http_params = {"header": self.HTTP_HEADER, "return_data": True}
         self.postdata = {}
         self.sessionToken = ""
         return
+
+    def _absorbPageConfig(self, data):
+        # every youtube.com HTML page carries the full ytcfg; harvest the
+        # bits that go stale so continuation POSTs stay current for free.
+        try:
+            data = ensure_str(data)
+        except Exception:
+            return
+        cfg = dict(YouTubeParser._ytConfig or {})
+        m = re.search(r'"INNERTUBE_(?:CONTEXT_)?CLIENT_VERSION":"([0-9.]+)"', data)
+        if m:
+            cfg["client_version"] = m.group(1)
+        m = re.search(r'"INNERTUBE_API_KEY":"([A-Za-z0-9_\-]+)"', data)
+        if m:
+            cfg["api_key"] = m.group(1)
+        m = re.search(r'"visitorData":"([^"\\]{20,2000})"', data)
+        if m:
+            cfg["visitor_data"] = m.group(1)
+        if cfg:
+            YouTubeParser._ytConfig = cfg
+
+    def _getYtConfig(self, fetchIfMissing=False):
+        if fetchIfMissing and not (YouTubeParser._ytConfig or {}).get("client_version"):
+            # continuation-only flow with nothing harvested yet - one cheap
+            # fetch of the home page, else fall through to the constants
+            try:
+                sts, data = self.cm.getPage("https://www.youtube.com/", self.http_params)
+                if sts and data:
+                    self._absorbPageConfig(data)
+            except Exception:
+                printExc()
+        cfg = YouTubeParser._ytConfig or {}
+        return {
+            "client_version": cfg.get("client_version") or YT_CLIENT_VERSION_FALLBACK,
+            "api_key": cfg.get("api_key") or YT_INNERTUBE_API_KEY,
+            "visitor_data": cfg.get("visitor_data") or "",
+        }
 
     @staticmethod
     def isDashAllowed():
@@ -67,13 +123,8 @@ class YouTubeParser():
         printDBG("2. ALLOW VP9: >> %s" % value)
         return value
 
-    @staticmethod
-    def isAgeGateAllowed():
-        value = config.plugins.iptvplayer.ytAgeGate.value
-        printDBG("ALLOW Age-Gate bypass: >> %s" % value)
-        return value
-
     def checkSessionToken(self, data):
+        self._absorbPageConfig(data)
         if not self.sessionToken:
             token = self.cm.ph.getSearchGroups(data, '''"XSRF_TOKEN":"([^"]+?)"''')[0]
             if token:
@@ -82,9 +133,37 @@ class YouTubeParser():
                 self.postdata = {"session_token": token}
 
     # DIRECT LINK RESOLUTION
-    def getDirectLinks(self, url, formats="flv, mp4", dash=True, dashSepareteList=False, allowVP9=None, allowAgeGate=None):
+    def getDirectLinks(self, url, dash=True, dashSepareteList=False, allowVP9=None):
         printDBG("YouTubeParser.getDirectLinks")
-        linksList = []
+        linksList = self._resolveVideoLinks(url, allowVP9)
+        if linksList is None:
+            return ([], []) if dashSepareteList else []
+
+        dashAudioLists, dashVideoLists, dashList = self._splitDashLists(linksList) if dash else ([], [], [])
+        retList, retHLSList = self._filterFormatLists(linksList)
+        dashList = self._appendMergedDashItems(dashAudioLists, dashVideoLists, dashList)
+
+        # no progressive/muxed format survived - fall back to the HLS list
+        # (_real_extract already resolves hlsManifestUrl and the DASH
+        # adaptiveFormats; the old "hlsvp"/"dashmpd" watch-page keys this
+        # used to scrape were removed by YouTube years ago)
+        if 0 == len(retList):
+            retList = retHLSList
+
+        for idx in range(len(retList)):
+            if retList[idx].get("m3u8", False):
+                retList[idx]["url"] = strwithmeta(retList[idx]["url"], {"iptv_m3u8_live_start_index": -30})
+
+        if dashSepareteList:
+            return retList, dashList
+        else:
+            retList.extend(dashList)
+            return retList
+
+    def _resolveVideoLinks(self, url, allowVP9):
+        # Resolves a /channel/.../live URL to its live video's watch URL,
+        # then runs the real extractor. None on failure (the caller returns
+        # the dashSepareteList-appropriate empty result for that).
         try:
             if self.cm.isValidUrl(url) and "/channel/" in url and url.endswith("/live"):
                 sts, data = self.cm.getPage(url)
@@ -94,52 +173,54 @@ class YouTubeParser():
                         videoId = self.cm.ph.getSearchGroups(data, r"""['"]REDIRECT_TO_VIDEO['"]\s*\,\s*['"]([^'^"]+?)['"]""")[0]
                     if videoId != "":
                         url = "https://www.youtube.com/watch?v=" + videoId
-            linksList = YoutubeIE()._real_extract(url, allowVP9=allowVP9, allowAgeGate=allowAgeGate)
+            return YoutubeIE()._real_extract(url, allowVP9=allowVP9, authHeader=self._getAuthHeader())
         except Exception:
             printExc()
-            if dashSepareteList:
-                return [], []
-            else:
-                return []
+            return None
 
+    def _splitDashLists(self, linksList):
+        # Separates the audio-only / video-only DASH renditions (best
+        # quality first); mpd items are expanded into a dash-tagged list of
+        # their own straight away.
         reNum = re.compile("([0-9]+)")
-        retHLSList = []
-        retList = []
-        dashList = []
-        # filter dash
         dashAudioLists = []
         dashVideoLists = []
-        if dash:
-            # separete audio and video links
-            for item in linksList:
-                if "mp4a" == item["ext"]:
-                    dashAudioLists.append(item)
-                elif item["ext"] in ("mp4v", "webmv"):
-                    dashVideoLists.append(item)
-                elif "mpd" == item["ext"]:
-                    tmpList = getMPDLinksWithMeta(ensure_str(item["url"]), checkExt=False)
-                    printDBG(tmpList)
-                    for idx in range(len(tmpList)):
-                        tmpList[idx]["format"] = "%sx%s" % (tmpList[idx].get("height", 0), tmpList[idx].get("width", 0))
-                        tmpList[idx]["ext"] = "mpd"
-                        tmpList[idx]["dash"] = True
-                    dashList.extend(tmpList)
-            # sort by quality -> format
+        dashList = []
+        for item in linksList:
+            if "mp4a" == item["ext"]:
+                dashAudioLists.append(item)
+            elif item["ext"] in ("mp4v", "webmv"):
+                dashVideoLists.append(item)
+            elif "mpd" == item["ext"]:
+                tmpList = getMPDLinksWithMeta(ensure_str(item["url"]), checkExt=False)
+                printDBG(tmpList)
+                for idx in range(len(tmpList)):
+                    tmpList[idx]["format"] = "%sx%s" % (tmpList[idx].get("height", 0), tmpList[idx].get("width", 0))
+                    tmpList[idx]["ext"] = "mpd"
+                    tmpList[idx]["dash"] = True
+                dashList.extend(tmpList)
 
-            def _key(x):
-                if x["format"].startswith(">"):
-                    return int(x["format"][1:-1])
-                else:
-                    return int(ph.search(x["format"], reNum)[0])
+        def _key(x):
+            if x["format"].startswith(">"):
+                return int(x["format"][1:-1])
+            else:
+                return int(ph.search(x["format"], reNum)[0])
 
-            dashAudioLists = sorted(dashAudioLists, key=_key, reverse=True)
-            dashVideoLists = sorted(dashVideoLists, key=_key, reverse=True)
+        dashAudioLists = sorted(dashAudioLists, key=_key, reverse=True)
+        dashVideoLists = sorted(dashVideoLists, key=_key, reverse=True)
+        return dashAudioLists, dashVideoLists, dashList
 
+    def _filterFormatLists(self, linksList):
+        # Progressive/muxed mp4 formats, split into plain (retList) and
+        # HLS (retHLSList). mp4 is the only progressive container YouTube
+        # still serves (webm/3gp progressive formats died years ago).
+        retHLSList = []
+        retList = []
         for item in linksList:
             printDBG(">>>>>>>>>>>>>>>>>>>>>")
             printDBG(str(item))
             printDBG("<<<<<<<<<<<<<<<<<<<<<")
-            if -1 < formats.find(item["ext"]):
+            if "mp4" == item["ext"]:
                 if "yes" == item["m3u8"]:
                     format = re.search("([0-9]+?)p$", item["format"])
                     if format is not None:
@@ -153,68 +234,30 @@ class YouTubeParser():
                         item["format"] = format.group(1)
                         item["url"] = decorateUrl(ensure_str(item["url"]))
                         retList.append(item)
+        return retList, retHLSList
 
+    def _appendMergedDashItems(self, dashAudioLists, dashVideoLists, dashList):
         if len(dashAudioLists):
             # use best audio
             for item in dashVideoLists:
                 item = dict(item)
-                item["url"] = decorateUrl("merge://audio_url|video_url", {"audio_url": dashAudioLists[0]["url"], "video_url": ensure_str(item["url"])})
-                dashList.append(item)
-
-        # try to get hls format with alternative method
-        if 0 == len(retList):
-            try:
-                video_id = YoutubeIE()._extract_id(url)
-                url = "http://www.youtube.com/watch?v=%s&gl=US&hl=en&has_verified=1" % video_id
-                sts, data = self.cm.getPage(url, {"header": {"User-agent": "Mozilla/5.0 (iPad; CPU OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/146.0.7680.38 Mobile/15E148 Safari/604.1"}})
-                if sts:
-                    data = data.replace('\\"', '"').replace("\\\\\\/", "/")
-                    hlsUrl = self.cm.ph.getSearchGroups(data, r'''"hlsvp"\s*:\s*"(https?://[^"]+?)"''')[0]
-                    hlsUrl = json_loads('"%s"' % hlsUrl)
-                    if self.cm.isValidUrl(hlsUrl):
-                        hlsList = getDirectM3U8Playlist(hlsUrl)
-                        if len(hlsList):
-                            dashList = []
-                            for item in hlsList:
-                                item["format"] = "%sx%s" % (item.get("width", 0), item.get("height", 0))
-                                item["ext"] = "m3u8"
-                                item["m3u8"] = True
-                                retList.append(item)
-            except Exception:
-                printExc()
-            if 0 == len(retList):
-                retList = retHLSList
-
-            if dash:
+                # iptv_use_ffmpeg: mux the two renditions with ffmpeg
+                # (FFMPEGDownloader, progressive) rather than wget-both-then-mux
+                # (MergeDownloader), which downloaded the whole file before
+                # playback could start. Only the buffered path reads this flag;
+                # no-buffer playback hands exteplayer3 the two URLs via -x.
+                mergeMeta = {"audio_url": dashAudioLists[0]["url"], "video_url": ensure_str(item["url"]), "iptv_use_ffmpeg": True}
+                # carry the caption tracks over - decorateUrl on the literal
+                # "merge://" string would otherwise drop them
                 try:
-                    sts, data = self.cm.getPage(url, {"header": {"User-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"}})
-                    data = data.replace('\\"', '"').replace("\\\\\\/", "/").replace("\\/", "/")
-                    dashUrl = self.cm.ph.getSearchGroups(data, r'''"dashmpd"\s*:\s*"(https?://[^"]+?)"''')[0]
-                    dashUrl = json_loads('"%s"' % dashUrl)
-                    if "?" not in dashUrl:
-                        dashUrl += "?mpd_version=5"
-                    else:
-                        dashUrl += "&mpd_version=5"
-                    printDBG("DASH URL >> [%s]" % dashUrl)
-                    if self.cm.isValidUrl(dashUrl):
-                        dashList = getMPDLinksWithMeta(dashUrl, checkExt=False)
-                        printDBG(dashList)
-                        for idx in range(len(dashList)):
-                            dashList[idx]["format"] = "%sx%s" % (dashList[idx].get("height", 0), dashList[idx].get("width", 0))
-                            dashList[idx]["ext"] = "mpd"
-                            dashList[idx]["dash"] = True
+                    subs = strwithmeta(item["url"]).meta.get("external_sub_tracks", [])
+                    if subs:
+                        mergeMeta["external_sub_tracks"] = subs
                 except Exception:
                     printExc()
-
-        for idx in range(len(retList)):
-            if retList[idx].get("m3u8", False):
-                retList[idx]["url"] = strwithmeta(retList[idx]["url"], {"iptv_m3u8_live_start_index": -30})
-
-        if dashSepareteList:
-            return retList, dashList
-        else:
-            retList.extend(dashList)
-            return retList
+                item["url"] = decorateUrl("merge://audio_url|video_url", mergeMeta)
+                dashList.append(item)
+        return dashList
 
     def updateQueryUrl(self, url, queryDict):
         urlParts = urlparse(url)
@@ -251,17 +294,10 @@ class YouTubeParser():
         url = url.strip()
         if url.startswith("//"):
             url = "https:" + url
-        if url.startswith("http://yt3.googleusercontent.com/"):
-            url = "https://" + url[len("http://"):]
-        elif url.startswith("http://yt3.ggpht.com/"):
-            url = "https://" + url[len("http://"):]
-        elif url.startswith("http://i.ytimg.com/"):
-            url = "https://" + url[len("http://"):]
-        elif url.startswith("http://"):
-            parsed = urlparse(url)
-            host = parsed.netloc.lower()
-            if host.endswith("googleusercontent.com") or host.endswith("ggpht.com") or host.endswith("ytimg.com"):
-                url = "https://" + url[len("http://"):]
+        if url.startswith("http:") and not url.startswith("https:"):
+            host = urlparse(url).netloc.lower()
+            if host.endswith(("googleusercontent.com", "ggpht.com", "ytimg.com")):
+                url = "https:" + url[5:]
         if "?" in url:
             url = url.split("?", 1)[0]
         url = re.sub(r"=s([0-9]+)(?:-c)?(?:-k-c0x00ffffff)?(?:-no-rj)?(?:-mo)?$", "", url, flags=re.IGNORECASE)
@@ -399,11 +435,12 @@ class YouTubeParser():
             if not videoId:
                 return retData
             url = "https://www.youtube.com/watch?v=%s" % videoId
-            sts, data = self.cm.getPage(url, self.http_params)
+            sts, data = self.cm.getPage(url, self._applyYoutubeHeaders())
             if not sts or not data:
                 printDBG("YouTubeParser._getWatchPageData getPage FAILED")
                 return retData
             data = ensure_str(data)
+            self._absorbPageConfig(data)
             publishDate = ""
             m = re.search(r'"publishDate":"([^"]+)"', data, re.IGNORECASE)
             if m:
@@ -484,7 +521,7 @@ class YouTubeParser():
         videoId = videoJson.get("videoId", "")
         if not videoId:
             return {}
-        url = "http://www.youtube.com/watch?v=%s" % videoId
+        url = "https://www.youtube.com/watch?v=%s" % videoId
         try:
             title = self._getSimpleText(videoJson.get("title", {}))
             if not title:
@@ -692,7 +729,7 @@ class YouTubeParser():
         # Videos only, no other types
         if lockupJson.get("contentType") != "LOCKUP_CONTENT_TYPE_VIDEO":
             return {}
-        url = "http://www.youtube.com/watch?v=%s" % videoId
+        url = "https://www.youtube.com/watch?v=%s" % videoId
         try:
             title = lockupJson["metadata"]["lockupMetadataViewModel"]["title"]["content"]
             title = self._normalizeText(title)
@@ -760,14 +797,22 @@ class YouTubeParser():
 
     # LOCALE HELPERS
     def _getDefaultLangAndRegion(self):
+        lang, region = self._deriveLangAndRegion()
+        try:
+            searchRegion = ensure_str(config.plugins.iptvplayer.youtube_search_region.value)
+            if searchRegion and searchRegion != "auto":
+                region = searchRegion
+        except Exception:
+            printExc()
+        return lang, region
+
+    def _deriveLangAndRegion(self):
         lang = "en"
         region = "US"
         try:
-            selectedLang = ensure_str(config.plugins.iptvplayer.youtube_ui_language.value)
-            if selectedLang == "de":
-                return "de", "DE"
-            if selectedLang == "en":
-                return "en", "US"
+            selectedLang = ensure_str(config.plugins.iptvplayer.youtube_ui_language.value).lower()
+            if selectedLang and selectedLang != "system":
+                return selectedLang, _YT_LANG_DEFAULT_REGION.get(selectedLang, selectedLang.upper())
             locale = ensure_str(language.getLanguage())
             if "_" in locale:
                 tmp = locale.split("_", 1)
@@ -787,23 +832,146 @@ class YouTubeParser():
         return lang, region
 
     def _getAcceptLanguage(self):
-        try:
-            selectedLang = ensure_str(config.plugins.iptvplayer.youtube_ui_language.value)
-            if selectedLang == "de":
-                return "de-DE,de;q=0.9"
-            if selectedLang == "en":
-                return "en-US,en;q=0.9"
-        except Exception:
-            printExc()
         lang, region = self._getDefaultLangAndRegion()
         return "%s-%s,%s;q=0.9" % (lang, region, lang)
+
+    def _getAuthHeader(self):
+        try:
+            if not hasattr(self, "_oauth"):
+                self._oauth = YouTubeOAuth()
+            return self._oauth.getAuthHeader()
+        except Exception:
+            printExc()
+            return {}
 
     def _applyYoutubeHeaders(self, http_params=None, accept_language=None):
         params = self.http_params if http_params is None else dict(http_params)
         hdr = dict(params.get("header", {}))
         hdr["Accept-Language"] = accept_language if accept_language is not None else self._getAcceptLanguage()
+        cfg = self._getYtConfig()
+        hdr["X-YouTube-Client-Name"] = "1"
+        hdr["X-YouTube-Client-Version"] = cfg["client_version"]
+        hdr["Origin"] = "https://www.youtube.com"
+        # NB: the OAuth bearer token is deliberately NOT added here - InnerTube
+        # rejects it on the WEB client (browse/search/continuations all 400).
+        # It is only usable on the TVHTML5 client (see _tvBrowse) and on the
+        # player request (see getDirectLinks -> _real_extract authHeader=).
+        hdr["X-Youtube-Bootstrap-Logged-In"] = "false"
+        if cfg["visitor_data"]:
+            hdr["X-Goog-Visitor-Id"] = cfg["visitor_data"]
         params["header"] = hdr
         return params
+
+    def _ytContext(self):
+        hl, gl = self._getDefaultLangAndRegion()
+        cfg = self._getYtConfig(fetchIfMissing=True)
+        client = {"clientName": "WEB", "clientVersion": cfg["client_version"], "hl": hl, "gl": gl}
+        if cfg["visitor_data"]:
+            client["visitorData"] = cfg["visitor_data"]
+        context = {"client": client}
+        if config.plugins.iptvplayer.youtube_safe_search.value:
+            context["user"] = {"enableSafetyMode": True}
+        return cfg, context
+
+    # ---- signed-in personal feeds (TVHTML5) ------------------------------
+    # The OAuth token from the "sign in on TV" flow is only honoured by
+    # InnerTube for the TVHTML5 client; the WEB client answers 400 to it. A
+    # TVHTML5 browse reply uses the living-room "tile" renderers, not the web
+    # ytInitialData shape, so it gets its own small walk here.
+    YT_TV_CLIENT_VERSION = "7.20250312.16.00"
+
+    def _tvBrowse(self, browseId, continuation=None):
+        auth = self._getAuthHeader()
+        if not auth:
+            return {}
+        hl, gl = self._getDefaultLangAndRegion()
+        context = {"client": {"clientName": "TVHTML5", "clientVersion": self.YT_TV_CLIENT_VERSION, "hl": hl, "gl": gl}}
+        if config.plugins.iptvplayer.youtube_safe_search.value:
+            context["user"] = {"enableSafetyMode": True}
+        body = {"context": context}
+        if continuation:
+            body["continuation"] = continuation
+        else:
+            body["browseId"] = browseId
+        hdr = {"Content-Type": "application/json",
+               "User-Agent": "Mozilla/5.0 (ChromiumStylePlatform) Cobalt/Version",
+               "Origin": "https://www.youtube.com",
+               "X-YouTube-Client-Name": "7",
+               "X-YouTube-Client-Version": self.YT_TV_CLIENT_VERSION}
+        hdr.update(auth)
+        http_params = {"header": hdr, "raw_post_data": True}
+        sts, data = self.cm.getPage("https://www.youtube.com/youtubei/v1/browse", http_params, json_dumps(body).encode("utf-8"))
+        if not sts:
+            return {}
+        try:
+            return json_loads(data)
+        except Exception:
+            printExc()
+            return {}
+
+    def _firstFind(self, node, key):
+        return next(self.findKeys(node, key), None)
+
+    def _tvTileToVideo(self, tile):
+        videoId = self._firstFind(tile.get("onSelectCommand", {}), "videoId") or ""
+        if not videoId:
+            return {}
+        md = tile.get("metadata", {}).get("tileMetadataRenderer", {})
+        title = self._getSimpleText(md.get("title", {}))
+        lines = []
+        for line in md.get("lines", []):
+            parts = [self._getSimpleText(it.get("lineItemRenderer", {}).get("text", {}))
+                     for it in line.get("lineRenderer", {}).get("items", [])]
+            parts = [p for p in parts if p]
+            if parts:
+                lines.append(" ".join(parts))
+        # first line is the channel name, the rest are views / age / etc.
+        owner = ensure_str(lines[0]) if lines else ""
+        descLines = lines[1:] if len(lines) > 1 else []
+        icon = ""
+        thumbs = self._firstFind(tile.get("header", {}), "thumbnails")
+        if isinstance(thumbs, list) and thumbs:
+            icon = thumbs[-1].get("url", "")
+        desc = " | ".join(descLines)
+        if owner:
+            desc = (desc + "\n" + owner) if desc else owner
+        return {
+            "type": "video",
+            "category": "video",
+            "title": self._normalizeText(ensure_str(title)),
+            "url": "https://www.youtube.com/watch?v=%s" % videoId,
+            "icon": ensure_str(icon),
+            "time": "",
+            "desc": self._normalizeText(desc),
+            "channel": owner,
+            "channel_title": owner,
+            "video_id": ensure_str(videoId),
+        }
+
+    def getTvFeed(self, browseId, page, cItem):
+        printDBG("YouTubeParser.getTvFeed browseId[%s] page[%s]" % (browseId, page))
+        currList = []
+        response = self._tvBrowse(browseId, cItem.get("tv_continuation", "") or None)
+        if not response:
+            return currList
+        seen = set()
+        for tile in self.findKeys(response, "tileRenderer"):
+            params = self._tvTileToVideo(tile)
+            if params and params["video_id"] not in seen:
+                seen.add(params["video_id"])
+                currList.append(params)
+        # "load more" for this list: the token carried by a
+        # continuationItemRenderer (ignore unrelated continuationCommands
+        # elsewhere in the shell)
+        nextToken = ""
+        for cir in self.findKeys(response, "continuationItemRenderer"):
+            tok = self._firstFind(cir, "token")
+            if tok:
+                nextToken = tok
+        if nextToken and currList:
+            currList.append({"type": "more", "category": cItem.get("category", ""), "title": _("Next page"),
+                             "page": str(int(page) + 1), "tv_continuation": nextToken})
+        return currList
 
     def _extractEntriesFromBrowse(self, response):
         entries = []
@@ -887,18 +1055,9 @@ class YouTubeParser():
                 except Exception:
                     label = _("Next page")
                 # continuation page for channel list
-                hl, gl = self._getDefaultLangAndRegion()
-                urlNextPage = "https://www.youtube.com/youtubei/v1/browse?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"
-                post_data = {
-                    "context": {
-                        "client": {
-                            "clientName": "WEB",
-                            "clientVersion": "2.20201021.03.00",
-                            "hl": hl,
-                            "gl": gl,
-                        }
-                    },
-                }
+                cfg, context = self._ytContext()
+                urlNextPage = "https://www.youtube.com/youtubei/v1/browse?key=" + cfg["api_key"]
+                post_data = {"context": context}
                 post_data["continuation"] = ctoken
                 post_data["context"]["clickTracking"] = {"clickTrackingParams": ctit}
                 post_data = json_dumps(post_data).encode("utf-8")
@@ -920,177 +1079,194 @@ class YouTubeParser():
         printDBG("YouTubeParser.getSearchResult pattern[%s], searchType[%s], page[%s]" % (pattern, searchType, page))
         currList = []
         try:
-            # next page / continuation handling
-            if url:
-                url = strwithmeta(url)
-                if "post_data" in url.meta:
-                    http_params = dict(self.http_params)
-                    http_params["header"]["Content-Type"] = "application/json"
-                    http_params["raw_post_data"] = True
-                    http_params = self._applyYoutubeHeaders(http_params)
-                    sts, data = self.cm.getPage(url, http_params, url.meta["post_data"])
-                else:
-                    self.http_params = self._applyYoutubeHeaders(self.http_params)
-                    sts, data = self.cm.getPage(url, self.http_params, self.postdata)
-                if not sts:
-                    return []
-                response = json_loads(data)
-            else:
-                # first search request
-                url = "https://www.youtube.com/results?search_query=" + pattern + "&sp="
-                if searchType == "video":
-                    url += "CA%sSAhAB" % sortBy
-                if searchType == "channel":
-                    url += "CA%sSAhAC" % sortBy
-                if searchType == "playlist":
-                    url += "CA%sSAhAD" % sortBy
-                if searchType == "live":
-                    url += "EgJAAQ%253D%253D"
-                self.http_params = self._applyYoutubeHeaders(self.http_params)
-                sts, data = self.cm.getPage(url, self.http_params)
-                if not sts:
-                    return []
-                self.checkSessionToken(data)
-                data2 = self.cm.ph.getDataBeetwenMarkers(data, 'window["ytInitialData"] =', "};", False)[1]
-                if len(data2) == 0:
-                    data2 = self.cm.ph.getDataBeetwenMarkers(data, "var ytInitialData =", "};", False)[1]
-                data2 = ensure_str(data2.strip())
-                # json simple schema verification and correction
-                jsonStarts = data2.count("{")
-                jsonEnds = data2.count("}")
-                printDBG('youtuberparser.YouTubeParser().getSearchResult correcting json string by adding "}" %s time(s) at the end' % (jsonStarts - jsonEnds))
-                while jsonEnds < jsonStarts:
-                    data2 = data2 + "}"
-                    jsonEnds += 1
-                response = json_loads(data2)
-
-            # search videos
-            r2 = list(self.findKeys(response, "videoRenderer"))
-            printDBG("---------Returned DICT ------------")
-            if isPY2():
-                printDBG(json_dumps(r2))
-            else:
-                for item in r2:
-                    printDBG(str(item))
-            printDBG("---------------------")
-            for item in r2:
-                params = self.getVideoData(item)
-                if params:
-                    printDBG(str(params))
-                    currList.append(params)
-
-            # search channels
-            r2 = list(self.findKeys(response, "channelRenderer"))
-            printDBG("---------------------")
-            printDBG(json_dumps(r2))
-            printDBG("---------------------")
-            for item in r2:
-                params = self.getChannelData(item)
-                if params:
-                    printDBG(str(params))
-                    currList.append(params)
-
-            # search playlists
-            r2 = list(self.findKeys(response, "playlistRenderer"))
-            printDBG("---------------------")
-            printDBG(json_dumps(r2))
-            printDBG("---------------------")
-            for item in r2:
-                params = self.getPlaylistData(item)
-                if params:
-                    printDBG(str(params))
-                    currList.append(params)
-
-            # New feature: lockupViewModel for playlists and channels in search
-            r2 = list(self.findKeys(response, "lockupViewModel"))
-            printDBG("---------lockupViewModel in search ------------")
-            for item in r2:
-                printDBG(str(item)[:500])
-            printDBG("---------------------")
-            for item in r2:
-                content_type = item.get("contentType", "")
-                if content_type == "LOCKUP_CONTENT_TYPE_PLAYLIST":
-                    try:
-                        playlist_id = item.get("contentId", "")
-                        title = item.get("metadata", {}).get("lockupMetadataViewModel", {}).get("title", {}).get("content", "")
-                        if playlist_id and title:
-                            url2 = "https://www.youtube.com/playlist?list=%s" % playlist_id
-                            icon = ""
-                            try:
-                                sources = item.get("contentImage", {}).get("collectionThumbnailViewModel", {}).get("primaryThumbnail", {}).get("thumbnailViewModel", {}).get("image", {}).get("sources", [])
-                                if sources:
-                                    icon = ensure_str(sources[-1].get("url", ""))
-                                    icon = self._normalizeThumbnailUrl(icon)
-                            except Exception:
-                                try:
-                                    sources = item.get("contentImage", {}).get("thumbnailViewModel", {}).get("image", {}).get("sources", [])
-                                    if sources:
-                                        icon = ensure_str(sources[-1].get("url", ""))
-                                        icon = self._normalizeThumbnailUrl(icon)
-                                except Exception:
-                                    pass
-                            currList.append({"type": "category", "category": "playlist", "title": title, "url": ensure_str(url2), "icon": icon, "time": "", "desc": ""})
-                    except Exception:
-                        printExc()
-                elif content_type == "LOCKUP_CONTENT_TYPE_CHANNEL":
-                    try:
-                        channel_id = item.get("contentId", "")
-                        title = item.get("metadata", {}).get("lockupMetadataViewModel", {}).get("title", {}).get("content", "")
-                        if channel_id and title:
-                            url2 = "https://www.youtube.com/channel/%s" % channel_id
-                            icon = ""
-                            try:
-                                sources = item.get("contentImage", {}).get("thumbnailViewModel", {}).get("image", {}).get("sources", [])
-                                if sources:
-                                    icon = ensure_str(sources[-1].get("url", ""))
-                                    icon = self._normalizeThumbnailUrl(icon)
-                            except Exception:
-                                pass
-                            currList.append({"type": "category", "category": "channel", "title": title, "url": ensure_str(url2), "icon": icon, "time": "", "desc": ""})
-                    except Exception:
-                        printExc()
-
-            # next page handling
-            nP = list(self.findKeys(response, "nextContinuationData"))
-            nP_new = list(self.findKeys(response, "continuationEndpoint"))
-            if nP:
-                nextPage = nP[0]
-                ctoken = nextPage["continuation"]
-                itct = nextPage["clickTrackingParams"]
-                try:
-                    label = nextPage["label"]["runs"][0]["text"]
-                except Exception:
-                    label = _("Next page")
-                urlNextPage = self.updateQueryUrl(url, {"pbj": "1", "ctoken": ctoken, "continuation": ctoken, "itct": itct})
-                currList.append({"type": "more", "category": "search_next_page", "title": label, "page": str(int(page) + 1), "url": ensure_str(urlNextPage)})
-            elif nP_new:
-                printDBG("-------------------------------------------------")
-                printDBG(json_dumps(nP_new))
-                printDBG("-------------------------------------------------")
-                nextPage = nP_new[0]
-                ctoken = nextPage["continuationCommand"]["token"]
-                itct = nextPage["clickTrackingParams"]
-                label = _("Next page")
-                hl, gl = self._getDefaultLangAndRegion()
-                urlNextPage = "https://www.youtube.com/youtubei/v1/search?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"
-                post_data = {
-                    "context": {
-                        "client": {
-                            "clientName": "WEB",
-                            "clientVersion": "2.20201021.03.00",
-                            "hl": hl,
-                            "gl": gl,
-                        }
-                    },
-                }
-                post_data["continuation"] = ctoken
-                post_data["context"]["clickTracking"] = {"clickTrackingParams": itct}
-                post_data = json_dumps(post_data).encode("utf-8")
-                urlNextPage = strwithmeta(urlNextPage, {"post_data": post_data})
-                currList.append({"type": "more", "category": "search_next_page", "title": label, "page": str(int(page) + 1), "url": ensure_str(urlNextPage)})
+            response, url = self._fetchSearchResponse(pattern, searchType, sortBy, url)
+            if response is None:
+                return []
+            # currList is mutated in place from here on (not returned+merged)
+            # so a mid-parse exception still keeps whatever was already found,
+            # same as when all of this sat inline in one try block.
+            self._parseSearchRenderers(response, currList)
+            self._appendSearchNextPage(response, url, page, currList)
         except Exception:
             printExc()
         return currList
+
+    def _fetchSearchResponse(self, pattern, searchType, sortBy, url):
+        # Returns (response, url) - url is the possibly-rewritten request URL
+        # (an old-style nextContinuationData continuation is built from it
+        # later via updateQueryUrl). (None, url) on a failed fetch.
+        if url:
+            # next page / continuation handling
+            url = strwithmeta(url)
+            if "post_data" in url.meta:
+                http_params = dict(self.http_params)
+                http_params["header"]["Content-Type"] = "application/json"
+                http_params["raw_post_data"] = True
+                http_params = self._applyYoutubeHeaders(http_params)
+                sts, data = self.cm.getPage(url, http_params, url.meta["post_data"])
+            else:
+                self.http_params = self._applyYoutubeHeaders(self.http_params)
+                sts, data = self.cm.getPage(url, self.http_params, self.postdata)
+            if not sts:
+                return None, url
+            return json_loads(data), url
+
+        # first search request - plain HTML GET of /results + scrape
+        # ytInitialData, kept identical to the plain python3 host. An
+        # InnerTube POST here reads as more bot-like and got the box
+        # walled faster. (safe-search / region only take effect from
+        # page 2 on via the continuation context - acceptable.)
+        url = "https://www.youtube.com/results?search_query=" + pattern + "&sp="
+        if searchType == "video":
+            url += "CA%sSAhAB" % sortBy
+        if searchType == "channel":
+            url += "CA%sSAhAC" % sortBy
+        if searchType == "playlist":
+            url += "CA%sSAhAD" % sortBy
+        if searchType == "live":
+            url += "EgJAAQ%253D%253D"
+        # minimal headers only (a plain page navigation) - built from the
+        # pristine HTTP_HEADER, not the session-accumulated self.http_params,
+        # and without _applyYoutubeHeaders' Origin / bootstrap / visitor-id
+        # (those read as XHR)
+        hdr = dict(self.HTTP_HEADER)
+        hdr["Accept-Language"] = self._getAcceptLanguage()
+        sts, data = self.cm.getPage(url, {"header": hdr, "return_data": True})
+        if not sts:
+            return None, url
+        self.checkSessionToken(data)
+        data2 = self.cm.ph.getDataBeetwenMarkers(data, 'window["ytInitialData"] =', "};", False)[1]
+        if len(data2) == 0:
+            data2 = self.cm.ph.getDataBeetwenMarkers(data, "var ytInitialData =", "};", False)[1]
+        data2 = ensure_str(data2.strip())
+        # json simple schema verification and correction
+        jsonStarts = data2.count("{")
+        jsonEnds = data2.count("}")
+        printDBG('YouTubeParser.getSearchResult correcting json string by adding "}" %s time(s) at the end' % (jsonStarts - jsonEnds))
+        while jsonEnds < jsonStarts:
+            data2 = data2 + "}"
+            jsonEnds += 1
+        return json_loads(data2), url
+
+    def _parseSearchRenderers(self, response, currList):
+        # search videos
+        r2 = list(self.findKeys(response, "videoRenderer"))
+        printDBG("---------Returned DICT ------------")
+        if isPY2():
+            printDBG(json_dumps(r2))
+        else:
+            for item in r2:
+                printDBG(str(item))
+        printDBG("---------------------")
+        for item in r2:
+            params = self.getVideoData(item)
+            if params:
+                printDBG(str(params))
+                currList.append(params)
+
+        # search channels
+        r2 = list(self.findKeys(response, "channelRenderer"))
+        printDBG("---------------------")
+        printDBG(json_dumps(r2))
+        printDBG("---------------------")
+        for item in r2:
+            params = self.getChannelData(item)
+            if params:
+                printDBG(str(params))
+                currList.append(params)
+
+        # search playlists
+        r2 = list(self.findKeys(response, "playlistRenderer"))
+        printDBG("---------------------")
+        printDBG(json_dumps(r2))
+        printDBG("---------------------")
+        for item in r2:
+            params = self.getPlaylistData(item)
+            if params:
+                printDBG(str(params))
+                currList.append(params)
+
+        # New feature: lockupViewModel for playlists and channels in search
+        r2 = list(self.findKeys(response, "lockupViewModel"))
+        printDBG("---------lockupViewModel in search ------------")
+        for item in r2:
+            printDBG(str(item)[:500])
+        printDBG("---------------------")
+        for item in r2:
+            self._appendLockupSearchItem(item, currList)
+
+    def _appendLockupSearchItem(self, item, currList):
+        content_type = item.get("contentType", "")
+        if content_type == "LOCKUP_CONTENT_TYPE_PLAYLIST":
+            try:
+                playlist_id = item.get("contentId", "")
+                title = item.get("metadata", {}).get("lockupMetadataViewModel", {}).get("title", {}).get("content", "")
+                if playlist_id and title:
+                    url2 = "https://www.youtube.com/playlist?list=%s" % playlist_id
+                    icon = ""
+                    try:
+                        sources = item.get("contentImage", {}).get("collectionThumbnailViewModel", {}).get("primaryThumbnail", {}).get("thumbnailViewModel", {}).get("image", {}).get("sources", [])
+                        if sources:
+                            icon = ensure_str(sources[-1].get("url", ""))
+                            icon = self._normalizeThumbnailUrl(icon)
+                    except Exception:
+                        try:
+                            sources = item.get("contentImage", {}).get("thumbnailViewModel", {}).get("image", {}).get("sources", [])
+                            if sources:
+                                icon = ensure_str(sources[-1].get("url", ""))
+                                icon = self._normalizeThumbnailUrl(icon)
+                        except Exception:
+                            pass
+                    currList.append({"type": "category", "category": "playlist", "title": title, "url": ensure_str(url2), "icon": icon, "time": "", "desc": ""})
+            except Exception:
+                printExc()
+        elif content_type == "LOCKUP_CONTENT_TYPE_CHANNEL":
+            try:
+                channel_id = item.get("contentId", "")
+                title = item.get("metadata", {}).get("lockupMetadataViewModel", {}).get("title", {}).get("content", "")
+                if channel_id and title:
+                    url2 = "https://www.youtube.com/channel/%s" % channel_id
+                    icon = ""
+                    try:
+                        sources = item.get("contentImage", {}).get("thumbnailViewModel", {}).get("image", {}).get("sources", [])
+                        if sources:
+                            icon = ensure_str(sources[-1].get("url", ""))
+                            icon = self._normalizeThumbnailUrl(icon)
+                    except Exception:
+                        pass
+                    currList.append({"type": "category", "category": "channel", "title": title, "url": ensure_str(url2), "icon": icon, "time": "", "desc": ""})
+            except Exception:
+                printExc()
+
+    def _appendSearchNextPage(self, response, url, page, currList):
+        nP = list(self.findKeys(response, "nextContinuationData"))
+        nP_new = list(self.findKeys(response, "continuationEndpoint"))
+        if nP:
+            nextPage = nP[0]
+            ctoken = nextPage["continuation"]
+            itct = nextPage["clickTrackingParams"]
+            try:
+                label = nextPage["label"]["runs"][0]["text"]
+            except Exception:
+                label = _("Next page")
+            urlNextPage = self.updateQueryUrl(url, {"pbj": "1", "ctoken": ctoken, "continuation": ctoken, "itct": itct})
+            currList.append({"type": "more", "category": "search_next_page", "title": label, "page": str(int(page) + 1), "url": ensure_str(urlNextPage)})
+        elif nP_new:
+            printDBG("-------------------------------------------------")
+            printDBG(json_dumps(nP_new))
+            printDBG("-------------------------------------------------")
+            nextPage = nP_new[0]
+            ctoken = nextPage["continuationCommand"]["token"]
+            itct = nextPage["clickTrackingParams"]
+            label = _("Next page")
+            cfg, context = self._ytContext()
+            urlNextPage = "https://www.youtube.com/youtubei/v1/search?key=" + cfg["api_key"]
+            post_data = {"context": context}
+            post_data["continuation"] = ctoken
+            post_data["context"]["clickTracking"] = {"clickTrackingParams": itct}
+            post_data = json_dumps(post_data).encode("utf-8")
+            urlNextPage = strwithmeta(urlNextPage, {"post_data": post_data})
+            currList.append({"type": "more", "category": "search_next_page", "title": label, "page": str(int(page) + 1), "url": ensure_str(urlNextPage)})
 
     # PLAYLIST API PARSER
     def getVideosApiPlayList(self, url, category, page, cItem):
