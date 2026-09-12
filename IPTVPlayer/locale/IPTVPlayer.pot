@@ -4580,3 +4580,83 @@ msgstr ""
 msgid "Search History is empty."
 msgstr ""
 
+msgid "Google account"
+msgstr ""
+
+msgid "signed in"
+msgstr ""
+
+msgid "select to sign out"
+msgstr ""
+
+msgid "sign in (subscriptions, playlists, age-restricted videos)"
+msgstr ""
+
+msgid "Could not start the YouTube sign-in."
+msgstr ""
+
+#, python-format
+msgid ""
+"To sign in to YouTube:\n"
+"\n"
+"1. On a phone or computer open:\n"
+"     %s\n"
+"\n"
+"2. Enter this code:\n"
+"\n"
+"     %s\n"
+"\n"
+"3. Approve the access, then select OK here."
+msgstr ""
+
+msgid "Signed in to YouTube."
+msgstr ""
+
+msgid "Sign-in was not completed."
+msgstr ""
+
+msgid "Signed out of YouTube."
+msgstr ""
+
+msgid "Search results region:"
+msgstr ""
+
+msgid "Automatic"
+msgstr ""
+
+msgid "Safe search (restricted mode):"
+msgstr ""
+
+msgid "My subscriptions"
+msgstr ""
+
+msgid "Latest videos from the channels you are subscribed to."
+msgstr ""
+
+msgid "Watch later"
+msgstr ""
+
+msgid "Your 'Watch later' playlist."
+msgstr ""
+
+msgid "Liked videos"
+msgstr ""
+
+msgid "Videos you have liked."
+msgstr ""
+
+msgid "Watch history"
+msgstr ""
+
+msgid "Videos you have recently watched."
+msgstr ""
+
+msgid "(nothing here yet)"
+msgstr ""
+
+msgid "This feed is empty, or the YouTube sign-in has expired - sign out and in again."
+msgstr ""
+
+msgid "This video requires you to sign in to a YouTube account."
+msgstr ""
+

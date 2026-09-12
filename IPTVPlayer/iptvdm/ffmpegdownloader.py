@@ -36,6 +36,7 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, ip
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.iptvdm.basedownloader import BaseDownloader
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdh import DMHelper
+from Plugins.Extensions.IPTVPlayer.iptvdm.downloaderhelpers import SidecarMixin
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
 ###################################################
 from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import strDecode
@@ -54,7 +55,7 @@ import datetime
 ###################################################
 
 
-class FFMPEGDownloader(BaseDownloader):
+class FFMPEGDownloader(BaseDownloader, SidecarMixin):
 
     # a download counts as complete once this fraction of the known duration is
     # reached - ffmpeg's segment-summed duration and its final time= often differ
@@ -79,6 +80,7 @@ class FFMPEGDownloader(BaseDownloader):
         # instance of E2 console
         self.console = None
         self.iptv_sys = None
+        self._initSidecarState()
         self.totalDuration = 0
         self.downloadDuration = 0
         self.liveStream = False
@@ -134,6 +136,7 @@ class FFMPEGDownloader(BaseDownloader):
 
         cmdTab = [DMHelper.GET_FFMPEG_PATH(), '-y']
         tmpUri = strwithmeta(url)
+        self._prepareSidecarData(tmpUri.meta)
 
         if 'iptv_video_rep_idx' in tmpUri.meta:
             cmdTab.extend(['-video_rep_index', str(tmpUri.meta['iptv_video_rep_idx'])])
@@ -299,6 +302,7 @@ class FFMPEGDownloader(BaseDownloader):
 
     def _terminate(self):
         printDBG("FFMPEGDownloader._terminate")
+        self._terminateSidecar()
         if None is not self.iptv_sys:
             self.iptv_sys.kill()
             self.iptv_sys = None
@@ -341,7 +345,23 @@ class FFMPEGDownloader(BaseDownloader):
             # ffmpeg has stopped writing -> name the file after its real container,
             # even for a partial (an incomplete .mkv is still an .mkv)
             self._fixFileExtension()
+            # sidecar (.txt/.jpg) only for a real, complete DM download -
+            # allowFinalRename is unset for buffered playback, which must not
+            # wait on an image download before the player can proceed
+            if self.allowFinalRename and self.sidecarEnabled and DMHelper.STS.DOWNLOADED == self.status:
+                self._writeTxtSidecar(self.filePath)
+                if self.sidecarImg:
+                    self._startImgSidecarDownload(self.filePath)
+                    return
+                self._finishDownloadFlow()
+                return
             self.onFinish()
+
+    def _cleanUp(self):
+        # required by SidecarMixin._finishDownloadFlow(); the .iptv.cmd temp
+        # file is already removed at the top of _cmdFinished, nothing else
+        # to do here
+        pass
 
     def _outContainer(self):
         # the container passed to ffmpeg's -f; it also drives the final file

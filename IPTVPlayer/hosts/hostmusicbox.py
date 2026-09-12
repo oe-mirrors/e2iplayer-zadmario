@@ -50,7 +50,6 @@ class MusicBox(CBaseHostClass):
 
     def __init__(self):
         CBaseHostClass.__init__(self)
-        self.ytformats = config.plugins.iptvplayer.ytformat.value
         self.ytp = YouTubeParser()
         self.lastfm_username = config.plugins.iptvplayer.MusicBox_login.value
         self.usePremiumAccount = config.plugins.iptvplayer.MusicBox_premium.value

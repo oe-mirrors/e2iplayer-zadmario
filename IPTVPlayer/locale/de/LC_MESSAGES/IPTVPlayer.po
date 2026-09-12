@@ -4859,3 +4859,93 @@ msgstr "Anzahl der Einträge im Suchverlauf: %d"
 msgid "Search History is empty."
 msgstr "Der Suchverlauf ist leer."
 
+msgid "Google account"
+msgstr "Google-Konto"
+
+msgid "signed in"
+msgstr "angemeldet"
+
+msgid "select to sign out"
+msgstr "zum Abmelden auswählen"
+
+msgid "sign in (subscriptions, playlists, age-restricted videos)"
+msgstr "anmelden (Abos, Playlists, altersbeschränkte Videos)"
+
+msgid "Could not start the YouTube sign-in."
+msgstr "Die YouTube-Anmeldung konnte nicht gestartet werden."
+
+#, python-format
+msgid ""
+"To sign in to YouTube:\n"
+"\n"
+"1. On a phone or computer open:\n"
+"     %s\n"
+"\n"
+"2. Enter this code:\n"
+"\n"
+"     %s\n"
+"\n"
+"3. Approve the access, then select OK here."
+msgstr ""
+"So meldest du dich bei YouTube an:\n"
+"\n"
+"1. Öffne auf einem Smartphone oder Computer:\n"
+"     %s\n"
+"\n"
+"2. Gib diesen Code ein:\n"
+"\n"
+"     %s\n"
+"\n"
+"3. Bestätige den Zugriff und wähle dann hier OK."
+
+msgid "Signed in to YouTube."
+msgstr "Bei YouTube angemeldet."
+
+msgid "Sign-in was not completed."
+msgstr "Die Anmeldung wurde nicht abgeschlossen."
+
+msgid "Signed out of YouTube."
+msgstr "Von YouTube abgemeldet."
+
+msgid "Search results region:"
+msgstr "Region der Suchergebnisse:"
+
+msgid "Automatic"
+msgstr "Auto"
+
+msgid "Safe search (restricted mode):"
+msgstr "Sichere Suche (eingeschränkter Modus):"
+
+msgid "My subscriptions"
+msgstr "Meine Abonnements"
+
+msgid "Latest videos from the channels you are subscribed to."
+msgstr "Neueste Videos von den Kanälen, die du abonniert hast."
+
+msgid "Watch later"
+msgstr "Später ansehen"
+
+msgid "Your 'Watch later' playlist."
+msgstr "Deine Playlist 'Später ansehen'."
+
+msgid "Liked videos"
+msgstr "Bewertete Videos"
+
+msgid "Videos you have liked."
+msgstr "Videos, die dir gefallen."
+
+msgid "Watch history"
+msgstr "Wiedergabeverlauf"
+
+msgid "Videos you have recently watched."
+msgstr "Videos, die du kürzlich angesehen hast."
+
+msgid "(nothing here yet)"
+msgstr "(noch nichts hier)"
+
+msgid "This feed is empty, or the YouTube sign-in has expired - sign out and in again."
+msgstr "Dieser Feed ist leer, oder die YouTube-Anmeldung ist abgelaufen - melde dich ab und wieder an."
+
+msgid "This video requires you to sign in to a YouTube account."
+msgstr "Für dieses Video ist eine Anmeldung mit einem YouTube-Konto erforderlich."
+
