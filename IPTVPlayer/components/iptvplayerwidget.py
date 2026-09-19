@@ -1902,9 +1902,17 @@ class E2iPlayerWidget(Screen):
         if confgiChanged:
             self.loadHost()
 
-    def checkPin(self, callbackFun, failCallBackFun, pin=None):
+    def checkPin(self, callbackFun, failCallBackFun, pin=None, expectedPin=''):
+        # expectedPin lets a host (loadHost() below) check against its own
+        # PIN instead of the global player one - same fallback as
+        # checkDirPin()'s custom pinCode: an invalid (non-4-digit) value
+        # means "use the global player PIN", which is also what every
+        # other caller of checkPin() gets by leaving expectedPin at its
+        # default ''.
         if pin is not None:
-            if pin == config.plugins.iptvplayer.pin.value:
+            if 4 != len(expectedPin):
+                expectedPin = config.plugins.iptvplayer.pin.value
+            if pin == expectedPin:
                 callbackFun()
             else:
                 self.session.openWithCallback(self.close, MessageBox, _("Pin incorrect!"), type=MessageBox.TYPE_INFO, timeout=5)
@@ -1938,7 +1946,15 @@ class E2iPlayerWidget(Screen):
 
         if protectedByPin:
             from Plugins.Extensions.IPTVPlayer.components.iptvpin import IPTVPinWidget
-            self.session.openWithCallback(boundFunction(self.checkPin, self.loadHostData, self.selectHost), IPTVPinWidget, title=_("Enter pin"))
+            try:
+                hostPinCode = self.host.getPinCode()
+            except Exception:
+                hostPinCode = ''
+
+            def _checkHostPin(pin=None):
+                self.checkPin(self.loadHostData, self.selectHost, pin, expectedPin=hostPinCode)
+
+            self.session.openWithCallback(_checkHostPin, IPTVPinWidget, title=_("Enter pin") + " - " + (self.hostTitle or self.hostName))
         else:
             self.loadHostData()
 
