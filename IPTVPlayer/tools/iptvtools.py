@@ -514,6 +514,11 @@ def GetFavouritesDir(fileName=''):
     return GetCacheSubDir('IPTVFavourites', fileName)
 
 
+def GetDownloadedDir(fileName=''):
+    # "downloaded" markers (<host>/.<hash>.iptvdl) of the items downloaded from a host list - next to IPTVWatched
+    return GetFavouritesDir('IPTVDownloaded/' + fileName)
+
+
 def GetSubtitlesDir(fileName=''):
     return GetCacheSubDir('Subtitles', fileName)
 

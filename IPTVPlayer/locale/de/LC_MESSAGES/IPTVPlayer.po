@@ -5112,3 +5112,41 @@ msgstr ""
 "dürfen Sie mit Ihren Downloads fortfahren. E2iPlayer kann diese Captchas "
 "nicht automatisch lösen, deshalb geben wir das Captcha an Sie weiter."
 
+msgid "Newest videos of a YouTube channel in a group"
+msgstr "Neueste Videos pro YouTube-Kanal in einer Gruppe"
+
+msgid "Newest videos (all YouTube channels)"
+msgstr "Neueste Videos (alle YouTube-Kanäle)"
+
+msgid "The latest uploads of all YouTube channels in this group, newest first."
+msgstr ""
+"Die neuesten Uploads aller YouTube-Kanäle dieser Gruppe, die neuesten "
+"zuerst."
+
+msgid "Host"
+msgstr "Host"
+
+msgid "Latest video"
+msgstr "Neuestes Video"
+
+#, python-format
+msgid "(%d YouTube channel(s) could not be read)"
+msgstr "(YouTube-Kanäle nicht lesbar: %d)"
+
+msgid "The feed of these channels could not be read - press OK to try again."
+msgstr ""
+"Der Feed dieser Kanäle konnte nicht gelesen werden - zum erneuten Versuch"
+" OK drücken."
+
+msgid "(no videos found)"
+msgstr "(keine Videos gefunden)"
+
+msgid "The YouTube channels of this group have no videos."
+msgstr "Die YouTube-Kanäle dieser Gruppe haben keine Videos."
+
+msgid "YouTube channels: original order"
+msgstr "YouTube-Kanäle: ursprüngliche Reihenfolge"
+
+msgid "YouTube channels: sort by newest upload"
+msgstr "YouTube-Kanäle: nach neuestem Upload sortieren"
+

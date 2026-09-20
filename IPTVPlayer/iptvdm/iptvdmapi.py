@@ -8,6 +8,7 @@
 # ">not-a-string>" showing up in the GUI when fileName carries a str SUBCLASS
 # (e.g. e2iPlayer's own "strwithmeta") after a downloader rename.
 # 12.07.2026 - added preCheckOnly handling to show "Download already exists" instead of FAILED
+# 20.09.2026 - DMItem.itemKey + getActiveItemKeys(), cmdFinished() writes the "downloaded" marker (tools/iptvdownloaded.py)
 #
 # IPTV download manager API
 #
@@ -20,6 +21,7 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, eC
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdh import DMHelper, DMItemBase
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdownloadercreator import DownloaderCreator
 from Plugins.Extensions.IPTVPlayer.iptvdm.downloaderhelpers import ensureText
+from Plugins.Extensions.IPTVPlayer.tools import iptvdownloaded
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
 ###################################################
 
@@ -43,6 +45,8 @@ class DMItem(DMItemBase):
         # keep the originally requested path so we can fall back to it
         # if a downloader ever returns a bogus/empty renamed path
         self.originalFileName = fileName
+        # key of the host item the download was started from (tools/iptvdownloaded.py), '' if unknown
+        self.itemKey = ''
 
 
 class IPTVDMApi():
@@ -241,6 +245,10 @@ class IPTVDMApi():
             self.listChanged()
         return bRet
 
+    def getActiveItemKeys(self):
+        # item keys of the downloads that are waiting in the queue or running right now
+        return {item.itemKey for item in list(self.queueDQ) + list(self.queueUD) if getattr(item, 'itemKey', '')}
+
     def addBufferItem(self, downloader, fullFilesPaths=[]):
         if downloader.getStatus() == DMHelper.STS.DOWNLOADING:
             if len(self.queueUD) >= self.MAX_DOWNLOAD_ITEM:
@@ -370,6 +378,12 @@ class IPTVDMApi():
                 self.queueUD[listUDIdx].fileName = fallback
 
         self.updateDownloadedItemStatus(listUDIdx)
+        try:
+            # remember it for the "downloaded" marker at the end of the item's list row
+            if self.queueUD[listUDIdx].status == DMHelper.STS.DOWNLOADED and self.queueUD[listUDIdx].itemKey:
+                iptvdownloaded.markDownloaded(self.queueUD[listUDIdx].itemKey, self.queueUD[listUDIdx].fileName)
+        except Exception:
+            printExc()
         self.queueUD[listUDIdx].processed = True
         self.queueUD[listUDIdx].downloader.unsubscribeFor_Finish(self.queueUD[listUDIdx].callback)
         self.queueUD[listUDIdx].downloader = None

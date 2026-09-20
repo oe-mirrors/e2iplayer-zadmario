@@ -10,6 +10,7 @@
 ###################################################
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, GetIconDir, eConnectCallback
 from Plugins.Extensions.IPTVPlayer.components.ihost import CDisplayListItem
+from Plugins.Extensions.IPTVPlayer.tools.iptvdownloaded import STATE_ACTIVE, STATE_DONE
 ###################################################
 
 ###################################################
@@ -133,12 +134,22 @@ class IPTVMainNavigatorList(IPTVListComponentBase):
         self.dictPIX = {}
         self.watchedBadgePIX = None
         self.startedBadgePIX = None
+        self.favouriteMarkerPIX = None
+        self.downloadedMarkerPIX = None
+        self.downloadingMarkerPIX = None
+        # markers at the end of the row (in the favourites / downloaded): a bit smaller than the row
+        self.MARKER_W = self.MARKER_H = max(self.font[2] - 10, 14)
+        self.MARKER_GAP = 4
+        self.MARKER_MARGIN = 6
 
     def _nullPIX(self):
         for key in self.ICONS_FILESNAMES:
             self.dictPIX[key] = None
         self.watchedBadgePIX = None
         self.startedBadgePIX = None
+        self.favouriteMarkerPIX = None
+        self.downloadedMarkerPIX = None
+        self.downloadingMarkerPIX = None
 
     def onCreate(self):
         self._nullPIX()
@@ -160,9 +171,32 @@ class IPTVMainNavigatorList(IPTVListComponentBase):
             self.startedBadgePIX = LoadPixmap(cached=True, path=GetIconDir('StartedBadge.png'))
         except Exception:
             self.startedBadgePIX = None
+        # markers at the end of the row; a missing file just means no marker of that kind
+        self.favouriteMarkerPIX = self._loadIcon('FavouriteItem.png')
+        self.downloadedMarkerPIX = self._loadIcon('DownloadedItem.png')
+        self.downloadingMarkerPIX = self._loadIcon('DownloadingItem.png')
 
     def onDestroy(self):
         self._nullPIX()
+
+    @staticmethod
+    def _loadIcon(fileName):
+        try:
+            return LoadPixmap(cached=True, path=GetIconDir(fileName))
+        except Exception:
+            return None
+
+    def _getRowMarkers(self, item):
+        # pixmaps for the end of the row, left to right: in the favourites, download state
+        markers = []
+        if getattr(item, 'isFavourite', False) and self.favouriteMarkerPIX is not None:
+            markers.append(self.favouriteMarkerPIX)
+        downloadState = getattr(item, 'downloadState', '')
+        if downloadState == STATE_DONE and self.downloadedMarkerPIX is not None:
+            markers.append(self.downloadedMarkerPIX)
+        elif downloadState == STATE_ACTIVE and self.downloadingMarkerPIX is not None:
+            markers.append(self.downloadingMarkerPIX)
+        return markers
 
     # item icon box (imageType pixmap) and the watched/started overlay drawn on top of
     # it - the overlay is designed to sit centered directly over the icon, not as a
@@ -175,8 +209,16 @@ class IPTVMainNavigatorList(IPTVListComponentBase):
     def buildEntry(self, item):
         width = self.l.getItemSize().width()
         height = self.l.getItemSize().height()
+        markers = self._getRowMarkers(item)
+        # the title stops in front of the markers so a long one does not run underneath them
+        markersW = len(markers) * (self.MARKER_W + self.MARKER_GAP) + self.MARKER_MARGIN if markers else 0
         res = [None]
-        res.append((eListboxPythonMultiContent.TYPE_TEXT, 45, 0, width - 45, height, 1, RT_HALIGN_LEFT | RT_VALIGN_CENTER, item.getDisplayTitle(), item.getTextColor()))
+        res.append((eListboxPythonMultiContent.TYPE_TEXT, 45, 0, width - 45 - markersW, height, 1, RT_HALIGN_LEFT | RT_VALIGN_CENTER, item.getDisplayTitle(), item.getTextColor()))
+        markerX = width - markersW + self.MARKER_GAP
+        markerY = (height - self.MARKER_H) // 2
+        for marker in markers:
+            res.append((eListboxPythonMultiContent.TYPE_PIXMAP_ALPHABLEND, markerX, markerY, self.MARKER_W, self.MARKER_H, marker))
+            markerX += self.MARKER_W + self.MARKER_GAP
         res.append((eListboxPythonMultiContent.TYPE_PIXMAP_ALPHABLEND, self.ICON_X, self.ICON_Y, self.ICON_W, self.ICON_H, self.dictPIX.get(item.imageType, None)))
         if getattr(item, 'isWatched', False) and self.watchedBadgePIX is not None:
             res.append((eListboxPythonMultiContent.TYPE_PIXMAP_ALPHABLEND, self.BADGE_X, self.BADGE_Y, self.BADGE_W, self.BADGE_H, self.watchedBadgePIX))
