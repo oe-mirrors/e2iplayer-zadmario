@@ -43,7 +43,7 @@ LAST_HTTP_ERROR_DATA = ''
 
 def updateStatus(type, data, code=None):
     obj = {'type': type, 'data': data, 'code': code}
-    sys.stderr.write('\n%s\n' % json.dumps(obj).encode('utf-8'))
+    sys.stderr.write('\n%s\n' % json.dumps(obj))
 
 
 DEBUGE = False

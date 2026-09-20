@@ -218,6 +218,11 @@ config.plugins.iptvplayer.alternative_proxy2 = ConfigText(default="http://user:p
 
 config.plugins.iptvplayer.captcha_bypass = ConfigSelection(default="", choices=[("", _("Auto")), ("mye2i", "MyE2i"), ("2captcha.com", "2captcha.com"), ("9kw.eu", "9kw.eu")])
 
+# MyE2i: on = the address typed by hand needs a six-digit code (shown in the window title)
+# and the QR code carries a one-time key, so nobody else in the network can hand results
+# to the receiver; off = the plain address opens the page directly (the original behaviour)
+config.plugins.iptvplayer.mye2i_security = ConfigYesNo(default=False)
+
 config.plugins.iptvplayer.api_key_9kweu = ConfigText(default="", fixed_size=False)
 config.plugins.iptvplayer.api_key_2captcha = ConfigText(default="", fixed_size=False)
 
@@ -493,6 +498,7 @@ class ConfigMenu(ConfigBaseWidget):
         list.append(getConfigListEntry('\\c00289496' + _("----- CAPTCHA CONFIGURATION (OK) -----"), config.plugins.iptvplayer.captConfVisible))
         if captConfVisible: #CAPTCHA CONFIGURATION
             list.append(getConfigListEntry(_("Default captcha bypass"), config.plugins.iptvplayer.captcha_bypass))
+            list.append(getConfigListEntry(_("MyE2i extension: increase security"), config.plugins.iptvplayer.mye2i_security))
             list.append(getConfigListEntry(_("%s API KEY") % 'https://9kw.eu/', config.plugins.iptvplayer.api_key_9kweu))
             list.append(getConfigListEntry(_("%s API KEY") % 'http://2captcha.com/', config.plugins.iptvplayer.api_key_2captcha))
 
