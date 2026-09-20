@@ -38,7 +38,8 @@ from Plugins.Extensions.IPTVPlayer.components.confighost import ConfigHostMenu, 
 from Plugins.Extensions.IPTVPlayer.components.configgroups import ConfigGroupsMenu
 
 from Plugins.Extensions.IPTVPlayer.components.iptvfavouriteswidgets import IPTVFavouritesAddItemWidget, IPTVFavouritesMainWidget
-from Plugins.Extensions.IPTVPlayer.tools.iptvfavourites import IPTVFavourites
+from Plugins.Extensions.IPTVPlayer.tools.iptvfavourites import IPTVFavourites, getFavouritesIdentityKeys
+from Plugins.Extensions.IPTVPlayer.tools import iptvdownloaded
 
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdownloadercreator import IsUrlDownloadable
 from Plugins.Extensions.IPTVPlayer.libs.pCommon import CParsingHelper
@@ -966,11 +967,17 @@ class E2iPlayerWidget(Screen):
                     self.session.open(MessageBox, _('Favourite group not found.'), type=MessageBox.TYPE_ERROR, timeout=5)
                     return
 
-                if currSelIndex >= len(groupItems):
+                # the row position is not the storage position once the group is shown sorted or
+                # carries the virtual "newest videos" row - ask the host which stored favourite it is
+                storageIdx = currSelIndex
+                favHost = getattr(self.host, 'host', None)
+                if hasattr(favHost, 'getGroupItemIdx'):
+                    storageIdx = favHost.getGroupItemIdx(currSelIndex)
+                if storageIdx < 0 or storageIdx >= len(groupItems):
                     self.session.open(MessageBox, _('Favourite item not found.'), type=MessageBox.TYPE_ERROR, timeout=5)
                     return
 
-                helper.delGroupItem(currSelIndex, realGroupId)
+                helper.delGroupItem(storageIdx, realGroupId)
 
                 if not helper.save():
                     self.session.open(MessageBox, _('Error saving favourites.'), type=MessageBox.TYPE_ERROR, timeout=5)
@@ -982,6 +989,10 @@ class E2iPlayerWidget(Screen):
                         self.host.host.helper.load()
                 except Exception:
                     printExc()
+
+                # keep the host's raw rows (row position + storage position) in step with the display list
+                if hasattr(favHost, 'onGroupItemDeleted'):
+                    favHost.onGroupItemDeleted(currSelIndex, storageIdx)
 
                 del self.currList[currSelIndex]
                 self["list"].setList([(x,) for x in self.currList])
@@ -2229,7 +2240,15 @@ class E2iPlayerWidget(Screen):
                 if None is not gDownloadManager:
                     if IsUrlDownloadable(url):
                         fullFilePath = downloadingPath + '/' + titleOfMovie + fileExtension
-                        ret = gDownloadManager.addToDQueue(DMItem(url, fullFilePath))
+                        dmItem = DMItem(url, fullFilePath)
+                        try:
+                            hostName, itemUrl = self._getRowSource(self.currItem.itemIdx, self.currItem)
+                            dmItem.itemKey = iptvdownloaded.getItemKey(hostName, itemUrl, self.currItem.name)
+                        except Exception:
+                            printExc()
+                        ret = gDownloadManager.addToDQueue(dmItem)
+                        if ret:
+                            self.refreshRowMarkers()
                     else:
                         ret = False
                         self.session.open(MessageBox, _("File can not be downloaded. Protocol [%s] is unsupported") % url.meta.get('iptv_proto', ''), type=MessageBox.TYPE_INFO, timeout=10)
@@ -2550,6 +2569,7 @@ class E2iPlayerWidget(Screen):
             self.canRandomizeList = True
 
         self.currList = ret.value
+        self._updateRowMarkers()
         self["list"].setList([(x,) for x in self.currList])
 
         # iconMenager
@@ -2680,9 +2700,128 @@ class E2iPlayerWidget(Screen):
                 favItem.resolver = self.hostName
             if '' == favItem.hostName:
                 favItem.hostName = self.hostName
-            self.session.open(IPTVFavouritesAddItemWidget, favItem)
+            self.session.openWithCallback(self.refreshRowMarkers, IPTVFavouritesAddItemWidget, favItem)
         else:
             self.session.open(MessageBox, _("No valid links available."), type=MessageBox.TYPE_INFO, timeout=10)
+
+    def _addRemoveFavouriteOption(self, options):
+        # an item that is already in the favourites gets a "remove" entry right below "add" - it may
+        # still be added to another group. Reads the favourites from disk, so only when MENU is pressed.
+        try:
+            addIdx = -1
+            for idx in range(len(options)):
+                if isinstance(options[idx].privateData, dict) and options[idx].privateData.get('e2i_menu_action') == 'ADD_FAV':
+                    addIdx = idx
+                    break
+            index = self.canByAddedToFavourites()[0]
+            if addIdx < 0 or index < 0:
+                return
+            # the same identity the star at the end of the row is looked up with (_updateRowMarkers)
+            data = self.host.getFavouriteDataOfRow(index)
+            if data is None:
+                return
+            itemInfo = {'host_name': self.hostName, 'resolver': self.hostName, 'data': data}
+            found = self._findFavouriteItems(itemInfo)
+            if found:
+                groupNames = []
+                for entry in found:  # (group id, group title, item index)
+                    if entry[1] not in groupNames:
+                        groupNames.append(entry[1])
+                itemInfo['e2i_menu_action'] = 'REMOVE_FAV_HOST'
+                options.insert(addIdx + 1, IPTVChoiceBoxItem(_("Remove from favourites") + ' (' + ', '.join(groupNames) + ')', "", itemInfo))
+        except Exception:
+            printExc()
+
+    def _findFavouriteItems(self, itemInfo):
+        helper = IPTVFavourites(GetFavouritesDir())
+        if not helper.load():
+            return []
+        return helper.findItems(itemInfo['host_name'], itemInfo['resolver'], itemInfo['data'])
+
+    def removeFavouriteOfHostItem(self, itemInfo, confirmed=False):
+        if confirmed is False:
+            return
+        try:
+            helper = IPTVFavourites(GetFavouritesDir())
+            if not helper.load():
+                self.session.open(MessageBox, _('Error loading favourites.'), type=MessageBox.TYPE_ERROR, timeout=5)
+                return
+            # again from the current files (they may have changed since the menu was built), highest index first
+            found = helper.findItems(itemInfo['host_name'], itemInfo['resolver'], itemInfo['data'])
+            if not found:
+                self.session.open(MessageBox, _('Favourite item not found.'), type=MessageBox.TYPE_ERROR, timeout=5)
+                return
+            for entry in sorted(found, key=lambda entry: entry[2], reverse=True):  # (group id, group title, item index)
+                helper.delGroupItem(entry[2], entry[0])
+            if not helper.save():
+                self.session.open(MessageBox, _('Error saving favourites.'), type=MessageBox.TYPE_ERROR, timeout=5)
+            self.refreshRowMarkers()
+        except Exception:
+            printExc()
+            self.session.open(MessageBox, _('Error deleting favourite item.'), type=MessageBox.TYPE_ERROR, timeout=5)
+
+    def _getRowSource(self, idx, item):
+        # (host name, url) an item of the current list is recognised by for the download marker
+        # (tools/iptvdownloaded.py) - the same in the host's own list, in the favourites and inside a favourite.
+        # The url comes from the host's own list: item.urlItems is replaced by the resolved links once
+        # the links of the item were requested, so it differs between the moment of the download and a later listing.
+        hostName = self.hostName
+        url = ''
+        try:
+            if 'favourites' == self.hostName:
+                favHost = self.host.host
+                if favHost.isQuestMode():
+                    hostName = favHost.getCurrentGuestHostName()
+                    url = favHost.getCurrentGuestHost().getRowUrl(idx)
+                elif 0 <= idx < len(favHost.currList):
+                    params = favHost.currList[idx]
+                    hostName = params.get('host') or hostName
+                    url = params.get('fav_url', '')
+            else:
+                url = self.host.getRowUrl(idx)
+        except Exception:
+            printExc()
+        return hostName, url
+
+    def _updateRowMarkers(self):
+        # sets the markers at the end of the rows of the current list: item is already in the
+        # favourites, download state. Cheap: the favourites are read again only when they changed.
+        try:
+            favKeys = frozenset()
+            if 'favourites' != self.hostName and config.plugins.iptvplayer.hostfavourites.value:
+                favKeys = getFavouritesIdentityKeys(GetFavouritesDir())
+            activeKeys = gDownloadManager.getActiveItemKeys() if None is not gDownloadManager else set()
+            for idx in range(len(self.currList)):
+                item = self.currList[idx]
+                if not isinstance(item, CDisplayListItem):
+                    continue
+                item.isFavourite = False
+                item.downloadState = ''
+                if favKeys and (item.isGoodForFavourites or item.type in self.hostFavTypes):
+                    data = self.host.getFavouriteDataOfRow(idx)
+                    if data is not None:
+                        item.isFavourite = IPTVFavourites.getItemIdentityKey(self.hostName, self.hostName, data) in favKeys
+                if self.isDownloadableType(item.type):
+                    hostName, url = self._getRowSource(idx, item)
+                    item.downloadState = iptvdownloaded.getState(iptvdownloaded.getItemKey(hostName, url, item.name), activeKeys)
+        except Exception:
+            printExc()
+
+    def refreshRowMarkers(self, *args):
+        # after something changed that the markers show (favourite added/removed, download queued)
+        self._updateRowMarkers()
+        try:
+            self["list"].l.invalidate()
+        except Exception:
+            printExc()
+
+    def _canDeleteFavourite(self):
+        # inside a favourites group only a stored favourite can be removed - not the virtual
+        # "newest videos" rows and not the lists of a guest host; the group list itself is unchanged
+        favHost = getattr(self.host, 'host', None)
+        if not self.favouritesCurrentGroupId or not hasattr(favHost, 'getGroupItemIdx'):
+            return True
+        return favHost.getGroupItemIdx(self.getSelIndex()) >= 0
 
     def menu_pressed(self):
         printDBG("E2iPlayerWidget.menu_pressed")
@@ -2709,10 +2848,11 @@ class E2iPlayerWidget(Screen):
                 try:
                     if -1 < self.canByAddedToFavourites()[0]:
                         options.append(IPTVChoiceBoxItem(_("Add item to favourites"), "", {'e2i_menu_action': 'ADD_FAV'}))
-                    elif 'favourites' == self.hostName:
+                    elif 'favourites' == self.hostName and self._canDeleteFavourite():
                         options.append(IPTVChoiceBoxItem(_("Remove from favourites"), "", {'e2i_menu_action': 'DELETE_FAV'}))
                 except Exception:
                     printExc()
+                self._addRemoveFavouriteOption(options)
             if len(options):
                 self.stopAutoPlaySequencer()
                 self.session.openWithCallback(self.requestCustomActionFromHost, IPTVChoiceBoxWidget, {'width': 600, 'current_idx': 0, 'title': _("Select action"), 'options': options})
@@ -2726,6 +2866,9 @@ class E2iPlayerWidget(Screen):
             if menuAction == 'ADD_FAV':
                 currSelIndex = self.canByAddedToFavourites()[0]
                 self.requestListFromHost('ForFavItem', currSelIndex, '')
+                return
+            elif menuAction == 'REMOVE_FAV_HOST':
+                self.session.openWithCallback(boundFunction(self.removeFavouriteOfHostItem, ret.privateData), MessageBox, _('Definitely remove from favourites?'), type=MessageBox.TYPE_YESNO, timeout=10)
                 return
             elif menuAction == 'DELETE_FAV':
                 self.session.openWithCallback(self.deleteFavouriteItem, MessageBox, _('Definitely remove from favorites?'), type=MessageBox.TYPE_YESNO, timeout=10)

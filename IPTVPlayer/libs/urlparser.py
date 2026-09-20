@@ -549,6 +549,7 @@ class urlparser:
             "vidaraa.cc": self.pp.parserSTREAMUP,
             "vidarax.cc": self.pp.parserSTREAMUP,
             "vidavaca.net": self.pp.parserSTREAMUP,
+            "vidvara.biz": self.pp.parserSTREAMUP,
             "vidara.so": self.pp.parserSTREAMUP,
             "vidara.to": self.pp.parserSTREAMUP,
             "vidavra.cc": self.pp.parserSTREAMUP,
@@ -3339,7 +3340,9 @@ class pageParser(CaptchaHelper):
                 if label:
                     name += " %s" % label
                 if ".m3u8" in url.lower():
-                    urltab.extend(getDirectM3U8Playlist(decoUrl, sortWithMaxBitrate=99999999))
+                    for item in getDirectM3U8Playlist(decoUrl, sortWithMaxBitrate=99999999):
+                        item["name"] = ("%s %s" % (name, item.get("name", ""))).strip()
+                        urltab.append(item)
                 else:
                     urltab.append({"name": name, "url": decoUrl})
         return urltab
@@ -3407,7 +3410,9 @@ class pageParser(CaptchaHelper):
                     name += " %sp" % src["quality"]
                 decoUrl = urlparser.decorateUrl(url, {"User-Agent": HTTP_HEADER["User-Agent"], "Referer": "https://peachify.top/", "Origin": "https://peachify.top"})
                 if ".m3u8" in url.lower():
-                    urltab.extend(getDirectM3U8Playlist(decoUrl, sortWithMaxBitrate=99999999))
+                    for item in getDirectM3U8Playlist(decoUrl, sortWithMaxBitrate=99999999):
+                        item["name"] = ("%s %s" % (name, item.get("name", ""))).strip()
+                        urltab.append(item)
                 else:
                     urltab.append({"name": name, "url": decoUrl})
         return urltab
@@ -3670,10 +3675,14 @@ class pageParser(CaptchaHelper):
             decoUrl = urlparser.decorateUrl(streamUrl, {"User-Agent": HTTP_HEADER["User-Agent"], "Referer": ref, "Origin": ref[:-1], "iptv_use_ffmpeg": True})
             if ".m3u8" in streamUrl:
                 for item in getDirectM3U8Playlist(decoUrl, sortWithMaxBitrate=99999999):
-                    item["name"] = "%s %s" % (label, item.get("name", ""))
+                    item["name"] = ("%s %s" % (label, item.get("name", ""))).strip()
                     urltab.append(item)
             else:
                 urltab.append({"name": label, "url": decoUrl})
+        # the "Euro" server has repeatedly been observed serving short ad clips
+        # instead of the real movie/episode - push it to the back so it isn't
+        # the first thing the user tries, without dropping it as a fallback.
+        urltab.sort(key=lambda item: 1 if "euro" in item.get("name", "").lower() else 0)
         return urltab
 
     def parserVIDSST(self, baseUrl):  # add 050926 - vids.st (premiumsmart.eu "VidsST" mirror), bespoke ArtPlayer host

@@ -4797,3 +4797,37 @@ msgid ""
 " these captchas, so we need to pass the captcha to you."
 msgstr ""
 
+msgid "Newest videos of a YouTube channel in a group"
+msgstr ""
+
+msgid "Newest videos (all YouTube channels)"
+msgstr ""
+
+msgid "The latest uploads of all YouTube channels in this group, newest first."
+msgstr ""
+
+msgid "Host"
+msgstr ""
+
+msgid "Latest video"
+msgstr ""
+
+#, python-format
+msgid "(%d YouTube channel(s) could not be read)"
+msgstr ""
+
+msgid "The feed of these channels could not be read - press OK to try again."
+msgstr ""
+
+msgid "(no videos found)"
+msgstr ""
+
+msgid "The YouTube channels of this group have no videos."
+msgstr ""
+
+msgid "YouTube channels: original order"
+msgstr ""
+
+msgid "YouTube channels: sort by newest upload"
+msgstr ""
+
