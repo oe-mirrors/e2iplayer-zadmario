@@ -1256,9 +1256,6 @@ msgstr "Wähle %s"
 msgid "Is this message displayed correctly?"
 msgstr "Wird diese Nachricht korrekt dargestellt?"
 
-msgid "name"
-msgstr "Name"
-
 msgid "Select audio track"
 msgstr "Wähle Tonspur"
 
@@ -2586,12 +2583,6 @@ msgstr "Zeitplan"
 msgid "All Sports"
 msgstr "Alle Sportarten"
 
-#, python-format
-msgid "Username in settings is different from %sdataattributesusername"
-msgstr ""
-"Der Benutzername in den Einstellungen unterscheidet sich von "
-"%sdataattributesusername"
-
 msgid "Login needed"
 msgstr "Anmeldung erforderlich"
 
@@ -2777,22 +2768,6 @@ msgstr "Veröffentlicht:"
 
 msgid "Alternative"
 msgstr "Alternative"
-
-#, python-format
-msgid ""
-"Last error:\n"
-"%sBRAK WIDEO"
-msgstr ""
-"Letzter Fehler:\n"
-"%sBRAK WIDEO"
-
-#, python-format
-msgid ""
-"Last error:\n"
-"%sPOSZUKIWANA STRONA NIE ISTNIEJE LUB JEST OBECNIE NIEDOSTĘPNA"
-msgstr ""
-"Letzter Fehler:\n"
-"%sPOSZUKIWANA STRONA NIE ISTNIEJE LUB JEST OBECNIE NIEDOSTĘPNA"
 
 msgid " Wystąpił chwilowy problem z naszymi serwerami."
 msgstr " Es gab ein vorübergehendes Problem mit unseren Servern."
@@ -3105,9 +3080,6 @@ msgstr "Vergangene Saisons"
 
 msgid "Goal Of The Month"
 msgstr "Tor des Monats"
-
-msgid "title"
-msgstr "Titel"
 
 msgid "large"
 msgstr "groß"
@@ -3628,12 +3600,6 @@ msgstr "Sortieren nach:"
 
 msgid "Path to ytlist.txt, urllist.txt"
 msgstr "Verzeichnis von ytlist.txt, urllist.txt"
-
-msgid "Video format:"
-msgstr "Video-Format:"
-
-msgid "Age-gate bypass:"
-msgstr "Altersgrenzenumgehung:"
 
 msgid "Display language:"
 msgstr "Anzeigesprache:"
@@ -4250,9 +4216,6 @@ msgstr ""
 #, python-brace-format
 msgid "Login on {0} failed."
 msgstr "Login in {0} fehlgeschlagen."
-
-msgid "lang"
-msgstr "Sprache"
 
 msgid "List only channels with subscription"
 msgstr "Zeige nur Kanäle mit Abonnement"
@@ -4948,4 +4911,204 @@ msgstr "Dieser Feed ist leer, oder die YouTube-Anmeldung ist abgelaufen - melde 
 
 msgid "This video requires you to sign in to a YouTube account."
 msgstr "Für dieses Video ist eine Anmeldung mit einem YouTube-Konto erforderlich."
+
+msgid ""
+"1. On a phone or PC in the same network, open the address shown in the "
+"captcha window (or scan its QR code) in a browser with the MyE2i extension "
+"installed. If it asks for a code, you find it in the title of the captcha "
+"window."
+msgstr ""
+"1. Öffnen Sie auf einem Smartphone oder PC im selben Netzwerk die im "
+"Captcha-Fenster angezeigte Adresse (oder scannen Sie den QR-Code) in einem "
+"Browser mit installierter MyE2i-Erweiterung. Wird ein Code verlangt, steht "
+"er im Titel des Captcha-Fensters."
+
+msgid ""
+"2. Click the big green button on that page. A new tab opens with the captcha"
+" or the website's browser check."
+msgstr ""
+"2. Klicken Sie auf der Seite auf die große grüne Schaltfläche. Es öffnet "
+"sich ein neuer Tab mit dem Captcha oder der Browser-Prüfung der Webseite."
+
+msgid ""
+"3. Solve it. The result goes back to the receiver by itself and the captcha "
+"window closes."
+msgstr ""
+"3. Lösen Sie es. Das Ergebnis geht automatisch an den Receiver zurück und "
+"das Captcha-Fenster schließt sich."
+
+msgid ""
+"Access denied - open the page with the QR code or the code shown on the "
+"receiver screen."
+msgstr ""
+"Zugriff verweigert - öffnen Sie die Seite über den QR-Code oder mit dem "
+"Code, der auf dem Receiver-Bildschirm angezeigt wird."
+
+msgid "Captcha error:"
+msgstr "Captcha-Fehler:"
+
+msgid "Close"
+msgstr "Schließen"
+
+msgid "Code"
+msgstr "Code"
+
+msgid "Continue"
+msgstr "Weiter"
+
+msgid "Debug snapshot"
+msgstr "Debug-Snapshot"
+
+msgid "Debug snapshot (for site development)"
+msgstr "Debug-Snapshot (für die Entwicklung von Seiten)"
+
+#, python-format
+msgid "Debug snapshot: \"%s\" received by the box"
+msgstr "Debug-Snapshot: \"%s\" von der Box empfangen"
+
+#, python-format
+msgid "Debug snapshot: sending \"%s\" failed"
+msgstr "Debug-Snapshot: Senden von \"%s\" fehlgeschlagen"
+
+msgid "Done - the result was sent to the box, you can close this page."
+msgstr ""
+"Fertig - das Ergebnis wurde an die Box gesendet, Sie können diese Seite "
+"schließen."
+
+msgid "Download new version"
+msgstr "Neue Version herunterladen"
+
+msgid ""
+"Enter the code shown in the title of the window on your receiver's screen "
+"(or scan the QR code shown there - no code needed then):"
+msgstr ""
+"Geben Sie den Code ein, der im Titel des Fensters auf dem Bildschirm Ihres "
+"Receivers angezeigt wird (oder scannen Sie den dort angezeigten QR-Code - "
+"dann ist kein Code nötig):"
+
+msgid "Error"
+msgstr "Fehler"
+
+msgid "Error occurs:"
+msgstr "Fehler aufgetreten:"
+
+msgid "Find out more."
+msgstr "Mehr erfahren."
+
+msgid "Get Cloudflare job"
+msgstr "Cloudflare-Aufgabe abrufen"
+
+msgid "Get captcha job"
+msgstr "Captcha-Aufgabe abrufen"
+
+msgid "Get cookies job"
+msgstr "Cookie-Aufgabe abrufen"
+
+msgid "Help"
+msgstr "Hilfe"
+
+msgid "How to solve a captcha:"
+msgstr "So lösen Sie ein Captcha:"
+
+msgid "I am no robot"
+msgstr "Ich bin kein Roboter"
+
+msgid "MyE2i - how to solve a captcha"
+msgstr "MyE2i - So lösen Sie ein Captcha"
+
+msgid "MyE2i browser check solution"
+msgstr "MyE2i Browser-Prüfung Lösung"
+
+msgid "MyE2i debug snapshot received - see the debug log."
+msgstr "MyE2i Debug-Snapshot empfangen - siehe Debug-Log."
+
+msgid "MyE2i extension is outdated - please update it."
+msgstr "Die MyE2i-Erweiterung ist veraltet - bitte aktualisieren."
+
+msgid "MyE2i extension: increase security"
+msgstr "MyE2i-Erweiterung: Sicherheit erhöhen"
+
+msgid ""
+"Needs extension v1.18+. Opens the page in this browser, waits until it is "
+"fully rendered (Cloudflare challenge included, solve it if it shows up) and "
+"sends the rendered HTML, the fetch/XHR calls and the cookie names to the box"
+" debug log."
+msgstr ""
+"Benötigt Erweiterung ab v1.18. Öffnet die Seite in diesem Browser, wartet "
+"bis sie vollständig dargestellt ist (inklusive Cloudflare-Prüfung, bitte "
+"lösen falls sie erscheint) und sendet das dargestellte HTML, die fetch/XHR-"
+"Aufrufe und die Cookie-Namen an das Debug-Log der Box."
+
+msgid "Page not found - please check the address."
+msgstr "Seite nicht gefunden - bitte prüfen Sie die Adresse."
+
+msgid "Please solve to continue downloads with:"
+msgstr "Bitte lösen Sie das Captcha, um die Downloads fortzusetzen mit:"
+
+msgid "Please wait..."
+msgstr "Bitte warten..."
+
+msgid "Sending the result to the box failed."
+msgstr "Das Senden des Ergebnisses an die Box ist fehlgeschlagen."
+
+msgid ""
+"The QR code leads to the wiki page with pictures and the extension download."
+msgstr ""
+"Der QR-Code führt zur Wiki-Seite mit Bildern und dem Download der "
+"Erweiterung."
+
+msgid "The data is too large."
+msgstr "Die Daten sind zu groß."
+
+msgid "The request has no valid length."
+msgstr "Die Anfrage hat keine gültige Länge."
+
+msgid "This session has no code - scan the QR code on the receiver screen."
+msgstr ""
+"Diese Sitzung hat keinen Code - scannen Sie den QR-Code auf dem Receiver-"
+"Bildschirm."
+
+msgid ""
+"Too many wrong codes - scan the QR code on the receiver screen instead."
+msgstr ""
+"Zu viele falsche Codes - scannen Sie stattdessen den QR-Code auf dem "
+"Receiver-Bildschirm."
+
+#, python-format
+msgid "Username in settings is different from %s"
+msgstr "Der Benutzername in den Einstellungen unterscheidet sich von %s"
+
+msgid "Waiting for the result ..."
+msgstr "Warte auf das Ergebnis ..."
+
+msgid "What's happening?"
+msgstr "Was passiert hier?"
+
+msgid "Wrong code."
+msgstr "Falscher Code."
+
+#, python-format
+msgid ""
+"Your MyE2i extension is outdated or unknown (v%s or newer needed). Please "
+"update:"
+msgstr ""
+"Ihre MyE2i-Erweiterung ist veraltet oder unbekannt (ab v%s erforderlich). "
+"Bitte aktualisieren:"
+
+msgid "debug"
+msgstr "debug"
+
+msgid "upzone.cc: free transfer limit reached - PREMIUM account required."
+msgstr ""
+"upzone.cc: Limit für kostenlosen Transfer erreicht - PREMIUM-Konto "
+"erforderlich."
+
+msgid ""
+"wants you to solve a captcha. Only after solving this captcha, you are "
+"allowed to continue with your downloads. E2iPlayer is not able to auto-solve"
+" these captchas, so we need to pass the captcha to you."
+msgstr ""
+"möchte, dass Sie ein Captcha lösen. Erst nach dem Lösen dieses Captchas "
+"dürfen Sie mit Ihren Downloads fortfahren. E2iPlayer kann diese Captchas "
+"nicht automatisch lösen, deshalb geben wir das Captcha an Sie weiter."
 

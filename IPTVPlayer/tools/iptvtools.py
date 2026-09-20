@@ -499,6 +499,13 @@ def GetCacheSubDir(dirName, fileName=''):
     return os.path.join(path, fileName)
 
 
+def GetConfigSubDir(dirName, fileName=''):
+    # This fork has no separate config folder (user data lives in the cache folder), so this is the
+    # same as GetCacheSubDir(). The name exists because hosts and libs of the python3 branch ask for
+    # it (hostxxx.py keeps its test results there), so they can be copied here without changes.
+    return GetCacheSubDir(dirName, fileName)
+
+
 def GetSearchHistoryDir(fileName=''):
     return GetCacheSubDir('SearchHistory', fileName)
 

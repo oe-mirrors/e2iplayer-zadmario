@@ -1208,9 +1208,6 @@ msgstr ""
 msgid "Is this message displayed correctly?"
 msgstr ""
 
-msgid "name"
-msgstr ""
-
 msgid "Select audio track"
 msgstr ""
 
@@ -2461,10 +2458,6 @@ msgstr ""
 msgid "All Sports"
 msgstr ""
 
-#, python-format
-msgid "Username in settings is different from %sdataattributesusername"
-msgstr ""
-
 msgid "Login needed"
 msgstr ""
 
@@ -2645,18 +2638,6 @@ msgid "Published:"
 msgstr ""
 
 msgid "Alternative"
-msgstr ""
-
-#, python-format
-msgid ""
-"Last error:\n"
-"%sBRAK WIDEO"
-msgstr ""
-
-#, python-format
-msgid ""
-"Last error:\n"
-"%sPOSZUKIWANA STRONA NIE ISTNIEJE LUB JEST OBECNIE NIEDOSTĘPNA"
 msgstr ""
 
 msgid " Wystąpił chwilowy problem z naszymi serwerami."
@@ -2963,9 +2944,6 @@ msgid "Previous Seasons"
 msgstr ""
 
 msgid "Goal Of The Month"
-msgstr ""
-
-msgid "title"
 msgstr ""
 
 msgid "large"
@@ -3486,12 +3464,6 @@ msgid "Sort by:"
 msgstr ""
 
 msgid "Path to ytlist.txt, urllist.txt"
-msgstr ""
-
-msgid "Video format:"
-msgstr ""
-
-msgid "Age-gate bypass:"
 msgstr ""
 
 msgid "Display language:"
@@ -4041,9 +4013,6 @@ msgstr ""
 
 #, python-brace-format
 msgid "Login on {0} failed."
-msgstr ""
-
-msgid "lang"
 msgstr ""
 
 msgid "List only channels with subscription"
@@ -4658,5 +4627,173 @@ msgid "This feed is empty, or the YouTube sign-in has expired - sign out and in 
 msgstr ""
 
 msgid "This video requires you to sign in to a YouTube account."
+msgstr ""
+
+msgid ""
+"1. On a phone or PC in the same network, open the address shown in the "
+"captcha window (or scan its QR code) in a browser with the MyE2i extension "
+"installed. If it asks for a code, you find it in the title of the captcha "
+"window."
+msgstr ""
+
+msgid ""
+"2. Click the big green button on that page. A new tab opens with the captcha"
+" or the website's browser check."
+msgstr ""
+
+msgid ""
+"3. Solve it. The result goes back to the receiver by itself and the captcha "
+"window closes."
+msgstr ""
+
+msgid ""
+"Access denied - open the page with the QR code or the code shown on the "
+"receiver screen."
+msgstr ""
+
+msgid "Captcha error:"
+msgstr ""
+
+msgid "Close"
+msgstr ""
+
+msgid "Code"
+msgstr ""
+
+msgid "Continue"
+msgstr ""
+
+msgid "Debug snapshot"
+msgstr ""
+
+msgid "Debug snapshot (for site development)"
+msgstr ""
+
+#, python-format
+msgid "Debug snapshot: \"%s\" received by the box"
+msgstr ""
+
+#, python-format
+msgid "Debug snapshot: sending \"%s\" failed"
+msgstr ""
+
+msgid "Done - the result was sent to the box, you can close this page."
+msgstr ""
+
+msgid "Download new version"
+msgstr ""
+
+msgid ""
+"Enter the code shown in the title of the window on your receiver's screen "
+"(or scan the QR code shown there - no code needed then):"
+msgstr ""
+
+msgid "Error"
+msgstr ""
+
+msgid "Error occurs:"
+msgstr ""
+
+msgid "Find out more."
+msgstr ""
+
+msgid "Get Cloudflare job"
+msgstr ""
+
+msgid "Get captcha job"
+msgstr ""
+
+msgid "Get cookies job"
+msgstr ""
+
+msgid "Help"
+msgstr ""
+
+msgid "How to solve a captcha:"
+msgstr ""
+
+msgid "I am no robot"
+msgstr ""
+
+msgid "MyE2i - how to solve a captcha"
+msgstr ""
+
+msgid "MyE2i browser check solution"
+msgstr ""
+
+msgid "MyE2i debug snapshot received - see the debug log."
+msgstr ""
+
+msgid "MyE2i extension is outdated - please update it."
+msgstr ""
+
+msgid "MyE2i extension: increase security"
+msgstr ""
+
+msgid ""
+"Needs extension v1.18+. Opens the page in this browser, waits until it is "
+"fully rendered (Cloudflare challenge included, solve it if it shows up) and "
+"sends the rendered HTML, the fetch/XHR calls and the cookie names to the box"
+" debug log."
+msgstr ""
+
+msgid "Page not found - please check the address."
+msgstr ""
+
+msgid "Please solve to continue downloads with:"
+msgstr ""
+
+msgid "Please wait..."
+msgstr ""
+
+msgid "Sending the result to the box failed."
+msgstr ""
+
+msgid ""
+"The QR code leads to the wiki page with pictures and the extension download."
+msgstr ""
+
+msgid "The data is too large."
+msgstr ""
+
+msgid "The request has no valid length."
+msgstr ""
+
+msgid "This session has no code - scan the QR code on the receiver screen."
+msgstr ""
+
+msgid ""
+"Too many wrong codes - scan the QR code on the receiver screen instead."
+msgstr ""
+
+#, python-format
+msgid "Username in settings is different from %s"
+msgstr ""
+
+msgid "Waiting for the result ..."
+msgstr ""
+
+msgid "What's happening?"
+msgstr ""
+
+msgid "Wrong code."
+msgstr ""
+
+#, python-format
+msgid ""
+"Your MyE2i extension is outdated or unknown (v%s or newer needed). Please "
+"update:"
+msgstr ""
+
+msgid "debug"
+msgstr ""
+
+msgid "upzone.cc: free transfer limit reached - PREMIUM account required."
+msgstr ""
+
+msgid ""
+"wants you to solve a captcha. Only after solving this captcha, you are "
+"allowed to continue with your downloads. E2iPlayer is not able to auto-solve"
+" these captchas, so we need to pass the captcha to you."
 msgstr ""
 
