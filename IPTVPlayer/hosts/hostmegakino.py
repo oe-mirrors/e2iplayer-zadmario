@@ -14,7 +14,7 @@ def GetConfigList():
 
 
 def gettytul():
-    return "https://megakino4.com/"
+    return "https://megakino20.com/"
 
 
 class MegaKino(CBaseHostClass):
@@ -75,7 +75,10 @@ class MegaKino(CBaseHostClass):
         sts, data = self.getPage(gettytul())
         if not sts:
             return
-        data = self.cm.ph.getAllItemsBeetwenMarkers(data, cItem["s"], 'class="side-block__title')[0]
+        data = self.cm.ph.getAllItemsBeetwenMarkers(data, cItem["s"], 'class="side-block__title')
+        if not data:
+            return
+        data = data[0]
         data = re.compile('href="([^"]+)(?:.*?title">|">)([^<]+)', re.DOTALL).findall(data)
         for url, title in data:
             params = dict(cItem)
@@ -143,7 +146,7 @@ class MegaKino(CBaseHostClass):
             cItem.update({"search_item": False, "name": "category"})
             self.listSearchResult(cItem, searchPattern, searchType)
         elif category == "search_history":
-            self.listsHistory({"name": "history", "category": "search"}, "desc", _("Type: "))
+            self.listsHistory({"name": "history", "category": "search"}, "desc")
         else:
             printExc()
         CBaseHostClass.endHandleService(self, index, refresh)

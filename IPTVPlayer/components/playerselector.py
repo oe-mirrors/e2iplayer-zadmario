@@ -4,6 +4,7 @@ from Components.ActionMap import ActionMap
 from Components.config import config
 from Components.Label import Label
 from enigma import ePoint, getDesktop
+import os
 from Plugins.Extensions.IPTVPlayer.components.cover import Cover3
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import GetAvailableIconSize, GetIconDir, GetIPTVPlayerVerstion, printDBG, printExc
@@ -44,7 +45,11 @@ class PlayerSelectorWidget(Screen):
         except (ValueError, AttributeError):
             pass
         if screenwidth >= 1920:
-            offsetCoverX, offsetCoverY, iconSize = 38, 120, 135
+            offsetCoverX, offsetCoverY = 38, 120
+            # FHD wants the 135px icons; older updates deleted every size but
+            # the configured one, so use 135 only when its files are there
+            if os.path.isfile(GetIconDir("PlayerSelector/marker180.png")):
+                iconSize = 135
             font = 36
         else:
             font = 26

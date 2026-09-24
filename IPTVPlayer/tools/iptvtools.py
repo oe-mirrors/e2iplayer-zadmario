@@ -1360,7 +1360,7 @@ class CSearchHistoryHelper():
             if os.path.isfile(self.PATH_FILE):
                 try:
                     num = 0
-                    file = codecs.open(GetSearchHistoryDir("ytlist.txt"), 'r', 'utf-8', 'ignore')
+                    file = codecs.open(self.PATH_FILE, 'r', 'utf-8', 'ignore')
                     for line in file:
                         num = num + 1
                     file.close()

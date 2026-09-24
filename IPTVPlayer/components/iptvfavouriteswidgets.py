@@ -10,6 +10,7 @@ from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT
 from Plugins.Extensions.IPTVPlayer.components.ihost import CFavItem, CDisplayListItem
 from Plugins.Extensions.IPTVPlayer.components.iptvmultipleinputbox import IPTVMultipleInputBox
 from Plugins.Extensions.IPTVPlayer.components.iptvlist import IPTVMainNavigatorList
+from Plugins.Extensions.IPTVPlayer.components.iptvchoicebox import openSortChoiceBox
 ###################################################
 
 ###################################################
@@ -236,6 +237,8 @@ class IPTVFavouritesMainWidget(Screen):
 
         self["actions"] = ActionMap(["ColorActions", "WizardActions", "ListboxActions", "NumberActions"],
             actions, -2)
+        # MENU (A-Z / Z-A) lives in IPTVPlayerListActions, kept in its own ActionMap
+        self["menuActions"] = ActionMap(["IPTVPlayerListActions"], {"menu": self.keyMenu}, 0)
 
         self.prevIdx = 0
         self.duringMoving = False
@@ -558,6 +561,33 @@ class IPTVFavouritesMainWidget(Screen):
 
     def keyDrop(self):
         pass
+
+    def keyMenu(self):
+        # sorts the list currently shown: the groups, or the items of the
+        # opened group
+        if self.reorderingMode or self.duringMoving:
+            return
+        if None is self.getSelectedItem():
+            return
+        openSortChoiceBox(self.session, self.sortSelected)
+
+    def sortSelected(self, reverse):
+        if reverse is None:
+            return
+        if ":groups:" == self.menu:
+            self.favourites.getGroups().sort(key=lambda group: (group.get('title', '') or '').lower(), reverse=reverse)
+        else:
+            sts, items = self.favourites.getGroupItems(self.menu)
+            if not sts:
+                self.session.open(MessageBox, self.favourites.getLastError(), type=MessageBox.TYPE_ERROR, timeout=10)
+                return
+            items.sort(key=lambda item: (item.name or '').lower(), reverse=reverse)
+        self.modified = True
+        self.displayList()
+        try:
+            self["list"].moveToIndex(0)
+        except Exception:
+            pass
 
     def getSelectedItem(self):
         sel = None

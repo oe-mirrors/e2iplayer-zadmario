@@ -1,12 +1,18 @@
 # -*- coding: utf-8 -*-
-# added: 25.07.2026  - Separate YouTube user links module for ytlist.txt handling, including add-to-user-links action,
-# folder selection or new folder creation, raw editor and user links editor integration, extracted from hostyoutube.py
-# to keep hostyoutube.py cleaner - Kamikaze24
+# added: 25.07.2026  - YouTube user links module (ytlist.txt), extracted from hostyoutube.py - Kamikaze24
+# 24.09.2026 - generic editor for the "[group] title;url;;icon;;;desc" link
+# lists read by IPTVFileHost (ytlist.txt, urllist.txt/.stream/.user,
+# xxxlist.txt). Port of the python3 fork's linklisteditor.py: the list
+# handling is the same, the screens use zadmario's plain skin and the
+# native ChoiceBox. YouTubeUserLinksManager at the end adds the YouTube
+# "Add to User Links" action.
 ###################################################
 # LOCAL import
 ###################################################
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printExc
+from Plugins.Extensions.IPTVPlayer.components.e2ivkselector import GetVirtualKeyboard
+from Plugins.Extensions.IPTVPlayer.components.iptvchoicebox import openSortChoiceBox, sortOrderTitle
 
 ###################################################
 
@@ -27,8 +33,8 @@ from Screens.MessageBox import MessageBox
 from Components.ActionMap import ActionMap
 from Components.Label import Label
 from Screens.ChoiceBox import ChoiceBox
-from Screens.VirtualKeyBoard import VirtualKeyBoard
 from Components.MenuList import MenuList
+from enigma import gRGB
 
 ###################################################
 
@@ -36,20 +42,19 @@ from Components.MenuList import MenuList
 try:
     text_type = unicode
     binary_type = str
-    string_types = (basestring,)
     PY2 = True
 except NameError:
     text_type = str
     binary_type = bytes
-    string_types = (str, bytes)
     PY2 = False
 
 
-class YouTubeUserLinksEditorScreen(Screen):
+class LinkListEditorScreen(Screen):
+    # RED delete, GREEN reorder rows, YELLOW move to group, BLUE sort A-Z / Z-A
     skin = """
-    <screen name="YouTubeUserLinksEditorScreen" position="center,center" size="1120,650" title="YouTube User Links Editor">
+    <screen name="LinkListEditorScreen" position="center,center" size="1120,650" title="Edit User Links">
         <widget name="status" position="20,18" size="1080,30" font="Regular;24" halign="left" valign="center" transparent="1" />
-        <widget name="list" position="20,58" size="1080,502" itemHeight="36" scrollbarMode="showOnDemand" transparent="1" />
+        <widget name="list" position="20,58" size="1080,502" itemHeight="36" scrollbarMode="showOnDemand" enableWrapAround="1" transparent="1" />
         <widget name="hint" position="20,570" size="1080,28" font="Regular;22" halign="center" valign="center" foregroundColor="#00b0b0b0" transparent="1" />
 
         <eLabel position="20,612" size="18,18" backgroundColor="#00f23d21" />
@@ -70,6 +75,7 @@ class YouTubeUserLinksEditorScreen(Screen):
         Screen.__init__(self, session)
         self.manager = manager
         self.entries = []
+        self.reorderMode = False
 
         self["status"] = Label("")
         self["hint"] = Label("")
@@ -79,21 +85,23 @@ class YouTubeUserLinksEditorScreen(Screen):
         self["key_blue"] = Label("")
         self["list"] = MenuList([])
 
-        self.setTitle(self.forceUiText(_("YouTube User Links Editor")))
+        self.setTitle(self.forceUiText(manager.editorTitle))
 
         self.safeSetText(self["status"], "")
         self.safeSetText(self["hint"], _("OK=Edit RED=%s YELLOW=%s EXIT=Exit") % (_("Delete"), _("Move")))
         self.safeSetText(self["key_red"], _("Delete"))
-        self.safeSetText(self["key_green"], "")
+        self.safeSetText(self["key_green"], _("Enable reordering"))
         self.safeSetText(self["key_yellow"], _("Move"))
-        self.safeSetText(self["key_blue"], "")
+        self.safeSetText(self["key_blue"], sortOrderTitle())
 
         self["actions"] = ActionMap(
             ["WizardActions", "DirectionActions", "ColorActions"],
             {
                 "back": self.keyBack,
                 "red": self.keyDelete,
+                "green": self.keyReorder,
                 "yellow": self.keyMove,
+                "blue": self.keySort,
                 "ok": self.keyOK,
                 "up": self.keyUp,
                 "down": self.keyDown,
@@ -124,6 +132,9 @@ class YouTubeUserLinksEditorScreen(Screen):
 
     def formatDisplayLine(self, item):
         try:
+            if item.get("kind", "link") != "link":
+                return self.cleanDisplayText(item.get("raw_line", ""))
+
             rawLine = self.cleanDisplayText(item.get("raw_line", ""), u"")
             if rawLine:
                 return rawLine
@@ -150,77 +161,142 @@ class YouTubeUserLinksEditorScreen(Screen):
     def onStart(self):
         self.reloadList()
 
-    def reloadList(self):
+    def reloadList(self, selectIdx=None):
         try:
             self.entries = self.manager.read()
-            displayList = []
-
-            for item in self.entries:
-                if not isinstance(item, dict):
-                    continue
-                displayList.append(self.forceUiText(self.formatDisplayLine(item)))
-
-            self["list"].setList(displayList)
-            self.safeSetText(self["status"], _("User-Links: %d") % len(displayList))
+            self.showEntries(selectIdx)
         except Exception:
             printExc()
             self.entries = []
             self["list"].setList([])
             self.safeSetText(self["status"], _("Loading failed."))
 
-    def getCurrentItem(self):
+    def showEntries(self, selectIdx=None):
+        displayList = []
+
+        for item in self.entries:
+            if not isinstance(item, dict):
+                continue
+            displayList.append(self.forceUiText(self.formatDisplayLine(item)))
+
+        self["list"].setList(displayList)
+        if selectIdx is not None and 0 <= selectIdx < len(displayList):
+            self["list"].moveToIndex(selectIdx)
+
+        if self.reorderMode:
+            self.safeSetText(self["status"], _("Reordering: UP/DOWN moves the row, OK saves, EXIT cancels."))
+        else:
+            numLinks = len([item for item in self.entries if isinstance(item, dict) and item.get("kind", "link") == "link"])
+            self.safeSetText(self["status"], _("User-Links: %d") % numLinks)
+
+    def currentIndex(self):
         try:
             idx = self["list"].getSelectedIndex()
-            if idx is None:
-                return None
-            idx = int(idx)
-            if idx < 0 or idx >= len(self.entries):
-                return None
-            item = self.entries[idx]
-            if isinstance(item, dict):
-                return item
+            if idx is not None:
+                return int(idx)
         except Exception:
             printExc()
         return None
 
+    def keyReorder(self):
+        if self.reorderMode:
+            self.stopReorder(True)
+            return
+
+        if len(self.entries) < 2:
+            return
+
+        self.reorderMode = True
+        self.safeSetText(self["key_green"], _("Disable reordering"))
+        self.setCarryColor(True)
+        self.showEntries(self.currentIndex())
+
+    def setCarryColor(self, carrying):
+        # red text on the carried row, like the favourites manager's reordering
+        try:
+            self["list"].instance.setForegroundColorSelected(gRGB(0xFF0505 if carrying else 0xFFFFFF))
+        except Exception:
+            printExc()
+
+    def stopReorder(self, save):
+        idx = self.currentIndex()
+        self.reorderMode = False
+        self.safeSetText(self["key_green"], _("Enable reordering"))
+        self.setCarryColor(False)
+
+        if save and not self.manager.write(self.entries):
+            self.openInfoMessage(_("The user link could not be updated."), MessageBox.TYPE_ERROR)
+
+        self.reloadList(idx)
+
+    def moveRow(self, delta):
+        try:
+            idx = self.currentIndex()
+            if idx is None:
+                return
+
+            newIdx = idx + delta
+            if newIdx < 0 or newIdx >= len(self.entries):
+                return
+
+            self.entries[idx], self.entries[newIdx] = self.entries[newIdx], self.entries[idx]
+            self.showEntries(newIdx)
+        except Exception:
+            printExc()
+
+    def keySort(self):
+        if self.reorderMode:
+            return
+
+        openSortChoiceBox(self.session, self.onSortOrderSelected)
+
+    def onSortOrderSelected(self, reverse):
+        if reverse is None:
+            return
+
+        self.session.openWithCallback(
+            lambda ret: self.sortConfirmed(ret, reverse),
+            MessageBox,
+            self.forceUiText(_("Sort the links now? The order of the lines in the file will change.")),
+            type=MessageBox.TYPE_YESNO
+        )
+
+    def sortConfirmed(self, ret, reverse):
+        if not ret:
+            return
+
+        sts, msg = self.manager.sortLinks(reverse)
+        self.actionFinished(sts, msg)
+
+    def getCurrentItem(self):
+        idx = self.currentIndex()
+        if idx is not None and 0 <= idx < len(self.entries) and isinstance(self.entries[idx], dict):
+            return self.entries[idx]
+        return None
+
     def keyBack(self):
+        if self.reorderMode:
+            self.stopReorder(False)
+            return
         self.close()
 
+    # the list wraps around by itself (enableWrapAround="1" in the skin)
     def keyUp(self):
-        try:
-            if len(self.entries) <= 0:
-                return
-
-            idx = self["list"].getSelectedIndex()
-            if idx is None:
-                idx = 0
-            idx = int(idx)
-
-            if idx <= 0:
-                self["list"].moveToIndex(len(self.entries) - 1)
-            else:
-                self["list"].up()
-        except Exception:
-            printExc()
+        if self.reorderMode:
+            self.moveRow(-1)
+        else:
+            self["list"].up()
 
     def keyDown(self):
-        try:
-            if len(self.entries) <= 0:
-                return
-
-            idx = self["list"].getSelectedIndex()
-            if idx is None:
-                idx = 0
-            idx = int(idx)
-
-            if idx >= (len(self.entries) - 1):
-                self["list"].moveToIndex(0)
-            else:
-                self["list"].down()
-        except Exception:
-            printExc()
+        if self.reorderMode:
+            self.moveRow(1)
+        else:
+            self["list"].down()
 
     def keyDelete(self):
+        if self.reorderMode:
+            return
+
         item = self.getCurrentItem()
         if not item:
             self.openInfoMessage(_("Select option"))
@@ -253,45 +329,50 @@ class YouTubeUserLinksEditorScreen(Screen):
             self.reloadList()
 
     def keyMove(self):
+        if self.reorderMode:
+            return
+
         item = self.getCurrentItem()
         if not item:
             self.openInfoMessage(_("Select option"))
             return
 
+        if item.get("kind", "link") != "link":
+            self.openInfoMessage(_("Only links can be moved to a group."))
+            return
+
         try:
-            self.manager.selectTargetGroup(self.session, item, self.moveFinished)
+            self.manager.selectTargetGroup(self.session, item, self.actionFinished)
         except Exception:
             printExc()
             self.openInfoMessage(_("Move failed."))
 
-    def moveFinished(self, sts, msg):
+    def actionFinished(self, sts, msg):
         self.openInfoMessage(msg)
         if sts:
             self.reloadList()
 
     def keyOK(self):
+        if self.reorderMode:
+            self.stopReorder(True)
+            return
+
         item = self.getCurrentItem()
         if not item:
             self.openInfoMessage(_("Select option"))
             return
 
         try:
-            self.manager.editRaw(self.session, item, self.editFinished)
+            self.manager.editRaw(self.session, item, self.actionFinished)
         except Exception:
             printExc()
             self.openInfoMessage(_("Edit failed."))
 
-    def editFinished(self, sts, msg):
-        self.openInfoMessage(msg)
-        if sts:
-            self.reloadList()
 
-
-class YouTubeUserLinksManager(object):
-    def __init__(self, listPathProvider, categoryResolver, channelNameResolver):
+class LinkListManager(object):
+    def __init__(self, listPathProvider, editorTitle=None):
         self.listPathProvider = listPathProvider
-        self.categoryResolver = categoryResolver
-        self.channelNameResolver = channelNameResolver
+        self.editorTitle = editorTitle or _("Edit User Links")
 
     def getUserLinksPath(self):
         return self.listPathProvider()
@@ -373,103 +454,147 @@ class YouTubeUserLinksManager(object):
         return False
 
     def parseLine(self, line):
+        # Same rules as IPTVFileHost.addFile(), which is what the host list
+        # is built from: "[group] title;url" plus the optional
+        # ";;icon;;;description" tail, which is kept verbatim in "extra".
         try:
             rawLine = self.toUnicode(line).strip()
             if not rawLine or rawLine.startswith(u"#"):
                 return None
 
-            group = u""
-            title = u""
-            url = u""
+            idx = rawLine.find(u";")
+            if idx < 0:
+                return None
 
-            match = re.match(r"^\[([^\]]+)\]\s*(.*?)\s*;\s*(https?://.+?)\s*$", rawLine, re.IGNORECASE)
-            if match:
-                group = self.cleanGroup(match.group(1))
-                title = self.cleanValue(match.group(2))
-                url = self.normalizeUrl(match.group(3))
-            else:
-                match = re.match(r"^(.*?)\s*;\s*(https?://.+?)\s*$", rawLine, re.IGNORECASE)
-                if match:
-                    title = self.cleanValue(match.group(1))
-                    url = self.normalizeUrl(match.group(2))
-                else:
-                    return None
+            fullTitle = rawLine[:idx].strip()
+            rest = rawLine[idx + 1:]
+            extra = u""
+            idxExtra = rest.find(u";;")
+            if idxExtra >= 0:
+                extra = rest[idxExtra:].rstrip()
+                rest = rest[:idxExtra]
+
+            group = u""
+            title = fullTitle
+            if 2 < len(fullTitle) and fullTitle[0] == u"[":
+                idxGroup = fullTitle.find(u"]")
+                if idxGroup >= 0:
+                    group = self.cleanGroup(fullTitle[1:idxGroup])
+                    title = fullTitle[idxGroup + 1:]
+
+            title = self.cleanValue(title)
+            url = self.normalizeUrl(rest)
 
             if not title or not url:
                 return None
 
             return {
+                "kind": u"link",
                 "group": group,
                 "title": title,
                 "url": url,
+                "extra": extra,
                 "raw_line": rawLine,
             }
         except Exception:
             printExc()
         return None
 
-    def buildLine(self, group, title, url):
+    def parseRow(self, line):
+        # Every line of the file is a row of the editor: a link, or "text"
+        # (comment, empty line or anything that is not a link), so that
+        # saving never drops a line.
+        item = self.parseLine(line)
+        if item is not None:
+            return item
+        return {"kind": u"text", "raw_line": self.toUnicode(line).strip()}
+
+    def isLink(self, item):
+        return isinstance(item, dict) and item.get("kind", u"link") == u"link"
+
+    def sameRow(self, item1, item2):
+        if not isinstance(item1, dict) or not isinstance(item2, dict):
+            return False
+        if self.isLink(item1) != self.isLink(item2):
+            return False
+        if self.isLink(item1):
+            return self.sameItem(item1, item2)
+        return item1.get("raw_line", u"") == item2.get("raw_line", u"")
+
+    def locate(self, rows, item):
+        try:
+            rowId = item.get("id")
+            if isinstance(rowId, int) and 0 <= rowId < len(rows) and self.sameRow(rows[rowId], item):
+                return rowId
+            for idx in range(len(rows)):
+                if self.sameRow(rows[idx], item):
+                    return idx
+        except Exception:
+            printExc()
+        return -1
+
+    def buildLine(self, group, title, url, extra=u""):
         group = self.cleanGroup(group)
         title = self.cleanValue(title)
         url = self.normalizeUrl(url)
 
         if group:
-            return u"[%s] %s;%s" % (group, title, url)
-        return u"%s;%s" % (title, url)
+            line = u"[%s] %s;%s" % (group, title, url)
+        else:
+            line = u"%s;%s" % (title, url)
+        return line + self.toUnicode(extra)
 
     def read(self):
-        entries = []
+        rows = []
         path = self.getUserLinksPath()
 
         try:
             if not os.path.isfile(path):
-                return entries
+                return rows
 
-            with codecs.open(path, "r", "utf-8") as f:
+            with open(path, "rb") as f:
                 for line in f:
-                    item = self.parseLine(line)
-                    if item is not None:
-                        entries.append(item)
+                    # a line that is not UTF-8 (old latin-1 lists) is read as
+                    # latin-1, so saving converts it instead of writing U+FFFD
+                    try:
+                        line = line.decode("utf-8")
+                    except UnicodeDecodeError:
+                        line = line.decode("latin-1")
+                    row = self.parseRow(line)
+                    row["id"] = len(rows)
+                    rows.append(row)
         except Exception:
             printExc()
 
-        return entries
+        return rows
 
-    def sortEntries(self, entries):
-        try:
-            def sortKey(item):
-                group = self.cleanGroup(item.get("group", "")).lower()
-                title = self.cleanValue(item.get("title", "")).lower()
-                url = self.normalizeUrl(item.get("url", "")).lower()
-                return (group, title, url)
-
-            return sorted(entries, key=sortKey)
-        except Exception:
-            printExc()
-            return entries
-
-    def write(self, entries):
+    def write(self, rows):
         try:
             self.ensureUserLinksDir()
             path = self.getUserLinksPath()
-            entries = self.sortEntries(entries)
             lines = []
 
-            for item in entries:
+            for item in rows:
                 if not isinstance(item, dict):
                     continue
-                line = self.buildLine(
-                    item.get("group", ""),
-                    item.get("title", ""),
-                    item.get("url", "")
-                )
+                if not self.isLink(item) or item.get("raw_line"):
+                    # rows read from the file keep their line as it was;
+                    # only new or edited links (no raw_line) are rebuilt
+                    lines.append(self.toUnicode(item.get("raw_line", u"")))
+                else:
+                    lines.append(self.buildLine(
+                        item.get("group", ""),
+                        item.get("title", ""),
+                        item.get("url", ""),
+                        item.get("extra", u"")
+                    ))
 
-                if line.strip():
-                    lines.append(line)
-
-            with codecs.open(path, "w", "utf-8") as f:
+            # write a temp file and rename it, so a crash can't leave a half-written list
+            tmpPath = path + ".tmp"
+            with codecs.open(tmpPath, "w", "utf-8") as f:
                 for line in lines:
                     f.write(line + u"\n")
+            os.rename(tmpPath, path)
 
             return True
         except Exception:
@@ -488,68 +613,13 @@ class YouTubeUserLinksManager(object):
             printExc()
         return groups
 
-    def isChannelItem(self, cItem):
-        try:
-            if not cItem:
-                return False
-            if cItem.get("category", "") == "channel":
-                return True
-
-            url = cItem.get("url", "")
-            if url and self.categoryResolver(str(url)) == "channel":
-                return True
-        except Exception:
-            printExc()
-        return False
-
-    def getCandidateFromItem(self, cItem):
-        if not self.isChannelItem(cItem):
-            return None
-
-        try:
-            title = self.channelNameResolver(cItem)
-            if not title:
-                title = cItem.get("title", "")
-
-            title = self.cleanValue(title)
-            url = self.normalizeUrl(cItem.get("url", ""))
-
-            if not title or not url:
-                return None
-
-            return {
-                "group": "",
-                "title": title,
-                "url": url,
-            }
-        except Exception:
-            printExc()
-        return None
-
-    def exists(self, group, title, url, skipItem=None):
-        try:
-            group = self.cleanGroup(group)
-            title = self.cleanValue(title)
-            url = self.normalizeUrl(url)
-
-            for item in self.read():
-                if skipItem is not None and self.sameItem(item, skipItem):
-                    continue
-                if (
-                    self.cleanGroup(item.get("group", "")) == group and
-                    self.cleanValue(item.get("title", "")) == title and
-                    self.normalizeUrl(item.get("url", "")) == url
-                ):
-                    return True
-        except Exception:
-            printExc()
-        return False
-
     def existsUrlAnywhere(self, url, skipItem=None):
         try:
             url = self.normalizeUrl(url)
 
             for item in self.read():
+                if not self.isLink(item):
+                    continue
                 if skipItem is not None and self.sameItem(item, skipItem):
                     continue
                 if self.normalizeUrl(item.get("url", "")) == url:
@@ -572,9 +642,11 @@ class YouTubeUserLinksManager(object):
 
             entries = self.read()
             newItem = {
+                "kind": u"link",
                 "group": group,
                 "title": title,
                 "url": url,
+                "extra": u"",
             }
 
             insertIdx = len(entries)
@@ -582,6 +654,8 @@ class YouTubeUserLinksManager(object):
             if group:
                 lastGroupIdx = -1
                 for idx in range(len(entries)):
+                    if not self.isLink(entries[idx]):
+                        continue
                     itemGroup = self.cleanGroup(entries[idx].get("group", ""))
                     if itemGroup == group:
                         lastGroupIdx = idx
@@ -597,10 +671,9 @@ class YouTubeUserLinksManager(object):
 
         return False, _("Could not add the user link.")
 
-    def update(self, oldItem, newGroup, newTitle, newUrl):
+    def update(self, oldItem, newGroup, newTitle, newUrl, newExtra=None):
         try:
             entries = self.read()
-            found = False
 
             newGroup = self.cleanGroup(newGroup)
             newTitle = self.cleanValue(newTitle)
@@ -612,19 +685,39 @@ class YouTubeUserLinksManager(object):
             if self.existsUrlAnywhere(newUrl, skipItem=oldItem):
                 return False, _("The element already exists in User Links.")
 
-            for idx in range(len(entries)):
-                item = entries[idx]
-                if self.sameItem(item, oldItem):
-                    entries[idx] = {
-                        "group": newGroup,
-                        "title": newTitle,
-                        "url": newUrl,
-                    }
-                    found = True
-                    break
-
-            if not found:
+            idx = self.locate(entries, oldItem)
+            if idx < 0:
                 return False, _("File Not Found.")
+
+            if newExtra is None:
+                # keep the ";;icon;;;description" tail when only the group changes
+                newExtra = entries[idx].get("extra", u"") if self.isLink(entries[idx]) else u""
+
+            entries[idx] = {
+                "kind": u"link",
+                "group": newGroup,
+                "title": newTitle,
+                "url": newUrl,
+                "extra": self.toUnicode(newExtra),
+            }
+
+            if self.write(entries):
+                return True, _("User link updated.")
+        except Exception:
+            printExc()
+
+        return False, _("The user link could not be updated.")
+
+    def updateText(self, oldItem, newText):
+        try:
+            entries = self.read()
+
+            idx = self.locate(entries, oldItem)
+            if idx < 0:
+                return False, _("File Not Found.")
+
+            text = re.sub(r"[\r\n]+", u" ", self.toUnicode(newText)).strip()
+            entries[idx] = {"kind": u"text", "raw_line": text}
 
             if self.write(entries):
                 return True, _("User link updated.")
@@ -636,27 +729,50 @@ class YouTubeUserLinksManager(object):
     def delete(self, itemToDelete):
         try:
             entries = self.read()
-            newEntries = []
 
-            for item in entries:
-                if self.sameItem(item, itemToDelete):
-                    continue
-                newEntries.append(item)
-
-            if len(newEntries) == len(entries):
+            idx = self.locate(entries, itemToDelete)
+            if idx < 0:
                 return False, _("File Not Found.")
 
-            if self.write(newEntries):
+            del entries[idx]
+
+            if self.write(entries):
                 return True, _("User link deleted.")
         except Exception:
             printExc()
 
         return False, _("The user link could not be deleted.")
 
+    def sortLinks(self, reverse=False):
+        # Sorts the links by group, then title. Comment / empty rows stay on
+        # their own line: only the link rows swap places among themselves.
+        # Links without a group go last, like in the alphabetical host list.
+        try:
+            rows = self.read()
+            slots = [idx for idx in range(len(rows)) if self.isLink(rows[idx])]
+
+            def sortKey(item):
+                group = self.cleanGroup(item.get("group", "")).lower()
+                return (group, self.cleanValue(item.get("title", "")).lower(), self.normalizeUrl(item.get("url", "")).lower())
+
+            links = [rows[idx] for idx in slots]
+            # sorted apart, so the ungrouped links stay last for Z-A too
+            grouped = sorted([item for item in links if self.cleanGroup(item.get("group", ""))], key=sortKey, reverse=bool(reverse))
+            ungrouped = sorted([item for item in links if not self.cleanGroup(item.get("group", ""))], key=sortKey, reverse=bool(reverse))
+            for slot, link in zip(slots, grouped + ungrouped):
+                rows[slot] = link
+
+            if self.write(rows):
+                return True, _("User links sorted.")
+        except Exception:
+            printExc()
+
+        return False, _("Could not sort the user links.")
+
     def askNewGroup(self, session, callback):
         session.openWithCallback(
             lambda text=None: self.onNewGroupEntered(text, callback),
-            VirtualKeyBoard,
+            GetVirtualKeyboard(),
             title=self.guiSafeStr(_("Enter name")),
             text=""
         )
@@ -736,8 +852,8 @@ class YouTubeUserLinksManager(object):
             rawLine = self.getRawLine(item)
             session.openWithCallback(
                 lambda text=None: self.onEditRawEntered(item, text, callback),
-                VirtualKeyBoard,
-                title=self.guiSafeStr(_("Edit favourites")),
+                GetVirtualKeyboard(),
+                title=self.guiSafeStr(_("Edit User Links")),
                 text=self.guiSafeStr(rawLine)
             )
         except Exception:
@@ -757,6 +873,11 @@ class YouTubeUserLinksManager(object):
 
             parsed = self.parseLine(newRaw)
             if parsed is None:
+                if newRaw.startswith(u"#"):
+                    # a comment line, or a link that gets commented out
+                    sts, msg = self.updateText(oldItem, newRaw)
+                    callback(sts, msg)
+                    return
                 callback(False, _("Wrong uri."))
                 return
 
@@ -764,12 +885,68 @@ class YouTubeUserLinksManager(object):
                 oldItem,
                 parsed.get("group", ""),
                 parsed.get("title", ""),
-                parsed.get("url", "")
+                parsed.get("url", ""),
+                parsed.get("extra", u"")
             )
             callback(sts, msg)
         except Exception:
             printExc()
             callback(False, _("The user link could not be updated."))
+
+    def openEditor(self, session):
+        session.open(LinkListEditorScreen, self)
+
+
+def openLinkListFileEditor(session, filePath, logoName=None, skinName=None):
+    # editor for one list file, titled with the file name so the user sees which one it is;
+    # logoName/skinName: same call as in the python3 fork (hostxxx.py), the plain skin has no logo
+    manager = LinkListManager(lambda: filePath, u"%s - %s" % (_("Edit User Links"), os.path.basename(filePath)))
+    manager.openEditor(session)
+
+
+class YouTubeUserLinksManager(LinkListManager):
+    def __init__(self, listPathProvider, categoryResolver, channelNameResolver):
+        LinkListManager.__init__(self, listPathProvider, _("YouTube User Links Editor"))
+        self.categoryResolver = categoryResolver
+        self.channelNameResolver = channelNameResolver
+
+    def isChannelItem(self, cItem):
+        try:
+            if not cItem:
+                return False
+            if cItem.get("category", "") == "channel":
+                return True
+
+            url = cItem.get("url", "")
+            if url and self.categoryResolver(str(url)) == "channel":
+                return True
+        except Exception:
+            printExc()
+        return False
+
+    def getCandidateFromItem(self, cItem):
+        if not self.isChannelItem(cItem):
+            return None
+
+        try:
+            title = self.channelNameResolver(cItem)
+            if not title:
+                title = cItem.get("title", "")
+
+            title = self.cleanValue(title)
+            url = self.normalizeUrl(cItem.get("url", ""))
+
+            if not title or not url:
+                return None
+
+            return {
+                "group": "",
+                "title": title,
+                "url": url,
+            }
+        except Exception:
+            printExc()
+        return None
 
     def openAddCurrentItem(self, session, cItem=None, callback=None):
         if callback is None:
@@ -777,7 +954,7 @@ class YouTubeUserLinksManager(object):
                 session.open(
                     MessageBox,
                     msg,
-                    type=MessageBox.TYPE_INFO,
+                    type=MessageBox.TYPE_INFO if sts else MessageBox.TYPE_ERROR,
                     timeout=5
                 )
 
@@ -804,6 +981,3 @@ class YouTubeUserLinksManager(object):
             item.get("url", "")
         )
         callback(sts, msg)
-
-    def openEditor(self, session):
-        session.open(YouTubeUserLinksEditorScreen, self)

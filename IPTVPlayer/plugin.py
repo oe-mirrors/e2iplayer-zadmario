@@ -22,6 +22,7 @@ from Components.config import config
 from Tools.Directories import resolveFilename, fileExists, SCOPE_PLUGINS
 ###################################################
 import os
+import sys
 ####################################################
 # Wywołanie wtyczki w roznych miejscach
 ####################################################
@@ -139,9 +140,12 @@ def runMain(session, nextFunction=doRunMain):
         if os.path.exists('/usr/lib/enigma2/python/Plugins/Extensions/IPTVPlayer/plugin.pe2i'): #users of private version jave all tools installed by design
             return True
         else:
-            toolsList = ['enigma2-plugin-extensions-e2iplayer-deps', 'duktape', 'exteplayer3', 'uchardet', 'gstplayer', 'rtmpdump', 'python3-e2icjson', 'python3-pycurl']
+            toolsList = ['enigma2-plugin-extensions-e2iplayer-deps', 'duktape', 'exteplayer3', 'uchardet', 'gstplayer', 'rtmpdump']
+            if sys.version_info[0] >= 3:
+                # the python3-* packages don't exist for a Python 2 image
+                toolsList.extend(['python3-e2icjson', 'python3-pycurl'])
+            tryToInstall = ''
             for tool in toolsList:
-                tryToInstall = ''
                 if not os.path.exists(os.path.join('/var/lib/opkg/info/', tool) + '.control'):
                     tryToInstall += ' ' + tool
             if tryToInstall != '':

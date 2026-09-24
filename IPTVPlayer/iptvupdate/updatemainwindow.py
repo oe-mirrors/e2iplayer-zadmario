@@ -531,18 +531,12 @@ class UpdateMainAppImpl(IUpdateObjectInterface):
 
     def stepRemoveUnnecessaryFiles(self):
         printDBG("stepRemoveUnnecessaryFiles")
-        playerSelectorPath = os_path.join(self.ExtensionTmpPath, 'IPTVPlayer/icons/PlayerSelector/')
-        logosPath = os_path.join(self.ExtensionTmpPath, 'IPTVPlayer/icons/logos/')
         hostsPath = os_path.join(self.ExtensionTmpPath, 'IPTVPlayer/hosts/')
         webPath = os_path.join(self.ExtensionTmpPath, 'IPTVPlayer/Web/')
+        # all icons and logos are kept: the host selector picks its size by
+        # screen width (135px on FHD), not by the icon size setting, and a
+        # "host*.png" wildcard also hit other hosts (hdfilme -> hdfilmetv)
         cmds = []
-        iconSize = int(config.plugins.iptvplayer.IconsSize.value)
-        if not config.plugins.iptvplayer.ListaGraficzna.value:
-            iconSize = 0
-        for size in [135, 120, 100]:
-            if size != iconSize:
-                cmds.append('rm -f %s' % (playerSelectorPath + '*{0}.png'.format(size)))
-                cmds.append('rm -f %s' % (playerSelectorPath + 'marker{0}.png'.format(size + 45)))
 
         # remove Web iterface module if not needed
         if not config.plugins.iptvplayer.IPTVWebIterface.value:
@@ -556,8 +550,6 @@ class UpdateMainAppImpl(IUpdateObjectInterface):
             hostsToRemove = []
             for hostItem in hostsFromList:
                 if hostItem not in enabledHostsList and hostItem in hostsFromFolder:
-                    cmds.append('rm -f %s' % (playerSelectorPath + '{0}*.png'.format(hostItem)))
-                    cmds.append('rm -f %s' % (logosPath + '{0}logo.png'.format(hostItem)))
                     cmds.append('rm -f %s' % (hostsPath + 'host{0}.py*'.format(hostItem)))
 
             # we need to prepare temporary file with removing cmds because cmd can be to long
@@ -569,7 +561,7 @@ class UpdateMainAppImpl(IUpdateObjectInterface):
             cmd = '/bin/sh "{0}" '.format(cmdFilePath)
             #cmd = '/bin/sh "{0}" && rm -rf "{1}" '.format(cmdFilePath, cmdFilePath)
         else:
-            cmd = ' && '.join(cmds)
+            cmd = ' && '.join(cmds) or 'true'
         printDBG("stepRemoveUnnecessaryFiles cmdp[%s]" % cmd)
         self.cmd = iptv_system(cmd, self.__removeUnnecessaryFilesCmdFinished)
 
