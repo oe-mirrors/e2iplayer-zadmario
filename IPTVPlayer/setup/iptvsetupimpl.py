@@ -18,6 +18,10 @@ from Tools.Directories import resolveFilename, SCOPE_PLUGINS
 from os import path as os_path, chmod as os_chmod, remove as os_remove, listdir as os_listdir, getpid as os_getpid, symlink as os_symlink, unlink as os_unlink
 import re
 import sys
+
+# OpenSSL versions the resource server has hlsdl/rtmpdump/f4mdump/... builds for
+SERVER_OPENSSL_BUILDS = ('', '.0.9.8', '.1.0.0', '.1.0.2')
+
 ###################################################
 
 
@@ -181,7 +185,7 @@ class IPTVSetupImpl:
         printDBG("IPTVSetupImpl.glibcVerDetectFinished")
 
         try:
-            self.glibcVersion = int(float(re.search("libc\-([0-9]+?\.[0-9]+?)\.", dataTab[-1]).group(1)) * 1000)
+            self.glibcVersion = int(float(re.search(r"libc\-([0-9]+?\.[0-9]+?)\.", dataTab[-1]).group(1)) * 1000)
         except Exception:
             self.glibcVersion = -1
 
@@ -310,6 +314,11 @@ class IPTVSetupImpl:
                 if ver in dataTab[-1]:
                     self.openSSLVersion = '.' + ver
                     break
+            match = re.search(r'OpenSSL\s+(3\.[0-9]+\.[0-9]+)', dataTab[-1])
+            if self.openSSLVersion == '' and match:
+                # OpenSSL 3.x: no builds on the resource server (SERVER_OPENSSL_BUILDS),
+                # the binary steps skip the download
+                self.openSSLVersion = '.' + match.group(1)
 
         if self.openSSLVersion == '':
             # use old detection manner
@@ -355,6 +364,14 @@ class IPTVSetupImpl:
                 # or new version without this symbol
                 self.getOpenssl1Ver()
         else:
+            # OpenSSL 3.x only ships libssl.so.3 / libcrypto.so.3 (no x.y.z in the file name);
+            # no server builds for it, the binary steps skip the download (SERVER_OPENSSL_BUILDS)
+            for path in ['/usr/lib/', '/lib/', '/usr/local/lib/', '/local/lib/']:
+                if os_path.isfile(path + 'libssl.so.3') and os_path.isfile(path + 'libcrypto.so.3'):
+                    self.openSSLVersion = '.3'
+                    self.libSSLPath = path + 'libssl.so.3'
+                    self.getGstreamerVer()
+                    return
             self.openSSLVersion = ""
             self.showMessage(_("Fatal Error!\nOpenssl could not be found. Please install it and retry."), MessageBox.TYPE_ERROR, boundFunction(self.finish, False))
 
@@ -479,7 +496,9 @@ class IPTVSetupImpl:
         self.setInfo(_("Detection of the ffmpeg version."), None)
 
         def _verValidator(code, data):
-            if 0 == code:
+            # the rootfs binary may be missing and still exit with code 0 and empty
+            # output, so also require the version banner before accepting a result
+            if 0 == code and 'ffmpeg version' in data:
                 return True, False
             else:
                 return False, True
@@ -490,7 +509,7 @@ class IPTVSetupImpl:
         printDBG("IPTVSetupImpl.getFFmpegVerFinished")
         if len(stsTab) > 0 and True == stsTab[-1]:
             try:
-                self.ffmpegVersion = re.search("ffmpeg version ([0-9.]+?)[^0-9^.]", dataTab[-1]).group(1)
+                self.ffmpegVersion = re.search(r"ffmpeg version n?v?([0-9.]+?)[^0-9^.]", dataTab[-1]).group(1)
                 if '.' == self.ffmpegVersion[-1]:
                     self.ffmpegVersion = self.ffmpegVersion[:-1]
             except Exception:
@@ -508,11 +527,11 @@ class IPTVSetupImpl:
         def _detectValidator(code, data):
             if 'BusyBox' not in data and '+https' in data:
                 try:
-                    obj = re.search("GNU Wget 1\.([0-9]+?)\.([0-9]+?)[^0-9]", data)
+                    obj = re.search(r"GNU Wget 1\.([0-9]+?)\.([0-9]+?)[^0-9]", data)
                     if obj != None:
                         ver = int(obj.group(1)) * 100 + int(obj.group(2))
                     else:
-                        ver = int(re.search("GNU Wget 1\.([0-9]+?)[^0-9]", data).group(1)) * 100
+                        ver = int(re.search(r"GNU Wget 1\.([0-9]+?)[^0-9]", data).group(1)) * 100
                 except Exception:
                     ver = 0
                 if ver >= self.wgetVersion:
@@ -569,7 +588,11 @@ class IPTVSetupImpl:
 
         def _detectValidator(code, data):
             try:
-                rawVer = re.search("([0-9]{4})\-([0-9]{2})\-([0-9]{2})", data)
+                rawVer = re.search(r"([0-9]{4})\-([0-9]{2})\-([0-9]{2})", data)
+                if rawVer is None:
+                    # no build date in the version (the image's "RTMPDump v2.4"),
+                    # _deprecatedHandler decides about it
+                    return False, True
                 ver = int(rawVer.group(1) + rawVer.group(2) + rawVer.group(3))
                 if self.rtmpdumpVersion <= ver:
                     return True, False
@@ -640,7 +663,7 @@ class IPTVSetupImpl:
             else:
                 self.stepHelper.setInstallChoiseList(self._uchardetInstallChoiseList)
             try:
-                rawVer = re.search("Version\s([0-9])\.([0-9])\.([0-9])", data)
+                rawVer = re.search(r"Version\s([0-9])\.([0-9])\.([0-9])", data)
                 UCHARDET_VERSION_MAJOR = int(rawVer.group(1))
                 UCHARDET_VERSION_MINOR = int(rawVer.group(2))
                 UCHARDET_VERSION_REVISION = int(rawVer.group(3))
@@ -931,7 +954,7 @@ class IPTVSetupImpl:
         def _detectValidator(code, data):
             if 'cmdwrap input_file' in data:
                 try:
-                    tmp = re.search("Version\:\s*?([0-9.]+?)[^0-9^.]", data).group(1)
+                    tmp = re.search(r"Version\:\s*?([0-9.]+?)[^0-9^.]", data).group(1)
                     if float(tmp) >= self.cmdwrapVersion:
                         return True, False
                 except Exception:
@@ -993,7 +1016,7 @@ class IPTVSetupImpl:
         def _detectValidator(code, data):
             if 'restrict-memory' in data:
                 try:
-                    ver = int(re.search('VER_FOR_IPTV\:\s([0-9]+?)\n', data).group(1))
+                    ver = int(re.search(r'VER_FOR_IPTV:\s([0-9]+?)\n', data).group(1))
                     if ver >= self.dukVersion:
                         return True, False
                 except Exception:
@@ -1363,6 +1386,16 @@ class IPTVSetupImpl:
             if 0 < len(dataTab) and None != self.stepHelper.getDeprecatedHandler():
                 sts, path = self.stepHelper.getDeprecatedHandler()(self.stepHelper.getPaths(), stsTab, dataTab)
             self.stepHelper.getSaveConfigOptionHandler()(self.stepHelper.getConfigOption(), path)
+            if not self.serverHasBuild():
+                # nothing to download for this OpenSSL version: keep an older binary
+                # from the image, otherwise point to the image feed instead of a 404
+                if sts:
+                    self.stepHelper.getFinishHandler()(True)
+                else:
+                    name = self.stepHelper.getName()
+                    self.showMessage(_("There is no \"%s\" build for OpenSSL %s on the E2iPlayer server.\nInstall it from the image feed if it is available there (opkg install %s).") % (name, self.openSSLVersion[1:], name),
+                                     MessageBox.TYPE_INFO, lambda *args: self.stepHelper.getFinishHandler()(False))
+                return
             installChoiseList = self.stepHelper.getInstallChoiseList()
             if 1 < len(installChoiseList):
                 if not sts:
@@ -1378,6 +1411,19 @@ class IPTVSetupImpl:
                 self.showMessage(message, MessageBox.TYPE_YESNO, self.binaryDownload_2)
             else:
                 self.stepHelper.getFinishHandler()(False)
+
+    def serverHasBuild(self):
+        # binaries linked against OpenSSL exist on the server only for SERVER_OPENSSL_BUILDS;
+        # a marker in place of the version shows whether this step's download uses it
+        if self.openSSLVersion in SERVER_OPENSSL_BUILDS or not self.resourceServers:
+            return True
+        try:
+            cmd = self.stepHelper.getDownloadCmdBuilder()(self.stepHelper.getName(), self.platform, '.@OPENSSL@', self.resourceServers[0], self.tmpDir)
+            return '@OPENSSL@' not in cmd
+        except Exception:
+            printExc()
+        return True
+
     ###################################################
     # STEP: binary DOWNLOAD
     ###################################################

@@ -117,3 +117,16 @@ class IPTVChoiceBoxWidget(Screen):
         except Exception:
             pass
         return sel
+
+
+def sortOrderTitle():
+    # "A-Z / Z-A": title of the sort picker and label of the key that opens it
+    return _("A-Z") + " / " + _("Z-A")
+
+
+def openSortChoiceBox(session, callback):
+    # A-Z / Z-A picker shared by the favourites manager and the link list
+    # editor; callback gets reverse (False = A-Z, True = Z-A) or None on EXIT
+    options = [(_("Sort A-Z"), False), (_("Sort Z-A"), True)]
+    session.openWithCallback(lambda ret=None: callback(None if ret is None else ret[1]),
+                             ChoiceBox, title=sortOrderTitle(), list=options)

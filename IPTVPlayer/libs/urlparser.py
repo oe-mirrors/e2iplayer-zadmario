@@ -205,6 +205,7 @@ class urlparser:
             "aiavh.com": self.pp.parserJWPLAYER,
             "aliez.me": self.pp.parserJWPLAYER,
             "all3do.com": self.pp.parserDOOD,
+            "anafast.cyou": self.pp.parserJWPLAYER,
             "anime4low.sbs": self.pp.parserJWPLAYER,
             "anonmp4.help": self.pp.parserANONMP4,
             "antiadtape.com": self.pp.parserSTREAMTAPE,
@@ -246,6 +247,7 @@ class urlparser:
             "cavanhabg.com": self.pp.parserJWPLAYER,
             "cda.pl": self.pp.parserCDA,
             "cdn1.site": self.pp.parserJWPLAYER,
+            "cdnplus.space": self.pp.parserJWPLAYER,
             "cdnwish.com": self.pp.parserJWPLAYER,
             "chuckle-tube.com": self.pp.parserVOESX,
             "cinegrab.com": self.pp.parserBYSE,
@@ -429,6 +431,7 @@ class urlparser:
             "moviesapi.club": self.pp.parserVIDSRC,
             "moviesapi.to": self.pp.parserVIDSRC,
             "mp4player.site": self.pp.parserSTREAMEMBED,
+            "mp4plus.cyou": self.pp.parserJWPLAYER,
             "mp4upload.com": self.pp.parserJWPLAYER,
             "mxdrop.sx": self.pp.parserJWPLAYER,
             "mxdrop.to": self.pp.parserJWPLAYER,
@@ -565,12 +568,14 @@ class urlparser:
             "vidneo.cc": self.pp.parserVIDNEO,
             "vidnest.fun": self.pp.parserVIDNEST,
             "vidnest.io": self.pp.parserJWPLAYER,
+            "vidoba.cyou": self.pp.parserJWPLAYER,
             "vidoza.co": self.pp.parserJWPLAYER,
             "vidoza.net": self.pp.parserJWPLAYER,
             "vidoza.org": self.pp.parserJWPLAYER,
             "vidrock.net": self.pp.parserVIDROCK,
             "vids.st": self.pp.parserVIDSST,
             "vidsonic.net": self.pp.parserVIDSONIC,
+            "vidspeed.space": self.pp.parserJWPLAYER,
             "vidsrc.bz": self.pp.parserVIDSRC,
             "vidsrc.cc": self.pp.parserMEGAFILES,
             "vidsrc.do": self.pp.parserVIDSRC,
@@ -1930,27 +1935,36 @@ class pageParser(CaptchaHelper):
                             urltab.append({"name": "MP4", "url": urlparser.decorateUrl(url, {"external_sub_tracks": sub_tracks})})
         return urltab
 
-    def parserDOOD(self, baseUrl):  # update 240925
+    def parserDOOD(self, baseUrl):  # update 240926
         urlsTab = []
         sub_tracks = []
         printDBG("parserDOOD baseUrl [%s]" % baseUrl)
         HTTP_HEADER = self.cm.getDefaultHeader()
         urlParams = {"header": HTTP_HEADER}
         urls = ["all3do.com", "d0000d.com", "d000d.com", "d0o0d.com", "d-s.io", "do0od.com", "dooodster.com", "doodstream.com", "doply.net", "dooood.com", "do7go.com", "ds2play.com", "ds2video.com", "dood.cx", "dood.la", "dood.li", "dood.pm", "dood.re", "dood.sh", "dood.so", "dood.stream", "dood.to", "dood.watch", "dood.work", "dood.wf", "dood.ws", "dood.yt", "doods.pro", "doodcdn.io", "vide0.net", "vidply.com", "vvide0.com", "playmogo.com"]
+        baseUrl = baseUrl.replace("/w/", "/e/")  # watch page -> embed page
+        # the embed domain redirects to the current mirror (vide0.net -> playmogo.com);
+        # dsvplay.com is only the fallback, some providers block it (connection reset)
+        candidates = [baseUrl]
         for url in urls:
             if url in baseUrl:
-                baseUrl = baseUrl.replace(url, "dsvplay.com")
-        baseUrl = baseUrl.replace("/w/", "/e/")  # watch page -> embed page
+                candidates.append(baseUrl.replace(url, "dsvplay.com"))
+                break
+        sts, data = False, ""
+        for baseUrl in candidates:
+            sts, data = self.cm.getPage(baseUrl, urlParams)
+            if sts:
+                baseUrl = self.cm.meta.get("url", "") or baseUrl
+                break
+        if not sts:
+            return []
         host = "https://%s" % urlparser.getDomain(baseUrl, True)
         if "/d/" in baseUrl:
+            url = self.cm.ph.getSearchGroups(data, 'iframe src="([^"]+)')[0]
+            baseUrl = host + url
             sts, data = self.cm.getPage(baseUrl, urlParams)
             if not sts:
                 return []
-            url = self.cm.ph.getSearchGroups(data, 'iframe src="([^"]+)')[0]
-            baseUrl = host + url
-        sts, data = self.cm.getPage(baseUrl, urlParams)
-        if not sts:
-            return []
         sub = re.findall(r"""dsplayer\.addRemoteTextTrack\({src:'([^']+)',\s*label:'([^']*)',kind:'captions'""", data)
         if sub:
             sub_tracks = [{"title": "", "url": "https:" + src if src.startswith("//") else src, "lang": label} for src, label in sub if len(label) > 1]

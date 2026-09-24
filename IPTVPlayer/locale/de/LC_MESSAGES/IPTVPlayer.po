@@ -5150,3 +5150,45 @@ msgstr "YouTube-Kanäle: ursprüngliche Reihenfolge"
 msgid "YouTube channels: sort by newest upload"
 msgstr "YouTube-Kanäle: nach neuestem Upload sortieren"
 
+msgid "Z-A"
+msgstr "Z-A"
+
+msgid "Edit User Links"
+msgstr "Benutzerlinks bearbeiten"
+
+msgid "alphabetical"
+msgstr "alphabetisch"
+
+msgid "as in ytlist.txt"
+msgstr "wie in ytlist.txt"
+
+msgid "Order of user links:"
+msgstr "Reihenfolge der Benutzerlinks:"
+
+msgid "Reordering: UP/DOWN moves the row, OK saves, EXIT cancels."
+msgstr ""
+"Sortiermodus: HOCH/RUNTER verschiebt die Zeile, OK speichert, EXIT bricht"
+" ab."
+
+msgid "Sort the links now? The order of the lines in the file will change."
+msgstr ""
+"Die Links jetzt sortieren? Die Reihenfolge der Zeilen in der Datei ändert"
+" sich."
+
+msgid "Only links can be moved to a group."
+msgstr "Nur Links können in eine Gruppe verschoben werden."
+
+msgid "User links sorted."
+msgstr "Benutzerlinks sortiert."
+
+msgid "Could not sort the user links."
+msgstr "Die Benutzerlinks konnten nicht sortiert werden."
+
+#, python-format
+msgid ""
+"There is no \"%s\" build for OpenSSL %s on the E2iPlayer server.\n"
+"Install it from the image feed if it is available there (opkg install %s)."
+msgstr ""
+"Für \"%s\" gibt es auf dem E2iPlayer-Server keinen Build für OpenSSL %s.\n"
+"Installieren Sie es aus dem Image-Feed, falls es dort verfügbar ist (opkg"
+" install %s)."

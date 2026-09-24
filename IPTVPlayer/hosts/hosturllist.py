@@ -10,6 +10,7 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvfilehost import IPTVFileHost
 from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import getDirectM3U8Playlist, getF4MLinksWithMeta, getMPDLinksWithMeta
 from Plugins.Extensions.IPTVPlayer.libs.urlparser import urlparser
 from Plugins.Extensions.IPTVPlayer.libs import ph
+from Plugins.Extensions.IPTVPlayer.libs.linklisteditor import openLinkListFileEditor
 ###################################################
 
 ###################################################
@@ -17,6 +18,7 @@ from Plugins.Extensions.IPTVPlayer.libs import ph
 ###################################################
 from Components.config import config, ConfigYesNo, ConfigDirectory, getConfigListEntry
 from os.path import normpath
+from Screens.ChoiceBox import ChoiceBox
 ###################################################
 
 ###################################################
@@ -173,6 +175,19 @@ class IPTVHost(CHostBase):
 
     def getLogoPath(self):
         return RetHost(RetHost.OK, value=[GetLogoDir('urllistlogo.png')])
+
+    def editUserLinks(self, session):
+        # the host reads three files, so pick the one to edit first
+        path = config.plugins.iptvplayer.Sciezkaurllist.value + '/'
+        options = [(_("Videos"), normpath(path + Urllist.URLLIST_FILE)),
+                   (_("Live streams"), normpath(path + Urllist.URRLIST_STREAMS)),
+                   (_("User files"), normpath(path + Urllist.URRLIST_USER))]
+        session.openWithCallback(lambda ret=None: self._fileSelected(session, ret), ChoiceBox, title=_("Edit User Links"), list=options)
+        return True
+
+    def _fileSelected(self, session, ret):
+        if ret is not None:
+            openLinkListFileEditor(session, ret[1])
 
     def getLinksForVideo(self, Index=0, selItem=None):
         listLen = len(self.host.currList)
