@@ -5,8 +5,9 @@
 ###################################################
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, GetIPTVNotify, GetIPTVSleep
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, IsHttpsCertValidationEnabled, byteify, GetDefaultLang, rm, UsePyCurl, GetJSScriptFile
-from Plugins.Extensions.IPTVPlayer.components.asynccall import IsMainThread, IsThreadTerminated, SetThreadKillable
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, IsHttpsCertValidationEnabled, byteify, GetDefaultLang, rm, UsePyCurl, GetJSScriptFile, \
+                                                        IsExecutable, iptv_system
+from Plugins.Extensions.IPTVPlayer.components.asynccall import IsMainThread, IsThreadTerminated, SetThreadKillable, iptv_execute
 from Plugins.Extensions.IPTVPlayer.tools.e2ijs import js_execute_ext
 from Plugins.Extensions.IPTVPlayer.libs import ph
 from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads, dumps as json_dumps
@@ -41,9 +42,17 @@ try:
     import ssl
 except Exception:
     pass
+import os
 import re
 import time
 import unicodedata
+import zlib
+from shutil import move
+try:
+    from PIL import Image
+    hasPIL = True
+except Exception:
+    hasPIL = False
 try:
     import pycurl
 except Exception:
@@ -54,6 +63,45 @@ except Exception:
     pass
 from binascii import hexlify
 ###################################################
+
+
+# AVIF images are ISO-BMFF files: a 4-byte box size, then "ftyp" + brand
+FTYP_IMAGE_BRANDS = (b'ftypavif', b'ftypavis')
+
+
+def ConvertibleImageFirstBytes():
+    # first bytes of the image types convertWebp can turn into JPEG on this box (WebP: Pillow or ffmpeg,
+    # AVIF: ffmpeg with an AV1 decoder) - nothing when there is no converter, the picture loader can't show them
+    ret = []
+    hasFFmpeg = IsExecutable('ffmpeg')
+    if hasPIL or hasFFmpeg:
+        ret.append(b'RI')
+    if hasFFmpeg:
+        ret.extend(FTYP_IMAGE_BRANDS)
+    return ret
+
+
+def MatchFirstBytes(data, prefixes):
+    # first-bytes check of a download: a plain prefix, or an ftyp brand at offset 4
+    data = ensure_binary(data)
+    for item in prefixes:
+        item = ensure_binary(item)
+        if item in FTYP_IMAGE_BRANDS:
+            if data[4:12] == item:
+                return True
+        elif data.startswith(item):
+            return True
+    return False
+
+
+def IsConvertibleImage(file_path):
+    # WebP / AVIF content, whatever the file name says - the Enigma2 picture loader shows neither
+    try:
+        with open(file_path, 'rb') as f:
+            head = f.read(12)
+    except Exception:
+        return False
+    return (head[:4] == b'RIFF' and head[8:12] == b'WEBP') or head[4:12] in FTYP_IMAGE_BRANDS
 
 
 def DecodeGzipped(data):
@@ -632,7 +680,16 @@ class common:
                 valid = False
                 value = ensure_binary(CurrBuffer.getvalue())
                 for toCheck in checkFromFirstBytes:
-                    if len(toCheck) <= len(value):
+                    toCheck = ensure_binary(toCheck)
+                    if toCheck in FTYP_IMAGE_BRANDS:
+                        if len(value) < 12:
+                            # it could be valid - we need to wait for more data
+                            valid = True
+                        elif value[4:12] == toCheck:
+                            valid = True
+                            del checkFromFirstBytes[:]
+                            break
+                    elif len(toCheck) <= len(value):
                         if value.startswith(toCheck):
                             valid = True
                             # valid no need to check anymore
@@ -868,6 +925,10 @@ class common:
 
             if fileHandler:
                 fileHandler.close()
+
+            if metadata.get('status_code') == 200 and 'check_first_bytes' in params and IsConvertibleImage(params['save_to_file']):
+                # an image download (icons) that got WebP/AVIF
+                self.convertWebp(params['save_to_file'])
         except pycurl.error as e:
             try:
                 metadata['pycurl_error'] = (e[0], str(e[1]))
@@ -1123,6 +1184,40 @@ class common:
 
         return sts, data
 
+    def convertWebp(self, file_path, png=False):
+        # WebP (or AVIF) -> JPEG/PNG in place: Pillow when it can read the file, else ffmpeg
+        printDBG("PCommon.convertWebp %s" % file_path)
+        output_path = file_path + (".png" if png else ".jpg")
+        if not os.path.exists(file_path):
+            printDBG("PCommon.convertWebp file not exists %s" % file_path)
+            return
+        if os.path.exists(output_path):
+            os.remove(output_path)
+        if hasPIL:
+            try:
+                img = Image.open(file_path)
+                if not png and img.mode not in ('RGB', 'L'):
+                    # JPEG can't hold an alpha channel
+                    img = img.convert('RGB')
+                img.save(output_path, format="png" if png else "jpeg", quality=80)
+                os.remove(file_path)
+                move(output_path, file_path)
+                return
+            except Exception:
+                # e.g. AVIF, or a PIL without WebP - ffmpeg may still read it
+                printDBG("PCommon.convertWebp Pillow can't read %s, trying ffmpeg" % file_path)
+
+        if IsExecutable('ffmpeg'):
+            fp = "'%s'" % file_path.replace("'", "'\\''")
+            op = "'%s'" % output_path.replace("'", "'\\''")
+            command = "ffmpeg -y -i %s -frames:v 1 -update 1 %s && test -e %s && rm %s && mv %s %s " % (fp, op, op, fp, op, fp)
+            printDBG("Send command %s" % command)
+            if IsMainThread():
+                self.cmd = iptv_system(command)
+            else:
+                # download thread (icons): wait, so the picture is converted before it is shown
+                iptv_execute()(command)
+
     def saveWebFileWithPyCurl(self, file_path, url, add_params={}, post_data=None):
         bRet = False
         downDataSize = 0
@@ -1161,6 +1256,10 @@ class common:
         dictRet = {}
         try:
             sts, downHandler = self.getPage(url, addParams, post_data)
+            if downHandler == None:
+                # the request itself failed (e.g. invalid URL), nothing to read
+                dictRet.update({'sts': False, 'fsize': 0})
+                return dictRet
 
             if addParams.get('ignore_content_length', False):
                 meta = downHandler.info()
@@ -1204,20 +1303,30 @@ class common:
             if OK or len(checkFromFirstBytes):
                 blockSize = addParams.get('block_size', 8192)
                 fileHandler = None
+                gunzip = None
+                try:
+                    if (downHandler.info().get('Content-Encoding') or '').lower() == 'gzip':
+                        # urllib does not undo a Content-Encoding - some image CDNs gzip even unasked
+                        gunzip = zlib.decompressobj(16 + zlib.MAX_WBITS)
+                        contentLength = None
+                except Exception:
+                    printExc()
                 while True:
                     CurrBuffer = downHandler.read(blockSize)
+                    if gunzip != None:
+                        if CurrBuffer:
+                            CurrBuffer = gunzip.decompress(CurrBuffer)
+                            if not CurrBuffer:
+                                continue
+                        else:
+                            CurrBuffer = gunzip.flush()
+                            gunzip = None
 
                     if len(checkFromFirstBytes):
                         printDBG('saveWebFile() buffer.startswith "%s"' % CurrBuffer[:5])
-                        OK = False
-                        for item in checkFromFirstBytes:
-                            if CurrBuffer.startswith(ensure_binary(item)):
-                                OK = True
-                                break
-                        if not OK:
+                        if not MatchFirstBytes(CurrBuffer, checkFromFirstBytes):
                             break
-                        else:
-                            checkFromFirstBytes = []
+                        checkFromFirstBytes = []
 
                     if not CurrBuffer:
                         break
@@ -1234,6 +1343,10 @@ class common:
                         bRet = True
                 elif downDataSize > 0:
                     bRet = True
+
+                # image downloads (icons): WebP/AVIF -> JPEG, the picture loader shows neither
+                if bRet and 'check_first_bytes' in addParams and IsConvertibleImage(file_path):
+                    self.convertWebp(file_path)
         except Exception:
             printExc("common.getFile download file exception")
         dictRet.update({'sts': bRet, 'fsize': downDataSize})

@@ -5,7 +5,7 @@
 ###################################################
 from Plugins.Extensions.IPTVPlayer.components.asynccall import AsyncMethod
 from Plugins.Extensions.IPTVPlayer.libs.crypto.hash.md5Hash import MD5
-from Plugins.Extensions.IPTVPlayer.libs.pCommon import common
+from Plugins.Extensions.IPTVPlayer.libs.pCommon import common, ConvertibleImageFirstBytes
 from Plugins.Extensions.IPTVPlayer.libs.urlparser import urlparser
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import mkdirs, \
                       FreeSpace as iptvtools_FreeSpace, \
@@ -272,8 +272,12 @@ class IconMenager:
             # formato webp	'RI'
             if 'webp' in subtypes:
                 params['check_first_bytes'].extend([b'RI'])
+            if 'jpeg' in subtypes:
+                # WebP/AVIF that this box can convert to JPEG after the download
+                params['check_first_bytes'].extend([x for x in ConvertibleImageFirstBytes() if x not in params['check_first_bytes']])
         else:
             params['check_first_bytes'] = [b'\xFF\xD8', b'\xFF\xD9', b'\x89\x50\x4E\x47', 'GIF87a', 'GIF89a', 'RI']
+            params['check_first_bytes'].extend([x for x in ConvertibleImageFirstBytes() if x != b'RI'])
 
         if img_url.endswith('|cf'):
             img_url = img_url[:-3]
