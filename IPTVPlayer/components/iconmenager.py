@@ -5,7 +5,8 @@
 ###################################################
 from Plugins.Extensions.IPTVPlayer.components.asynccall import AsyncMethod
 from Plugins.Extensions.IPTVPlayer.libs.crypto.hash.md5Hash import MD5
-from Plugins.Extensions.IPTVPlayer.libs.pCommon import common, ConvertibleImageFirstBytes
+from Plugins.Extensions.IPTVPlayer.libs.pCommon import common, ConvertibleImageFirstBytes, ImageFileNeedsPreparing, PrepareImageFile, \
+    DescribeImageFile
 from Plugins.Extensions.IPTVPlayer.libs.urlparser import urlparser
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import mkdirs, \
                       FreeSpace as iptvtools_FreeSpace, \
@@ -22,8 +23,9 @@ from Plugins.Extensions.IPTVPlayer.p2p3.pVer import isPY2
 # FOREIGN import
 ###################################################
 import threading
+import time
 from binascii import hexlify
-from os import path as os_path, listdir, remove as removeFile, rename as os_rename, rmdir as os_rmdir
+from os import path as os_path, listdir, remove as removeFile, rename as os_rename, rmdir as os_rmdir, stat as os_stat
 from Components.config import config
 ###################################################
 
@@ -31,7 +33,12 @@ from Components.config import config
 #config.plugins.iptvplayer.showcover (true|false)
 #config.plugins.iptvplayer.SciezkaCache = ConfigText(default = "/hdd/IPTVCache")
 
+# failure times of icons: a clock that does not jump at the NTP sync after boot (time.monotonic is py3 only)
+_monotonic = getattr(time, 'monotonic', time.time)
+
+
 class IconMenager:
+    FAILED_RETRY = 60
     HEADER = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.103 Safari/537.36', 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 'Accept-Encoding': 'gzip, deflate'}
     #HEADER = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.103 Safari/537.36'}
 
@@ -48,6 +55,12 @@ class IconMenager:
         # already available
         self.queueAA = {}
         self.lockAA = threading.Lock()
+
+        # icons that exist at the source but failed (download error, not a picture, can't be decoded):
+        # url -> time of the failure; the list shows a red X for them, a new try after FAILED_RETRY seconds
+        self.queueFailed = {}
+        # why the last download_img() failed; None when it was not the picture's fault (no space, no cache dir)
+        self.lastError = None
 
         #this function will be called after a new icon will be available
         self.updateFun = None
@@ -162,14 +175,55 @@ class IconMenager:
 
         return ret
 
+    ###############################################################
+    #                        failed icons
+    ###############################################################
+    def _hashedName(self, key):
+        hashAlg = MD5()
+        return strDecode(hexlify(hashAlg(key))) + '.jpg'
+
+    def markIconFailed(self, url, reason, removeFile_=False):
+        # removeFile_: a downloaded file the picture loader can't show - without it the next try would find
+        # the broken file in the cache again
+        printDBG("IconMenager icon failed url[%s] reason[%s]" % (url, reason))
+        filename = self._hashedName(url)
+        self.lockAA.acquire()
+        self.queueFailed[url] = _monotonic()
+        if removeFile_ and not url.startswith('file://'):
+            path = self.queueAA.pop(filename, None)
+            if path:
+                try:
+                    removeFile(os_path.join(path, filename))
+                except Exception:
+                    printExc()
+        self.lockAA.release()
+
+    def isIconFailed(self, url):
+        self.lockAA.acquire()
+        ret = url in self.queueFailed
+        self.lockAA.release()
+        return ret
+
+    def _retryFailedIcon(self, url):
+        self.lockAA.acquire()
+        failedAt = self.queueFailed.get(url)
+        self.lockAA.release()
+        return failedAt is None or _monotonic() - failedAt >= self.FAILED_RETRY
+
+    def _clearIconFailed(self, url):
+        self.lockAA.acquire()
+        self.queueFailed.pop(url, None)
+        self.lockAA.release()
+
     def getIconPathFromAAueue(self, item):
         printDBG("getIconPathFromAAueue item[%s]" % item)
         if item.startswith('file://'):
-            return item[7:]
-
-        hashAlg = MD5()
-        name = hashAlg(item)
-        filename = strDecode(hexlify(name)) + '.jpg'
+            if not ImageFileNeedsPreparing(item[7:]):
+                return item[7:]
+            # WebP / AVIF / gzip: its converted copy in the icon cache ('' until processDQ has made it)
+            filename = self._localIconFileName(item)
+        else:
+            filename = self._hashedName(item)
 
         self.lockAA.acquire()
         file_path = self.queueAA.get(filename, '')
@@ -217,20 +271,59 @@ class IconMenager:
 
             printDBG("IconMenager.processDQ url: [%s]" % url)
             if url != '':
-                hashAlg = MD5()
-                name = hashAlg(url)
-                file = strDecode(hexlify(name)) + '.jpg'
+                isLocal = url.startswith('file://')
+                file = self._localIconFileName(url) if isLocal else self._hashedName(url)
 
                 #check if this image is not already available in cache AA list
                 if self.isItemInAAueue(file, 1):
                     continue
+                # a failed icon is not downloaded again before FAILED_RETRY seconds
+                if not self._retryFailedIcon(url):
+                    continue
+                if isLocal:
+                    self.prepareLocalIcon(url, file)
+                    continue
 
+                self.lastError = None
                 if self.download_img(url, file):
+                    self._clearIconFailed(url)
                     self.addItemToAAueue(self.currDownloadDir, file)
                     if self.updateFun:
                         self.updateFun(url)
+                elif self.lastError is not None:
+                    self.markIconFailed(url, self.lastError)
+                    if self.updateFun:
+                        self.updateFun(url)
 
-                # add to AA list
+    def _localIconFileName(self, url):
+        # the converted copy of a local picture: named after path, size and time, a changed file gets a new copy
+        try:
+            st = os_stat(url[7:])
+            key = '%s|%d|%d' % (url, st.st_size, int(st.st_mtime))
+        except Exception:
+            key = url
+        return self._hashedName(key)
+
+    def prepareLocalIcon(self, url, filename):
+        # a local picture the box can't show as it is (WebP/AVIF/gzip): converted in a copy in the icon cache,
+        # the user's own file is never changed. Anything else is shown straight from the file.
+        localPath = url[7:]
+        if not ImageFileNeedsPreparing(localPath) or not self.downloadNew or len(self.currDownloadDir) < 4:
+            return
+        copyPath = os_path.join(self.currDownloadDir, filename)
+        PrepareImageFile(copyPath, localPath)
+        if os_path.isfile(copyPath) and not ImageFileNeedsPreparing(copyPath):
+            self._clearIconFailed(url)
+            self.addItemToAAueue(self.currDownloadDir, filename)
+        else:
+            try:
+                removeFile(copyPath)
+            except Exception:
+                pass
+            self.markIconFailed(url, "local picture can not be converted (Pillow/ffmpeg without this format?), %s"
+                                % DescribeImageFile(localPath))
+        if self.updateFun:
+            self.updateFun(url)
 
     def download_img(self, img_url, filename):
         # if at start there was NOT enough space on disk
@@ -297,6 +390,7 @@ class IconMenager:
             # we should consider add img resolver to urlparser if more will be needed
             sts, data = self.cm.getPage(img_url)
             if not sts:
+                self.lastError = 'page for the picture not loaded'
                 return False
             if 'imdb.com' in domain:
                 img_url = self.cm.ph.getDataBeetwenMarkers(data, 'class="poster"', '</div>')[1]
@@ -353,19 +447,25 @@ class IconMenager:
                 data = ph.find(data, ('<meta', '>', 'thumbnail_image_url'))[1]
                 img_url = ph.getattr(data, 'content')
             if not self.cm.isValidUrl(img_url):
+                self.lastError = 'no picture url found on the page, got %r' % img_url
                 return False
         else:
             img_url = strwithmeta(img_url)
             if img_url.meta.get('icon_resolver', None) is not None:
                 try:
                     img_url = img_url.meta['icon_resolver'](self.cm, img_url)
-                except Exception:
+                except Exception as e:
                     printExc()
+                    self.lastError = 'icon resolver error %r' % (e,)
                     return False
 
         if not self.cm.isValidUrl(img_url):
+            self.lastError = 'invalid picture url %r' % img_url
             return False
 
         params = MergeDicts(params, params_cfad)
 
-        return self.cm.saveWebFile(file_path, img_url, addParams=params)['sts']
+        ret = self.cm.saveWebFile(file_path, img_url, addParams=params)
+        if not ret['sts']:
+            self.lastError = ret.get('reason') or 'download failed'
+        return ret['sts']

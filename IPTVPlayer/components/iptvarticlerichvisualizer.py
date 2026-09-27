@@ -16,6 +16,7 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdh import DMHelper
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdownloadercreator import DownloaderCreator
 from Plugins.Extensions.IPTVPlayer.components.cover import Cover, Cover3
+from Plugins.Extensions.IPTVPlayer.libs.pCommon import DescribeImageFile
 ###################################################
 
 ###################################################
@@ -127,6 +128,8 @@ class IPTVArticleRichVisualizer(Screen):
         #############################################
         self["cover"] = Cover()
         self.cover = {'src': '', 'downloader': None, 'files_to_remove': [], 'image_path': ''}
+        # the red-X placeholder is on (or on its way) - a failing placeholder must not loop
+        self.coverError = False
         try:
             self.cover['image_path'] = os.path.join(addParams['buffering_path'], '.iptv_buffering.jpg')
         except Exception:
@@ -224,19 +227,45 @@ class IPTVArticleRichVisualizer(Screen):
     def downloaderEnd(self, status):
         if None != self.cover['downloader']:
             if DMHelper.STS.DOWNLOADED == status:
-                if self["cover"].decodeCover(self._getDownloadFilePath(), self.decodePictureEnd, ' '):
+                filePath = self._getDownloadFilePath()
+                # gzip / WebP / AVIF by content - see Cover.decodePreparedCover
+                if -1 != self["cover"].decodePreparedCover(filePath, self.decodePictureEnd, ' '):
                     return
+                self.showCoverError("decoding can not be started, %s" % DescribeImageFile(filePath))
             else:
-                self.session.open(MessageBox, (_("Downloading file [%s] problem.") % self.cover['src']) + (" sts[%r]" % status), type=MessageBox.TYPE_ERROR, timeout=10)
+                self.showCoverError("download problem sts[%r]%s" % (status, self._downloaderError()))
         self.hideSpinner()
 
     def decodePictureEnd(self, ret={}):
         if None == ret.get('Pixmap', None):
-            self.session.openWithCallback(self.close, MessageBox, _("Downloading file [%s] problem.") % self._getDownloadFilePath(), type=MessageBox.TYPE_ERROR, timeout=10)
+            fileName = ret.get('FileName', self._getDownloadFilePath())
+            if self.coverError:
+                self.showCoverError("placeholder can not be shown: %s" % fileName)
+            else:
+                self.showCoverError("can not be shown, %s" % DescribeImageFile(fileName))
         else:
             self["cover"].updatePixmap(ret.get('Pixmap', None), ret.get('FileName', self._getDownloadFilePath()))
             self["cover"].show()
         self.hideSpinner()
+
+    def _downloaderError(self):
+        # the tool's own error (e.g. wget "code[4] Network failure.") for the log line of the red X
+        try:
+            code, desc = self.cover['downloader'].getLastError()
+            if code is not None:
+                return " %s code[%r] %s" % (self.cover['downloader'].getName(), code, desc)
+        except Exception:
+            printExc()
+        return ''
+
+    def showCoverError(self, reason):
+        # the item has a cover but it failed (dead link, broken file, a format this box can't show): a red X in
+        # the cover area instead of an error box that closed the whole INFO view. No cover at all stays empty.
+        printDBG("IPTVArticleRichVisualizer cover %s - url[%s]" % (reason, self.cover['src']))
+        if self.coverError:
+            return
+        self.coverError = True
+        self["cover"].decodeErrorCover(self.decodePictureEnd, ' ')
 
     def onEnd(self):
         if self.cover['downloader']:
