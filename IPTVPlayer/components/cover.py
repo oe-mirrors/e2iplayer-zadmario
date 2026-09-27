@@ -3,7 +3,7 @@
 ###################################################
 # LOCAL import
 ###################################################
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, eConnectCallback
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, eConnectCallback, GetIconDir
 from Plugins.Extensions.IPTVPlayer.components.asynccall import AsyncMethod
 
 ###################################################
@@ -11,7 +11,7 @@ from Plugins.Extensions.IPTVPlayer.components.asynccall import AsyncMethod
 ###################################################
 from Tools.LoadPixmap import LoadPixmap
 from Components.Pixmap import Pixmap
-from enigma import ePicLoad, ePoint
+from enigma import ePicLoad, ePoint, eTimer
 from Tools.BoundFunction import boundFunction
 
 import threading
@@ -29,12 +29,17 @@ class Cover(Pixmap):
 
         self.decoding = False
         self.picload_conn = None
+        # decodePreparedCover(): the picture being made showable in a worker thread
+        self.prepare = None
+        self.prepareTimer = None
+        self.prepareTimer_conn = None
 
     def __del__(self):
         printDBG("Cover.__del__ ---------------------------")
 
     def preWidgetRemove(self, instance):
         printDBG("Cover.preWidgetRemove ---------------------------")
+        self._stopPrepare()
         if None != self.picload_conn:
             printDBG("Cover.preWidgetRemove Wife bug detected :)")
             self.picload_conn = None
@@ -77,6 +82,52 @@ class Cover(Pixmap):
         else:
             printDBG("___________________________decodeCover not need (%s)" % filename)
             return False
+
+    # decodeCover() for a picture downloaded by wget/curl: gzip-encoded, WebP or AVIF files (also under a .jpg
+    # name) are made showable first, like the list icons, in a worker thread because an ffmpeg conversion
+    # takes a moment. Returns what decodeCover returns; while preparing True, and a picture that then still
+    # can't be decoded ends in callBackFun without a Pixmap. Main thread only. The conversion happens in place,
+    # so for the user's own files pass sourceFile: filename is then a copy of it that gets converted (a
+    # picture that needs nothing is decoded straight from sourceFile).
+    def decodePreparedCover(self, filename, callBackFun, ident, sourceFile=None):
+        from Plugins.Extensions.IPTVPlayer.libs.pCommon import ImageFileNeedsPreparing, PrepareImageFile
+        self._stopPrepare()
+        if not ImageFileNeedsPreparing(sourceFile or filename):
+            return self.decodeCover(sourceFile or filename, callBackFun, ident)
+        printDBG("Cover.decodePreparedCover preparing %s%s" % (filename, (" from %s" % sourceFile) if sourceFile else ""))
+        self.prepareTimer = eTimer()
+        self.prepareTimer_conn = eConnectCallback(self.prepareTimer.timeout, self._checkPrepared)
+        # a plugin worker thread (AsyncMethod), not a bare threading.Thread: the ffmpeg fallback of convertWebp
+        # runs through iptv_execute, which needs the plugin's thread data (_iptvplayer_ext)
+        self.prepare = {'call': AsyncMethod(PrepareImageFile)(filename, sourceFile), 'args': (filename, callBackFun, ident)}
+        self.prepareTimer.start(100)
+        return True
+
+    def _checkPrepared(self):
+        if self.prepare is None or self.prepare['call'].isAlive():
+            return
+        filename, callBackFun, ident = self.prepare['args']
+        self._stopPrepare()
+        if -1 == self.decodeCover(filename, callBackFun, ident):
+            callBackFun({"Changed": True, "Pixmap": None, "FileName": filename, "Ident": ident})
+
+    def _stopPrepare(self):
+        if self.prepareTimer is not None:
+            self.prepareTimer.stop()
+        self.prepareTimer_conn = None
+        self.prepareTimer = None
+        self.prepare = None
+
+    # the red X for a picture that exists at the source but failed; the callback gets it like any picture
+    @staticmethod
+    def getErrorCoverPath():
+        return GetIconDir('CoverError.png')
+
+    def decodeErrorCover(self, callBackFun, ident):
+        ret = self.decodeCover(self.getErrorCoverPath(), callBackFun, ident)
+        if -1 == ret:
+            printDBG("Cover.decodeErrorCover placeholder can not be started: %s" % self.getErrorCoverPath())
+        return ret
 
     def checkDecodeNeeded(self, filename):
         iconFile = self.waitIcon.get('FileName', '')

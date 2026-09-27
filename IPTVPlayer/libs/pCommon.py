@@ -48,6 +48,7 @@ import time
 import unicodedata
 import zlib
 from shutil import move
+import shutil
 try:
     from PIL import Image
     hasPIL = True
@@ -102,6 +103,49 @@ def IsConvertibleImage(file_path):
     except Exception:
         return False
     return (head[:4] == b'RIFF' and head[8:12] == b'WEBP') or head[4:12] in FTYP_IMAGE_BRANDS
+
+
+def _isGzipFile(file_path):
+    try:
+        with open(file_path, 'rb') as f:
+            return f.read(2) == b'\x1f\x8b'
+    except Exception:
+        return False
+
+
+def ImageFileNeedsPreparing(file_path):
+    # a picture the Enigma2 picture loader can't show as it is: still gzip-encoded (some image CDNs compress
+    # even unasked) or WebP/AVIF content, whatever the file name says
+    return _isGzipFile(file_path) or IsConvertibleImage(file_path)
+
+
+def PrepareImageFile(file_path, source_path=None):
+    # in place: undo the gzip encoding, then WebP/AVIF -> JPEG like the list icons (IconMenager).
+    # source_path: work on file_path as a copy of it - for the user's own pictures, which must stay untouched.
+    # Run it in a worker thread: there convertWebp also waits for an ffmpeg conversion
+    try:
+        if source_path:
+            shutil.copyfile(source_path, file_path)
+        if _isGzipFile(file_path):
+            with open(file_path, 'rb') as f:
+                data = DecodeGzipped(f.read())
+            with open(file_path, 'wb') as f:
+                f.write(data)
+        if IsConvertibleImage(file_path):
+            common().convertWebp(file_path)
+    except Exception:
+        printExc()
+
+
+def DescribeImageFile(path):
+    # for the log when a picture can't be shown: size and the first bytes tell an html error page, an empty
+    # file or an unconverted WebP/AVIF apart
+    try:
+        with open(path, 'rb') as f:
+            head = f.read(16)
+        return "file[%s] size[%d] head[%r]" % (path, os.path.getsize(path), head)
+    except Exception as e:
+        return "file[%s] not readable (%s)" % (path, e)
 
 
 def DecodeGzipped(data):
@@ -656,6 +700,7 @@ class common:
                 if 'check_maintype' in params and \
                     params['check_maintype'] != responseHeaders.get('content-type', '').split('/', 1)[0]:
                     printDBG('wrong maintype: %s' % responseHeaders.get('content-type', ''))
+                    metadata['abort_reason'] = 'wrong content-type %s' % responseHeaders.get('content-type', '')
                     return 0
 
                 if 'check_subtypes' in params:
@@ -668,6 +713,7 @@ class common:
                                 break
                         if not valid:
                             printDBG('wrong type: %s' % responseHeaders.get('content-type', ''))
+                            metadata['abort_reason'] = 'wrong content-type %s' % responseHeaders.get('content-type', '')
                             return 0
                     except Exception:
                         printExc()
@@ -700,6 +746,8 @@ class common:
                         valid = True
                 if not valid:
                     printDBG('wrong body: %s' % hexlify(value))
+                    metadata['abort_reason'] = 'not a picture, content-type[%s] first bytes %r' % (
+                        responseHeaders.get('content-type', ''), value[:16])
                     return 0
 
             if fileHandler != None and 0 == len(checkFromFirstBytes):
@@ -1230,11 +1278,20 @@ class common:
             add_params['check_subtypes'] = add_params.pop('subtypes')
 
         sts, data = self.getPageWithPyCurl(url, add_params, post_data)
+        reason = ''
         if sts:
             downDataSize = data.meta['size_download']
         else:
             rm(file_path)
-        return {'sts': sts, 'fsize': downDataSize}
+            # for the caller's log: why nothing usable arrived
+            meta = getattr(data, 'meta', {}) or {}
+            if meta.get('abort_reason'):
+                reason = meta['abort_reason']
+            elif meta.get('pycurl_error'):
+                reason = 'curl error %r' % (meta['pycurl_error'],)
+            else:
+                reason = 'HTTP %s' % meta.get('status_code', '?')
+        return {'sts': sts, 'fsize': downDataSize, 'reason': reason}
 
     def saveWebFile(self, file_path, url, addParams={}, post_data=None):
         addParams = dict(addParams)
@@ -1254,11 +1311,18 @@ class common:
         bRet = False
         downDataSize = 0
         dictRet = {}
+        # for the caller's log: why nothing usable arrived
+        reason = ''
         try:
             sts, downHandler = self.getPage(url, addParams, post_data)
-            if downHandler == None:
-                # the request itself failed (e.g. invalid URL), nothing to read
-                dictRet.update({'sts': False, 'fsize': 0})
+            if not sts:
+                meta = getattr(downHandler, 'meta', None) or {}
+                code = getattr(downHandler, 'code', None) or meta.get('status_code')
+                reason = ('HTTP %s' % code) if code else 'no connection (see the error above)'
+            if downHandler == None or (not sts and not hasattr(downHandler, 'read')):
+                # the request itself failed (e.g. invalid URL, no connection), nothing to read; an HTTPError
+                # still has a body to read below (some servers send a picture with it)
+                dictRet.update({'sts': False, 'fsize': 0, 'reason': reason or 'no answer'})
                 return dictRet
 
             if addParams.get('ignore_content_length', False):
@@ -1325,6 +1389,12 @@ class common:
                     if len(checkFromFirstBytes):
                         printDBG('saveWebFile() buffer.startswith "%s"' % CurrBuffer[:5])
                         if not MatchFirstBytes(CurrBuffer, checkFromFirstBytes):
+                            if CurrBuffer:
+                                detail = 'not a picture, content-type[%s] first bytes %r' % (
+                                    downHandler.info().get('Content-Type', ''), CurrBuffer[:16])
+                            else:
+                                detail = 'empty answer'
+                            reason = (reason + ', ' if reason else '') + detail
                             break
                         checkFromFirstBytes = []
 
@@ -1341,15 +1411,22 @@ class common:
                 if None != contentLength:
                     if contentLength == downDataSize:
                         bRet = True
+                    elif not reason:
+                        reason = 'incomplete, %d of %d bytes' % (downDataSize, contentLength)
                 elif downDataSize > 0:
                     bRet = True
+                elif not reason:
+                    reason = 'empty answer'
 
                 # image downloads (icons): WebP/AVIF -> JPEG, the picture loader shows neither
                 if bRet and 'check_first_bytes' in addParams and IsConvertibleImage(file_path):
                     self.convertWebp(file_path)
-        except Exception:
+            elif not reason:
+                reason = 'wrong content-type %s' % downHandler.info().get('Content-Type', '')
+        except Exception as e:
             printExc("common.getFile download file exception")
-        dictRet.update({'sts': bRet, 'fsize': downDataSize})
+            reason = (reason + ', ' if reason else '') + 'exception %r' % (e,)
+        dictRet.update({'sts': bRet, 'fsize': downDataSize, 'reason': '' if bRet else reason})
         return dictRet
 
     def getUrllibSSLProtocolVersion(self, protocolName):
