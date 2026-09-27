@@ -3,19 +3,22 @@
 ###################################################
 # LOCAL import
 ###################################################
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, GetCookieDir, byteify, rm
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, GetCookieDir, rm
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.libs.pCommon import common
 from Plugins.Extensions.IPTVPlayer.libs.urlparser import urlparser
 from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import getDirectM3U8Playlist
 from Plugins.Extensions.IPTVPlayer.components.ihost import CBaseHostClass
 from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads
+from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
+
 ###################################################
-from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_urlencode
+
 ###################################################
 # FOREIGN import
 ###################################################
-from Components.config import config, ConfigSelection, ConfigYesNo, ConfigText, getConfigListEntry
+from Components.config import config, ConfigYesNo, ConfigText, getConfigListEntry
+from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_urlencode as urlencode
 from datetime import datetime, timedelta
 ############################################
 
@@ -72,7 +75,7 @@ class UstvnowApi:
         if 0 < len(url) and not url.startswith('http'):
             url = self.MAIN_URL + url
         if not self.MAIN_URL.startswith('https://'):
-            url = url.replace('https://', 'http://')
+            url = url.replace('https://', 'http://')  # NOSONAR - deliberate scheme match to a non-https MAIN_URL
         return url
 
     def cleanHtmlStr(self, str):
@@ -80,7 +83,7 @@ class UstvnowApi:
 
     def _getChannelsNames(self):
         printDBG("UstvnowApi._getChannelsNames")
-        url = 'http://m.ustvnow.com/gtv/1/live/listchannels?%s' % urllib_urlencode({'token': self.token})
+        url = 'http://m.ustvnow.com/gtv/1/live/listchannels?%s' % urlencode({'token': self.token})
         sts, data = self.cm.getPage(url)
         if not sts:
             return []
@@ -197,7 +200,7 @@ class UstvnowApi:
 
     def getPasskey(self):
 
-        url = 'http://m.ustvnow.com/gtv/1/live/viewdvrlist?%s' % urllib_urlencode({'token': self.token})
+        url = 'http://m.ustvnow.com/gtv/1/live/viewdvrlist?%s' % urlencode({'token': self.token})
         sts, data = self.cm.getPage(url)
         if not sts:
             return ''

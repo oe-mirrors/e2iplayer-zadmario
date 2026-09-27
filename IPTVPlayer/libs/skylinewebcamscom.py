@@ -72,9 +72,9 @@ class WkylinewebcamsComApi:
     def getMainMenu(self, cItem):
         printDBG("WkylinewebcamsCom.getMainMenu")
         STATIC_TAB = [
-                      #{'title': _('NEW'), 'url': self.getFullUrl('/%s/new-livecams.html' % self.lang), 'cat': 'list_cams2'},
-                      #{'title': _('NEARBY CAMS'), 'url': self.getFullUrl('/skyline/morewebcams.php?w=you&l=' + self.lang), 'cat': 'list_cams2'},
-                      #{'title': _('TOP live cams'), 'url': self.getFullUrl(self.lang + '/top-live-cams.html'), 'cat': 'list_cams'},
+                      # {'title': _('NEW'), 'url': self.getFullUrl('/%s/new-livecams.html' % self.lang), 'cat': 'list_cams2'},
+                      # {'title': _('NEARBY CAMS'), 'url': self.getFullUrl('/skyline/morewebcams.php?w=you&l=' + self.lang), 'cat': 'list_cams2'},
+                      # {'title': _('TOP live cams'), 'url': self.getFullUrl(self.lang + '/top-live-cams.html'), 'cat': 'list_cams'},
                       ]
         list = []
         sts, data = self.cm.getPage(cItem['url'])
@@ -92,7 +92,7 @@ class WkylinewebcamsComApi:
                 titletext = self.cm.ph.getSearchGroups(item, '''html">([^"]+?)$''', 1, True)[0]
                 title = "%s: %s" % (continent.capitalize(), self.cleanHtmlStr(titletext))
                 if url != '' and title != '':
-                   tab.append({'url': self.getFullUrl(url), 'title': title, 'cat': 'list_cams'}) #explore_item
+                    tab.append({'url': self.getFullUrl(url), 'title': title, 'cat': 'list_cams'})
 
         tab = sorted(tab, key=lambda x: x['title'], reverse=True)
         for item in tab:
@@ -101,13 +101,13 @@ class WkylinewebcamsComApi:
             list.insert(0, params)
 
         tab = []
-        data = self.cm.ph.getDataBeetwenMarkers(data, 'cat"><div class="container-fluid">', '</li>')[1]
-        catData = data.split('</a>')
+        data_cat = self.cm.ph.getDataBeetwenMarkers(data, 'cat"><div class="container-fluid">', '</li>')[1]
+        catData = data_cat.split('</a>')
         for item in catData:
-           url = self.cm.ph.getSearchGroups(item, '''href="([^"]+?)"''', 1, True)[0]
-           title = self.cleanHtmlStr("Category: " + self.cm.ph.getSearchGroups(item, '''class="tcam">([^<]+?)<''', 1, True)[0])
-           if url != '' and title != '':
-               tab.append({'url': self.getFullUrl(url), 'title': title, 'cat': 'list_cams'}) #explore_item
+            url = self.cm.ph.getSearchGroups(item, '''href="([^"]+?)"''', 1, True)[0]
+            title = self.cleanHtmlStr("Category: " + self.cm.ph.getSearchGroups(item, '''class="tcam">([^<]+?)<''', 1, True)[0])
+            if url != '' and title != '':
+                tab.append({'url': self.getFullUrl(url), 'title': title, 'cat': 'list_cams'})
 
         for item in tab[::-1]:
             params = dict(cItem)
@@ -115,12 +115,10 @@ class WkylinewebcamsComApi:
             list.insert(0, params)
 
         for idx in range(2):
-            if idx >= len(data):
+            if idx >= len(data_cat):
                 continue
-            catData = data[idx]
+            catData = data_cat[idx]
             catData = catData.split('</a>')
-            if url != '' and title != '':
-                    tab.append({'url': self.getFullUrl(url), 'title': title, 'cat': 'list_cams'}) #explore_item
             if len(catData) < 2:
                 continue
             catTitle = self.cleanHtmlStr(catData[0])
@@ -131,7 +129,7 @@ class WkylinewebcamsComApi:
                 url = self.cm.ph.getSearchGroups(item, '''href="([^"]+?)"''', 1, True)[0]
                 title = self.cleanHtmlStr(item)
                 if url != '' and title != '':
-                    tab.append({'url': self.getFullUrl(url), 'title': title, 'cat': 'list_cams'}) #explore_item
+                    tab.append({'url': self.getFullUrl(url), 'title': title, 'cat': 'list_cams'})
             if len(tab):
                 tab.insert(0, {'url': self.getFullUrl(catUrl), 'title': _('All'), 'cat': 'list_cams'})
                 self.mainMenuCache[idx] = tab
@@ -140,9 +138,9 @@ class WkylinewebcamsComApi:
                 list.append(params)
 
         for item in STATIC_TAB:
-                params = dict(cItem)
-                params.update(item)
-                list.insert(0, params)
+            params = dict(cItem)
+            params.update(item)
+            list.insert(0, params)
         return list
 
     def listCams2(self, cItem):
@@ -165,28 +163,90 @@ class WkylinewebcamsComApi:
             list.append(params)
         return list
 
+    def _normalize_url(self, url):
+        """Normalizuj URL"""
+        if not url:
+            return ''
+        if not url.startswith('http'):
+            url = self.getFullUrl(url)
+        return url
+
+    def _generate_title_from_url(self, url):
+        """Generuj tytuł z URL"""
+        return url.split('/')[-1].replace('.html', '').replace('-', ' ').title()
+
+    def _extract_cams_from_matches(self, matches):
+        """Wyodrębnij kamery z dopasowań regex"""
+        found = []
+        for match in matches:
+            if len(match) >= 3:
+                url, icon, title = match[0], match[1], match[2]
+                if url and 'webcam' in url:
+                    found.append((url, icon, title))
+        return found
+
+    def _find_cams_original_method(self, data):
+        """Oryginalna metoda wyszukiwania kamer"""
+        found = []
+        data_parts = self.cm.ph.getAllItemsBeetwenMarkers(data, '</h1><hr>', '<div class="footer">')
+        if data_parts:
+            items = self.cm.ph.getAllItemsBeetwenMarkers(data_parts[0], '<a ', '</a>')
+            for item in items:
+                url = self.cm.ph.getSearchGroups(item, '''href="([^"]+?)"''', 1, True)[0]
+                icon = self.cm.ph.getSearchGroups(item, r'''"([^"]+?\.(?:jpg|webp))"''', 1, True)[0]
+                if url and 'webcam' in url:
+                    title = self.cleanHtmlStr(self.cm.ph.getSearchGroups(item, '''alt="([^"]+?)"''', 1, True)[0])
+                    if not title:
+                        title = self.cleanHtmlStr(item)
+                    found.append((url, icon, title))
+        return found
+
+    def _find_cams(self, data):
+        """Szukanie kamer przy użyciu różnych wzorców"""
+        patterns = [
+            r'<div[^>]*class="[^"]*webcam-item[^"]*"[^>]*>.*?<a[^>]*href="([^"]+)"[^>]*>.*?<img[^>]*src="([^"]+)"[^>]*alt="([^"]*)"',
+            r'<div[^>]*class="[^"]*cam[^"]*"[^>]*>.*?<a[^>]*href="([^"]+)"[^>]*>.*?<img[^>]*src="([^"]+)"[^>]*alt="([^"]*)"',
+            r'<li[^>]*class="[^"]*webcam[^"]*"[^>]*>.*?<a[^>]*href="([^"]+)"[^>]*>.*?<img[^>]*src="([^"]+)"[^>]*alt="([^"]*)"',
+            r'<a[^>]*href="([^"]*webcam[^"]*\.html)"[^>]*>.*?<img[^>]*src="([^"]+)"[^>]*alt="([^"]*)"',
+        ]
+
+        for pattern in patterns:
+            matches = re.findall(pattern, data, re.DOTALL | re.IGNORECASE)
+            if matches:
+                found = self._extract_cams_from_matches(matches)
+                if found:
+                    return found
+        return self._find_cams_original_method(data)
+
+    def _process_found_cams(self, found, cItem):
+        """Przetwarzanie znalezionych kamer i tworzenie listy"""
+        result = []
+        for url, icon, title in found:
+            url = self._normalize_url(url)
+            icon = self._normalize_url(icon) if icon else ''
+            if not title:
+                title = self._generate_title_from_url(url)
+
+            params = dict(cItem)
+            params.update({
+                'title': title,
+                'url': url,
+                'icon': icon,
+                'type': 'video'
+            })
+            result.append(params)
+        return result
+
     def listCams(self, cItem):
-        printDBG("WkylinewebcamsCom.listCams")
-        list = []
+        printDBG("WkylinewebcamsCom.listCams url[%s]" % cItem['url'])
         sts, data = self.cm.getPage(cItem['url'])
         if not sts:
-            return list
-        data = self.cm.ph.getAllItemsBeetwenMarkers(data, '</h1><hr>', '<div class="footer">')
-        if data:
-            data = self.cm.ph.getAllItemsBeetwenMarkers(data[0], '<a ', '</a>')
-            for item in data:
-                url = self.cm.ph.getSearchGroups(item, '''href="([^"]+?)"''', 1, True)[0]
-                icon = self.cm.ph.getSearchGroups(item, '''"([^"]+?\.(?:jpg|webp))"''', 1, True)[0]
-                if '' == url:
-                    continue
-                title = self.cleanHtmlStr(self.cm.ph.getSearchGroups(item, '''alt="([^"]+?)"''', 1, True)[0])
-                if '' == title:
-                    continue
-                desc = self.cleanHtmlStr(item)
-                params = dict(cItem)
-                params.update({'title': title, 'url': self.getFullUrl(url), 'icon': self.getFullUrl(icon), 'desc': desc, 'type': 'video'})
-                list.append(params)
-        return list
+            return []
+
+        found = self._find_cams(data)
+        result = self._process_found_cams(found, cItem)
+        printDBG("Found %d cameras" % len(result))
+        return result
 
     def exploreItem(self, cItem):
         printDBG("WkylinewebcamsCom.exploreItem")
@@ -197,7 +257,7 @@ class WkylinewebcamsComApi:
         data = self.cm.ph.getAllItemsBeetwenMarkers(data, '<li class="webcam">', '</li>')
         for item in data:
             url = self.cm.ph.getSearchGroups(item, '''href="([^"]+?)"''', 1, True)[0]
-            icon = self.cm.ph.getSearchGroups(item, '''"([^"]+?\.(?:jpg|webp))"''', 1, True)[0]
+            icon = self.cm.ph.getSearchGroups(item, r'''"([^"]+?\.(?:jpg|webp))"''', 1, True)[0]
             if '' == url:
                 continue
             title = self.cleanHtmlStr(self.cm.ph.getSearchGroups(item, '''alt="([^"]+?)"''', 1, True)[0])
@@ -213,7 +273,7 @@ class WkylinewebcamsComApi:
         cat = cItem.get('cat', None)
         lang = config.plugins.iptvplayer.skylinewebcams_lang.value
         self.lang = lang
-        if None == cat:
+        if None is cat:
             cItem = dict(cItem)
             cItem['url'] = self.MAIN_URL + lang + '.html'
             return self.getMainMenu(cItem)

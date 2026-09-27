@@ -9,14 +9,14 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.libs.pCommon import common
 from Plugins.Extensions.IPTVPlayer.libs.urlparser import urlparser
 from Plugins.Extensions.IPTVPlayer.components.ihost import CBaseHostClass
-from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import unpackJSPlayerParams, VIDEOWEED_decryptPlayerParams, VIDEOWEED_decryptPlayerParams2,\
+from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import unpackJSPlayerParams, VIDEOWEED_decryptPlayerParams, VIDEOWEED_decryptPlayerParams2, \
                                                                 SAWLIVETV_decryptPlayerParams, getDirectM3U8Playlist
 
 from Plugins.Extensions.IPTVPlayer.tools.e2ijs import js_execute
 from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads
 ###################################################
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote
-from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_binary
+from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_binary, ensure_str
 ###################################################
 # FOREIGN import
 ###################################################
@@ -63,13 +63,7 @@ class Sport365LiveApi:
         self.needRefreshAdvert = True
 
     def getPage(self, url, params={}, post_data=None):
-        sts, data = self.cm.getPage(url, params, post_data)
-        if sts:
-            #printDBG("---")
-            #printDBG("url: %s" % url)
-            #printDBG(data)
-            #printDBG("---")
-            return sts, data
+        return self.cm.getPage(url, params, post_data)
 
     def getFullUrl(self, url):
         if url.startswith('http'):
@@ -122,7 +116,7 @@ class Sport365LiveApi:
 
         printDBG(">> id[%s]\n" % id)
         xz = str(int(time() * 1000)) + id + str(int(random.random() * 1000)) + str(2 * int(random.random() * 4)) + str(num)
-        xz = base64.b64encode(xz)
+        xz = ensure_str(base64.b64encode(ensure_binary(xz)))
         return 'MarketGidStorage=%s; ' % urllib_quote('{"0":{"svspr":"%s","svsds":%s,"TejndEEDj":"%s"},"C%s":{"page":1,"time":%s}}' % (referer, num, xz, id, int(time() * 100)))
 
     def refreshAdvert(self):
@@ -150,15 +144,15 @@ class Sport365LiveApi:
 
         D = datetime.now()
         timeMarker = '{0}{1}{2}{3}'.format(D.year - 1900, D.month - 1, D.day, D.hour)
-        jscUrl = self.cm.ph.getSearchGroups(data, '''['"]([^'^"]*?jsc\.mgid[^'^"]*?)['"]''')[0]
+        jscUrl = self.cm.ph.getSearchGroups(data, r'''['"]([^'^"]*?jsc\.mgid[^'^"]*?)['"]''')[0]
         printDBG(">> [%s]" % jscUrl)
         if jscUrl.endswith('t='):
             jscUrl += timeMarker
-        adUrl = self.cm.ph.getSearchGroups(data, '''['"]([^'^"]*?\.adshell\.[^'^"]*?)['"]''')[0]
+        adUrl = self.cm.ph.getSearchGroups(data, r'''['"]([^'^"]*?\.adshell\.[^'^"]*?)['"]''')[0]
 
         sts, data = self.getPage(self.getFullUrl(adUrl), params)
         if sts:
-            adUrl = self.cm.ph.getSearchGroups(data, '''['"]([^'^"]*?\.adshell\.[^'^"]*?)['"]''')[0]
+            adUrl = self.cm.ph.getSearchGroups(data, r'''['"]([^'^"]*?\.adshell\.[^'^"]*?)['"]''')[0]
 
         sts, data = self.getPage(self.getFullUrl(jscUrl), params)
         marketCookie = self.getMarketCookie(jscUrl, baseUrl)
@@ -176,7 +170,7 @@ class Sport365LiveApi:
             if not sts:
                 continue
 
-            adUrl = self.cm.ph.getSearchGroups(data, '''['"]([^'^"]*?\.adshell\.[^'^"]*?)['"]''')[0]
+            adUrl = self.cm.ph.getSearchGroups(data, r'''['"]([^'^"]*?\.adshell\.[^'^"]*?)['"]''')[0]
             params['header']['Referer'] = awrapperUrl
             params['header']['Cookie'] = marketCookie
 
@@ -184,7 +178,7 @@ class Sport365LiveApi:
             if not sts:
                 continue
 
-            jscUrl = self.cm.ph.getSearchGroups(data, '''['"]([^'^"]*?jsc\.mgid[^'^"]*?)['"]''')[0]
+            jscUrl = self.cm.ph.getSearchGroups(data, r'''['"]([^'^"]*?jsc\.mgid[^'^"]*?)['"]''')[0]
             if jscUrl.endswith('t='):
                 jscUrl += timeMarker
             if jscUrl != '':
@@ -217,7 +211,7 @@ class Sport365LiveApi:
         data = self.cm.ph.getAllItemsBeetwenMarkers(data, '<tr', '</tr>')
         for item in data:
             if '/types/' not in item:
-                tmp = self.cm.ph.getSearchGroups(item, '''>([0-9]{2}\.[0-9]{2}\.[0-9]{4})<''')[0]
+                tmp = self.cm.ph.getSearchGroups(item, r'''>([0-9]{2}\.[0-9]{2}\.[0-9]{4})<''')[0]
                 if tmp != '':
                     date = tmp
             else:
@@ -229,7 +223,7 @@ class Sport365LiveApi:
                 desc = self.cm.ph.getSearchGroups(item, '''alt=['"]([^'^"]+?)['"]''')[0]
                 desc = date + ' ' + self.cleanHtmlStr(desc)
                 linksData = []
-                tmp = self.cm.ph.getSearchGroups(item, '''onClick=[^(]*?\(([^)]+?)\)''')[0].split(',')
+                tmp = self.cm.ph.getSearchGroups(item, r'''onClick=[^(]*?\(([^)]+?)\)''')[0].split(',')
                 for t in tmp:
                     linksData.append(t.replace('"', '').strip())
                 params = dict(cItem)
@@ -262,7 +256,7 @@ class Sport365LiveApi:
                 linkTitle = self.cleanHtmlStr(link)
                 if '{' in linkTitle:
                     continue
-                linkData = self.cm.ph.getSearchGroups(link, '''onClick=[^(]*?\(([^)]+?)\)''')[0].split(',')[0].replace('"', '').replace("'", '').strip()
+                linkData = self.cm.ph.getSearchGroups(link, r'''onClick=[^(]*?\(([^)]+?)\)''')[0].split(',')[0].replace('"', '').replace("'", '').strip()
                 if linkData != '':
                     params = dict(cItem)
                     params.update({'type': 'video', 'link_data': linkData, 'event_id': eventId, 'desc': desc, 'title': sourceTitle + ' ' + linkTitle})
@@ -276,7 +270,7 @@ class Sport365LiveApi:
         self.refreshAdvert()
 
         category = cItem.get('priv_cat', None)
-        if None == category:
+        if None is category:
             return self.getMainCategories(cItem)
         elif 'streams_links' == category:
             return self.getStreamsLinks(cItem)
@@ -302,7 +296,7 @@ class Sport365LiveApi:
 
         jsData2 = ''
         aes = ''
-        data = re.compile('''src=['"](http[^"^']*?/js/[0-9a-fA-F]{32}\.js[^'^"]*?)["']''').findall(data)[::-1]
+        data = re.compile(r'''src=['"](http[^"^']*?/js/[0-9a-fA-F]{32}\.js[^'^"]*?)["']''').findall(data)[::-1]
         for commonUrl in data:
             sts, tmpData = self.getPage(commonUrl, self.http_params)
             if not sts:
@@ -333,7 +327,7 @@ class Sport365LiveApi:
             return []
 
         aes = ''
-        data = re.compile('''src=['"](http[^"^']*?/js/[0-9a-fA-F]{32}\.js[^'^"]*?)["']''').findall(data)[::-1]
+        data = re.compile(r'''src=['"](http[^"^']*?/js/[0-9a-fA-F]{32}\.js[^'^"]*?)["']''').findall(data)[::-1]
         num = 0
         deObfuscatedData = ''
         aes_password = []
@@ -364,10 +358,10 @@ class Sport365LiveApi:
 
                         aes = self.cm.ph.getSearchGroups(tmpData, 'aes_key="([^"]+?)"')[0]
                         if '' == aes:
-                            aes = self.cm.ph.getSearchGroups(tmpData, 'aes\(\)\{return "([^"]+?)"')[0]
+                            aes = self.cm.ph.getSearchGroups(tmpData, r'aes\(\)\{return "([^"]+?)"')[0]
 
                         if aes == '':
-                            funname = self.cm.ph.getSearchGroups(tmpData, 'CryptoJS\.AES\.decrypt\([^\,]+?\,([^\,]+?)\,')[0].strip()
+                            funname = self.cm.ph.getSearchGroups(tmpData, r'CryptoJS\.AES\.decrypt\([^\,]+?\,([^\,]+?)\,')[0].strip()
                             if funname != '':
                                 printDBG("ZZZZZZZZZZZZZ")
                                 printDBG("FUN NAME: [%s]" % funname)
@@ -423,7 +417,7 @@ class Sport365LiveApi:
                     if not sts:
                         return []
 
-                    links = re.compile('(http://www.[^\.]+.pw/(?!&#)[^"]+)', re.IGNORECASE + re.DOTALL + re.MULTILINE + re.UNICODE).findall(data)
+                    links = re.compile(r'(http://www.[^\.]+.pw/(?!&#)[^"]+)', re.IGNORECASE + re.DOTALL + re.MULTILINE + re.UNICODE).findall(data)
                     link = [x for x in links if '&#' in x]
                     if link:
                         link = re.sub(r'&#(\d+);', lambda x: chr(int(x.group(1))), link[0])
@@ -434,16 +428,16 @@ class Sport365LiveApi:
                         sts, data = self.getPage(link, h)
 
                         if sts:
-                            #printDBG("*****************")
-                            #printDBG(data)
-                            #printDBG("*****************")
+                            # printDBG("*****************")
+                            # printDBG(data)
+                            # printDBG("*****************")
 
                             # search form data in page
-                            action = re.compile('[\'"]action[\'"][,\s]*[\'"](http.*?)[\'"]').findall(data)
+                            action = re.compile('[\'"]action[\'"][,\\s]*[\'"](http.*?)[\'"]').findall(data)
 
-                            r = re.compile('.*?name="r"\s*value=["\']([^"\']+)["\']').findall(data)
-                            d = re.compile('.*?name="d"\s*value=["\']([^"\']+)["\']').findall(data)
-                            f = re.compile('.*?name="f"\s*value=["\']([^"\']+)["\']').findall(data)
+                            r = re.compile('.*?name="r"\\s*value=["\']([^"\']+)["\']').findall(data)
+                            d = re.compile('.*?name="d"\\s*value=["\']([^"\']+)["\']').findall(data)
+                            f = re.compile('.*?name="f"\\s*value=["\']([^"\']+)["\']').findall(data)
 
                             srcs = re.compile('src=[\'"](.*?)[\'"]').findall(data)
 
@@ -452,12 +446,12 @@ class Sport365LiveApi:
                                 h['header']['Referer'] = link
                                 sts, data = self.getPage(action[0], h, postData)
                                 if sts:
-                                    #printDBG("*****************")
-                                    #printDBG(data)
-                                    #printDBG("*****************")
+                                    # printDBG("*****************")
+                                    # printDBG(data)
+                                    # printDBG("*****************")
 
                                     try:
-                                        #######ads banners#########
+                                        ####### ads banners#########
                                         # simulate ads viewing
                                         bheaders = h
                                         bheaders['header']['Referer'] = action[0]
@@ -473,7 +467,7 @@ class Sport365LiveApi:
                                     except BaseException:
                                         pass
 
-                                    link2 = re.compile('\([\'"][^"\']+[\'"], [\'"][^"\']+[\'"], [\'"]([^"\']+)[\'"], 1\)').findall(data)
+                                    link2 = re.compile('\\([\'"][^"\']+[\'"], [\'"][^"\']+[\'"], [\'"]([^"\']+)[\'"], 1\\)').findall(data)
                                     if link2:
                                         printDBG(link2[0])
                                         playerUrl = self.decryptUrl(link2[0], aes).replace("/i", "/master.m3u8")
@@ -488,7 +482,7 @@ class Sport365LiveApi:
 
                     else:
                         # old system
-                        playerUrl = self.cm.ph.getSearchGroups(data, '''location\.replace\(\s*?['"]([^'^"]+?)['"]''', 1, True)[0]
+                        playerUrl = self.cm.ph.getSearchGroups(data, r'''location\.replace\(\s*?['"]([^'^"]+?)['"]''', 1, True)[0]
                         if playerUrl:
                             printDBG("player Url 2 ------> %s " % playerUrl)
 
