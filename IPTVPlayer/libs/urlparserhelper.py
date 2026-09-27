@@ -21,6 +21,7 @@ if not isPY2():
 # FOREIGN import
 ###################################################
 from binascii import hexlify
+import ast
 import re
 import time
 import string
@@ -248,6 +249,98 @@ def getParamsTouple(code, type=1, r1=False, r2=False):
         return ''
     idx2 += type
     return code[idx1:idx2]
+
+
+# safeEvalExpression: shared with the python3 fork's urlparserhelper (py2: unicode / long count too)
+try:
+    _TEXT_TYPES = (str, unicode)  # noqa: F821
+    _INT_TYPES = (int, long)  # noqa: F821
+except NameError:
+    _TEXT_TYPES = (str,)
+    _INT_TYPES = (int,)
+_NUM_TYPES = _INT_TYPES + (float,)
+
+
+def _astConstant(node):
+    # constant node -> (True, value); Python 3.8+ uses ast.Constant, older versions Str/Num/NameConstant
+    for name, attr in (('Constant', 'value'), ('Str', 's'), ('Num', 'n'), ('NameConstant', 'value')):
+        cls = getattr(ast, name, None)
+        if cls is not None and isinstance(node, cls):
+            value = getattr(node, attr)
+            if value is None or isinstance(value, _TEXT_TYPES + _NUM_TYPES + (bool,)):
+                return True, value
+    return False, None
+
+
+def safeEvalExpression(expr, functions=None, maxLen=1048576):
+    """Value of a small expression taken from a web page, WITHOUT running it as code.
+    Allowed: string/number constants, tuples/lists/dicts of them, + - * / on numbers,
+    + on strings, [index] and [a:b] slices, 'text'.split(sep) and the plain functions
+    passed in `functions` (name -> callable). Anything else raises ValueError."""
+    functions = functions or {}
+
+    def ev(node):
+        isConst, value = _astConstant(node)
+        if isConst:
+            return value
+        if isinstance(node, ast.Expression):
+            return ev(node.body)
+        if isinstance(node, (ast.Tuple, ast.List)):
+            values = [ev(item) for item in node.elts]
+            return tuple(values) if isinstance(node, ast.Tuple) else values
+        if isinstance(node, ast.Dict):
+            if None in node.keys:
+                raise ValueError('dict unpacking not allowed')
+            return dict((ev(k), ev(v)) for k, v in zip(node.keys, node.values))
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
+            value = ev(node.operand)
+            if not isinstance(value, _NUM_TYPES):
+                raise ValueError('unary operator on non-number')
+            return -value if isinstance(node.op, ast.USub) else value
+        if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div)):
+            left, right = ev(node.left), ev(node.right)
+            numbers = isinstance(left, _NUM_TYPES) and isinstance(right, _NUM_TYPES)
+            if isinstance(node.op, ast.Add) and isinstance(left, _TEXT_TYPES) and isinstance(right, _TEXT_TYPES):
+                if len(left) + len(right) > maxLen:
+                    raise ValueError('string too long')
+                return left + right
+            if not numbers:
+                raise ValueError('operator only allowed on numbers')
+            if isinstance(node.op, ast.Add):
+                return left + right
+            if isinstance(node.op, ast.Sub):
+                return left - right
+            if isinstance(node.op, ast.Mult):
+                return left * right
+            return left / right
+        if isinstance(node, ast.Subscript):
+            value = ev(node.value)
+            if not isinstance(value, _TEXT_TYPES + (list, tuple)):
+                raise ValueError('subscript only on strings/lists')
+            sliceNode = node.slice
+            if hasattr(ast, 'Index') and isinstance(sliceNode, getattr(ast, 'Index')):  # Python < 3.9
+                sliceNode = sliceNode.value
+            if isinstance(sliceNode, ast.Slice):
+                parts = [None if item is None else ev(item) for item in (sliceNode.lower, sliceNode.upper, sliceNode.step)]
+                for item in parts:
+                    if item is not None and not isinstance(item, _INT_TYPES):
+                        raise ValueError('slice bounds must be integers')
+                return value[parts[0]:parts[1]:parts[2]]
+            index = ev(sliceNode)
+            if not isinstance(index, _INT_TYPES):
+                raise ValueError('index must be an integer')
+            return value[index]
+        if isinstance(node, ast.Call) and not node.keywords and not getattr(node, 'starargs', None) and not getattr(node, 'kwargs', None):
+            args = [ev(item) for item in node.args]
+            if isinstance(node.func, ast.Attribute) and node.func.attr == 'split':
+                target = ev(node.func.value)
+                if isinstance(target, _TEXT_TYPES) and len(args) <= 1 and all(isinstance(item, _TEXT_TYPES) for item in args):
+                    return target.split(*args)
+            elif isinstance(node.func, ast.Name) and node.func.id in functions:
+                return functions[node.func.id](*args)
+        raise ValueError('unsupported expression element: %s' % type(node).__name__)
+
+    return ev(ast.parse(expr.strip(), mode='eval'))
 
 
 def unpackJSPlayerParams(code, decryptionFun, type=1, r1=False, r2=False):
