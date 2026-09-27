@@ -4,11 +4,12 @@
 # LOCAL import
 ###################################################
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, GetCookieDir, byteify
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, GetCookieDir
 from Plugins.Extensions.IPTVPlayer.components.ihost import CBaseHostClass
 from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads
-###################################################
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_urlencode
+###################################################
+
 ###################################################
 # FOREIGN import
 ###################################################
@@ -31,7 +32,7 @@ class WebCameraApi(CBaseHostClass):
     def __init__(self):
         CBaseHostClass.__init__(self)
         self.MAIN_URL = 'https://www.webcamera.pl/'
-        self.DEFAULT_ICON_URL = 'http://static.webcamera.pl/webcamera/img/loader-min.png'
+        self.DEFAULT_ICON_URL = 'https://static.webcamera.pl/webcamera/img/loader-min.png'
         self.HEADER = {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux i686; rv:21.0) Gecko/20100101 Firefox/21.0', 'Referer': self.getMainUrl(), 'Accept': 'text/html'}
         self.AJAX_HEADER = dict(self.HEADER)
         self.AJAX_HEADER.update({'X-Requested-With': 'XMLHttpRequest'})
@@ -75,6 +76,7 @@ class WebCameraApi(CBaseHostClass):
                 data = self.cm.ph.getDataBeetwenMarkers(data, '<nav', '</nav>', False)[1]
                 data = self.cm.ph.getAllItemsBeetwenMarkers(data, '<a', '</a>')
                 for item in data:
+                    catKey = 'category'
                     catUrl = self.getFullUrl(self.cm.ph.getSearchGroups(item, """href=['"]([^'^"]+?)['"]""")[0])
                     if catUrl == '' or '#' in catUrl:
                         continue
@@ -115,9 +117,9 @@ class WebCameraApi(CBaseHostClass):
                     return []
 
                 if page == 1:
-                    tmp = self.cm.ph.getSearchGroups(data, '''(<div[^>]+?inline\-camera\-listing[^>]+?>)''')[0]
+                    tmp = self.cm.ph.getSearchGroups(data, r'''(<div[^>]+?inline\-camera\-listing[^>]+?>)''')[0]
                     printDBG(">> \"%s\"" % tmp)
-                    tmp = re.compile('''data\-([^=^'^"^\s]+?)\s*=\s*['"]([^'^"]+?)['"]''').findall(tmp)
+                    tmp = re.compile(r'''data\-([^=^'^"^\s]+?)\s*=\s*['"]([^'^"]+?)['"]''').findall(tmp)
                     cItem = dict(cItem)
                     cItem['more_params'] = {}
                     for item in tmp:
@@ -141,9 +143,9 @@ class WebCameraApi(CBaseHostClass):
                         if limiter in item:
                             title = self.cleanHtmlStr(item.split(limiter)[0])
                             desc = self.cleanHtmlStr(item.split(limiter)[-1])
-                        icon = self.cm.ph.getSearchGroups(item, """data\-src=['"]([^'^"]+?)['"]""")[0]
+                        icon = self.cm.ph.getSearchGroups(item, r"""data\-src=['"]([^'^"]+?)['"]""")[0]
                         if icon == '':
-                            icon = self.cm.ph.getSearchGroups(item, """src=['"]([^'^"]+?\.jpg[^'^"]*?)['"]""")[0]
+                            icon = self.cm.ph.getSearchGroups(item, r"""src=['"]([^'^"]+?\.jpg[^'^"]*?)['"]""")[0]
                         if 'instagramie' in title:
                             continue
                         params = dict(cItem)
@@ -151,8 +153,9 @@ class WebCameraApi(CBaseHostClass):
                         self.addVideo(params)
                         vidCount += 1
 
-                # check if next page is needed
-                if vidCount > 0:
+                # check if next page is needed - category pages now list all cameras at once and
+                # carry no ajax url / page size any more
+                if vidCount > 0 and cItem.get('more_url') and 'limit' in cItem.get('more_params', {}):
                     urlPrams = dict(cItem['more_params'])
                     urlPrams['page'] = page + 1
                     try:
@@ -164,8 +167,8 @@ class WebCameraApi(CBaseHostClass):
                     except Exception:
                         printExc()
 
-                    #urlPrams['cameras'] = '14'
-                    #urlPrams['columns'] = '12'
+                    # urlPrams['cameras'] = '14'
+                    # urlPrams['columns'] = '12'
 
                     url = self.getFullUrl(cItem['more_url'])
                     url += '?' + urllib_urlencode(urlPrams)
@@ -206,13 +209,13 @@ class WebCameraApi(CBaseHostClass):
             for item in cTree['list']:
                 title = self.cleanHtmlStr(item['dat'])
                 url = self.getFullUrl(self.cm.ph.getSearchGroups(item['dat'], '''href=['"]([^'^"]+?)['"]''')[0])
-                icon = self.getFullIconUrl(self.cm.ph.getSearchGroups(item['dat'], '''src=['"]([^'^"]+?\.jpe?g(:?\?[^'^"]+?)?)['"]''')[0])
+                icon = self.getFullIconUrl(self.cm.ph.getSearchGroups(item['dat'], r'''src=['"]([^'^"]+?\.jpe?g(:?\?[^'^"]+?)?)['"]''')[0])
                 if '/mapa' in url:
                     break
                 elif 'list' not in item:
                     if self.cm.isValidUrl(url) and title != '':
                         if url.endswith('/aktualnosci'):
-                            continue # not handled at now
+                            continue  # not handled at now
                         params = dict(cItem)
                         params.pop('c_tree', None)
                         params.update({'priv_category': nextCategory, 'title': title, 'url': url, 'icon': icon})

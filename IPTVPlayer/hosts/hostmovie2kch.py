@@ -97,7 +97,7 @@ class Movie2K(CBaseHostClass):
     def listGenres(self, cItem):
         printDBG("Movie2K.Genres")
         for title in ["Action", "Adventure", "Animation", "Comedy", "Crime", "Documentary", "Drama", "Family", "Fantasy", "History", "Horror", "Music", "Mystery", "Romance", "Reality-TV", "Sci-Fi", "Sport", "Thriller", "War", "Western"]:
-            url = '%sbrowse/?lang=2&genre=%s&&order_by=Neu&page=1&limit=20' % (self.MAIN_URL, title)
+            url = '%sbrowse/?lang=2&genre=%s&order_by=Neu&page=1&limit=20' % (self.MAIN_URL, title)
             params = dict(cItem)
             params.update({'good_for_fav': True, 'category': 'list_items', 'title': title, 'url': url})
             self.addDir(params)
@@ -205,7 +205,7 @@ class Movie2K(CBaseHostClass):
             cItem.update({'search_item': False, 'name': 'category'})
             self.listSearchResult(cItem, searchPattern, searchType)
         elif category == "search_history":
-            self.listsHistory({'name': 'history', 'category': 'search'}, 'desc', _("Type: "))
+            self.listsHistory({'name': 'history', 'category': 'search'}, 'desc')
         else:
             printExc()
         CBaseHostClass.endHandleService(self, index, refresh)

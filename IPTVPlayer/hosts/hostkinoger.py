@@ -27,6 +27,8 @@ class KinoGer(CBaseHostClass):
     def __init__(self):
         CBaseHostClass.__init__(self, {"history": "kinoger", "cookie": "kinoger.cookie"})
         self.HEADER = self.cm.getDefaultHeader()
+        # the site's anti-bot filter answers every full browser User-Agent with a JS verification page
+        self.HEADER["User-Agent"] = "Mozilla/5.0"
         self.defaultParams = {"header": self.HEADER, "use_cookie": True, "load_cookie": True, "save_cookie": True, "cookiefile": self.COOKIE_FILE}
         self.DEFAULT_ICON_URL = gettytul() + "templates/kinoger/images/logo.png"
         self.MAIN_URL = gettytul()
@@ -113,8 +115,10 @@ class KinoGer(CBaseHostClass):
         sts, data = self.getPage(self.MAIN_URL)
         if not sts:
             return
-        data = self.cm.ph.getAllItemsBeetwenMarkers(data, 'class="sidelinks', "</ul>")[0]
-        data = re.compile('href="([^"]+).*?/>([^<]+)', re.DOTALL).findall(data)
+        data = self.cm.ph.getAllItemsBeetwenMarkers(data, 'class="sidelinks', "</ul>")
+        if not data:
+            return
+        data = re.compile('href="([^"]+).*?/>([^<]+)', re.DOTALL).findall(data[0])
         for url, title in data:
             if "erie" in title or url == "/":
                 continue
@@ -174,8 +178,15 @@ class KinoGer(CBaseHostClass):
         sts, data = self.getPage(cItem["url"])
         if not sts:
             return []
-        desc = self.cleanHtmlStr(self.cm.ph.getSearchGroups(data, 'description" content="([^"]+)')[0])
-        desc = desc if desc else cItem.get("desc", "")
+        # prefer the list item's own desc (already complete, straight from
+        # the listing page) over the detail page's <meta name="description">
+        # tag - that meta tag is truncated mid-sentence on this site, so
+        # treating it as the primary source and cItem['desc'] as only the
+        # "meta tag was empty" fallback would mean the truncated text
+        # always wins since it's non-empty
+        desc = cItem.get("desc", "")
+        if not desc:
+            desc = self.cleanHtmlStr(self.cm.ph.getSearchGroups(data, 'description" content="([^"]+)')[0])
         actors = self.cleanHtmlStr(self.cm.ph.getSearchGroups(data, ">Schauspieler:([^<]+)")[0])
         if actors:
             otherInfo["actors"] = actors
@@ -209,7 +220,7 @@ class KinoGer(CBaseHostClass):
             cItem.update({"search_item": False, "name": "category"})
             self.listSearchResult(cItem, searchPattern, searchType)
         elif category == "search_history":
-            self.listsHistory({"name": "history", "category": "search"}, "desc", _("Type: "))
+            self.listsHistory({"name": "history", "category": "search"}, "desc")
         else:
             printExc()
         CBaseHostClass.endHandleService(self, index, refresh)
