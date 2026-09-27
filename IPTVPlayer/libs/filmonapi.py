@@ -7,8 +7,9 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc
 from Plugins.Extensions.IPTVPlayer.libs.pCommon import common
 from Plugins.Extensions.IPTVPlayer.libs.urlparser import urlparser
 from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads
+from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import hex_md5
 ###################################################
-from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_binary
+
 ###################################################
 # FOREIGN import
 ###################################################
@@ -58,7 +59,7 @@ class FilmOnComApi:
 
     def initSession(self, force=False):
         printDBG('FilmOnComApi.initSession force[%r]' % force)
-        if force or None == self.session_key:
+        if force or None is self.session_key:
             self.session_key = None
             data = FilmOnComApi.MAINURL + '/api/init?' + FilmOnComApi.BASE_INIT_PARAMS + '&' + FilmOnComApi.STREAMING_PROTOCOLS[self.streamprotocol]
             sts, data = self.cm.getPage(data)
@@ -71,7 +72,7 @@ class FilmOnComApi:
                 except Exception:
                     printExc()
                 self._login()
-        return (None != self.session_key)
+        return (None is not self.session_key)
 
     def getUrlForChannel(self, channelID):
         printDBG('FilmOnComApi.getGroupList channelID[%r]' % channelID)
@@ -100,7 +101,7 @@ class FilmOnComApi:
                         if url.startswith('rtmp'):
                             flashplayer = 'http://www.filmon.com/tv/modules/FilmOnTV/files/flashapp/filmon/FilmonPlayer.swf?v=55'
                             pageUrl = 'http://www.filmon.com/tv/channel/export?channel_id=' + str(channelID)
-                            url = url + '/' + stream['name'] + ' swfUrl=' + flashplayer + ' pageUrl=' + url
+                            url = url + '/' + stream['name'] + ' swfUrl=' + flashplayer + ' pageUrl=' + pageUrl
                         url = urlparser.decorateUrl(url)
                         url.meta.update({'iptv_urlwithlimit': False, 'iptv_livestream': not seekable})
                         urlsList.append({'name': name, 'url': url})
@@ -169,10 +170,10 @@ class FilmOnComApi:
 
     def _login(self):
         printDBG('FilmOnComApi.__login sessionKey[%s]' % str(self.session_key))
-        if self.PREMIUM and None != self.session_key:
+        if self.PREMIUM and None is not self.session_key:
             postData = {}
             postData['login'] = self.LOGIN
-            postData['password'] = md5(ensure_binary(self.PASSWORD)).hexdigest()
+            postData['password'] = hex_md5(self.PASSWORD)
             postData['sessionkey'] = self.session_key
             loginURL = FilmOnComApi.MAINURL + "/api/login?session_key=" + self.session_key
             sts, data = self.cm.getPage(loginURL, {}, postData)

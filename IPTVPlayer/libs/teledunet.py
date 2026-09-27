@@ -4,6 +4,7 @@
 ###################################################
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, GetCookieDir
 from Plugins.Extensions.IPTVPlayer.libs.pCommon import common
+from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import safeEvalExpression
 ###################################################
 
 ###################################################
@@ -29,7 +30,7 @@ class TeledunetParser:
         # Fetch the main Teledunet website to be given a Session ID
         params = {'cookiefile': self.COOKIE_FILE, 'use_cookie': True, 'load_cookie': False, 'save_cookie': True}
         sts, data = self.cm.getPage(self.HEADER_REFERER, params)
-        if False == sts:
+        if False is sts:
             printDBG("__get_cookie_session getPage problem")
 
         url = self.TELEDUNET_TIMEPLAYER_URL % channel_name
@@ -40,11 +41,12 @@ class TeledunetParser:
 
         params = {'header': HTTP_HEADER, 'cookiefile': self.COOKIE_FILE, 'use_cookie': True, 'load_cookie': True, 'save_cookie': False}
         sts, data = self.cm.getPage(url, params)
-        if False == sts:
+        if False is sts:
             printDBG("__get_channel_time_player getPage problem")
 
         m = re.search('time_player=(.*);', data, re.M | re.I)
-        time_player_str = eval(m.group(1))
+        # a number (or simple arithmetic) from the page - parsed, not executed
+        time_player_str = safeEvalExpression(m.group(1))
 
         m = re.search('curent_media=\'(.*)\';', data, re.M | re.I)
         rtmp_url = m.group(1)
