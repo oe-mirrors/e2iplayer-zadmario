@@ -46,7 +46,7 @@ from Plugins.Extensions.IPTVPlayer.libs.pCommon import CParsingHelper, DescribeI
 from Plugins.Extensions.IPTVPlayer.libs.urlparser import urlparser
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import FreeSpace as iptvtools_FreeSpace, \
-                                                          mkdirs as iptvtools_mkdirs, GetIPTVPlayerVerstion, getIPTVplayerOPKGVersion, GetVersionNum, \
+                                                          mkdirs as iptvtools_mkdirs, GetIPTVPlayerVerstion, getIPTVplayerOPKGVersion, GetVersionNum, GetShortSystemInfo, \
                                                           printDBG, printExc, iptv_system, GetHostsList, IsHostEnabled, \
                                                           eConnectCallback, GetSkinsDir, GetIconDir, GetPluginDir, GetExtensionsDir, \
                                                           SortHostsList, GetHostsOrderList, CSearchHistoryHelper, IsExecutable, \
@@ -124,10 +124,11 @@ class E2iPlayerWidget(Screen):
         </screen>""" % sv
 
     def __init__(self, session):
-        printDBG("!!!!! E2iPlayerWidget.__init__ IPTV_VERSION[%s], CPU:%s, PYTHON:%s !!!!!\n" % (E2iPlayerWidget.IPTV_VERSION,
-                                                                                                 config.plugins.iptvplayer.plarform.value,
-                                                                                                 pVersion()
-                                                                                                ))
+        printDBG("!!!!! E2iPlayerWidget.__init__ IPTV_VERSION[%s], CPU:%s, PYTHON:%s %s !!!!!\n" % (E2iPlayerWidget.IPTV_VERSION,
+                                                                                                    config.plugins.iptvplayer.plarform.value,
+                                                                                                    pVersion(),
+                                                                                                    GetShortSystemInfo()
+                                                                                                   ))
         self.session = session
         self.skinResolutionType = 'sd'
         screenwidth = getDesktop(0).size().width()
@@ -754,6 +755,13 @@ class E2iPlayerWidget(Screen):
         TextMSG = ''
         if ret:
             if ret[1] == "info": #information about plugin
+                try:
+                    from Plugins.Extensions.IPTVPlayer.components.iptvplayerinfoview import OpenInfoView
+                    if OpenInfoView(self.session):
+                        return
+                except Exception:
+                    printExc()
+                # fallback - the plain "About" MessageBox
                 TextMSG = _("Lead programmer: ") + "\n\t- samsamsam\n"
                 if config.plugins.iptvplayer.preferredupdateserver.value == '3': #private sss repository
                     TextMSG += _("E-mail: ") + "\n\t- iptvplayere2@gmail.com\n"
@@ -2457,9 +2465,12 @@ class E2iPlayerWidget(Screen):
     # end requestListFromHost(self, type, currSelIndex = -1, privateData = ''):
 
     def startSearchProcedure(self, searchTypes):
-        sts, prevPattern = CSearchHistoryHelper.loadLastPattern()
-        if sts:
-            self.searchPattern = prevPattern
+        if config.plugins.iptvplayer.osk_remember_last_search.value:
+            sts, prevPattern = CSearchHistoryHelper.loadLastPattern()
+            if sts:
+                self.searchPattern = prevPattern
+        else:
+            self.searchPattern = ''
         if searchTypes:
             self.session.openWithCallback(self.selectSearchTypeCallback, ChoiceBox, title=_("Search type"), list=searchTypes)
         else:
@@ -2473,6 +2484,59 @@ class E2iPlayerWidget(Screen):
         else:
             pass
 
+    def _resolveSuggestionsProvider(self):
+        # !!! NON BLOCKING !!! the host's own provider is asked directly on
+        # the host, so it must never block. Used for the keyboard's initial
+        # provider and, via additionalParams['resolve_suggestions_provider'],
+        # again when the suggestions settings change while the keyboard is
+        # open. None: no suggestions ("Show suggestions" off, provider "None").
+        if not config.plugins.iptvplayer.osk_allow_suggestions.value:
+            return None
+        suggestionsProvider = None
+        try:
+            if config.plugins.iptvplayer.osk_allow_host_suggestions.value and self.visible and not self.isInWorkThread():
+                currSelIndex = self.getSelItem().itemIdx
+                hRet = self.host.getSuggestionsProvider(currSelIndex)
+                if hRet.status == RetHost.OK and hRet.value and hRet.value[0]:
+                    suggestionsProvider = hRet.value[0]
+        except Exception:
+            printExc()
+
+        if suggestionsProvider is None:
+            providerAlias = config.plugins.iptvplayer.osk_default_suggestions.value
+            if not providerAlias:
+                if not self.groupObj:
+                    self.groupObj = IPTVHostsGroups()
+                if self.hostName in self.groupObj.PREDEFINED_HOSTS['moviesandseries']:
+                    if self.hostName in self.groupObj.PREDEFINED_HOSTS['polish']:
+                        providerAlias = 'filmweb'
+                    elif self.hostName in self.groupObj.PREDEFINED_HOSTS['german']:
+                        providerAlias = 'filmstarts'
+                    else:
+                        providerAlias = 'imdb'
+                else:
+                    providerAlias = 'google'
+
+            if providerAlias == 'filmweb':
+                from Plugins.Extensions.IPTVPlayer.suggestions.filmweb import SuggestionsProvider as filmweb_Provider
+                suggestionsProvider = filmweb_Provider()
+            elif providerAlias == 'imdb':
+                from Plugins.Extensions.IPTVPlayer.suggestions.imdb import SuggestionsProvider as imdb_Provider
+                suggestionsProvider = imdb_Provider()
+            elif providerAlias == 'google':
+                from Plugins.Extensions.IPTVPlayer.suggestions.google import SuggestionsProvider as google_Provider
+                suggestionsProvider = google_Provider()
+            elif providerAlias == 'bing':
+                from Plugins.Extensions.IPTVPlayer.suggestions.bing import SuggestionsProvider as bing_Provider
+                suggestionsProvider = bing_Provider()
+            elif providerAlias == 'duckduckgo':
+                from Plugins.Extensions.IPTVPlayer.suggestions.duckduckgo import SuggestionsProvider as duckduckgo_Provider
+                suggestionsProvider = duckduckgo_Provider()
+            elif providerAlias == 'filmstarts':
+                from Plugins.Extensions.IPTVPlayer.suggestions.filmstarts import SuggestionsProvider as filmstarts_Provider
+                suggestionsProvider = filmstarts_Provider()
+        return suggestionsProvider
+
     def doSearchWithVirtualKeyboard(self):
         printDBG("doSearchWithVirtualKeyboard")
         caps = {}
@@ -2480,51 +2544,17 @@ class E2iPlayerWidget(Screen):
 
         if caps.get('has_additional_params'):
             try:
-                additionalParams = {}
-                if caps.get('has_suggestions') and config.plugins.iptvplayer.osk_allow_suggestions.value:
-                    # we have to be careful here as we will call method
-                    # directly from host it must be non blocking!!!
-                    suggestionsProvider = None
-                    try:
-                        if self.visible and not self.isInWorkThread():
-                            currSelIndex = self.getSelItem().itemIdx
-                            hRet = self.host.getSuggestionsProvider(currSelIndex)
-                            if hRet.status == RetHost.OK and hRet.value and hRet.value[0]:
-                                suggestionsProvider = hRet.value[0] if hRet.value[0] is not None else False
-                    except Exception:
-                        printExc()
-
-                    if suggestionsProvider is None:
-                        providerAlias = config.plugins.iptvplayer.osk_default_suggestions.value
-                        if not providerAlias:
-                            if not self.groupObj:
-                                self.groupObj = IPTVHostsGroups()
-                            if self.hostName in self.groupObj.PREDEFINED_HOSTS['moviesandseries']:
-                                if self.hostName in self.groupObj.PREDEFINED_HOSTS['polish']:
-                                    providerAlias = 'filmweb'
-                                elif self.hostName in self.groupObj.PREDEFINED_HOSTS['german']:
-                                    providerAlias = 'filmstarts'
-                                else:
-                                    providerAlias = 'imdb'
-                            else:
-                                providerAlias = 'google'
-
-                        if providerAlias == 'filmweb':
-                            from Plugins.Extensions.IPTVPlayer.suggestions.filmweb import SuggestionsProvider as filmweb_Provider
-                            suggestionsProvider = filmweb_Provider()
-                        elif providerAlias == 'imdb':
-                            from Plugins.Extensions.IPTVPlayer.suggestions.imdb import SuggestionsProvider as imdb_Provider
-                            suggestionsProvider = imdb_Provider()
-                        elif providerAlias == 'google':
-                            from Plugins.Extensions.IPTVPlayer.suggestions.google import SuggestionsProvider as google_Provider
-                            suggestionsProvider = google_Provider()
-                        elif providerAlias == 'filmstarts':
-                            from Plugins.Extensions.IPTVPlayer.suggestions.filmstarts import SuggestionsProvider as filmstarts_Provider
-                            suggestionsProvider = filmstarts_Provider()
-
+                # is_search: the keyboard adds the text to its search history
+                additionalParams = {'is_search': True}
+                if caps.get('has_suggestions'):
+                    suggestionsProvider = self._resolveSuggestionsProvider()
                     if suggestionsProvider:
                         from Plugins.Extensions.IPTVPlayer.components.e2ivksuggestion import AutocompleteSearch
                         additionalParams['autocomplete'] = AutocompleteSearch(suggestionsProvider)
+                        # the keyboard lays out its suggestions panel once,
+                        # when it opens with a provider - only then it can
+                        # swap the provider live
+                        additionalParams['resolve_suggestions_provider'] = self._resolveSuggestionsProvider
 
                 self.session.openWithCallback(self.enterPatternCallBack, virtualKeyboard, title=(_("Your search entry")), text=self.searchPattern, additionalParams=additionalParams)
                 return
@@ -2535,7 +2565,8 @@ class E2iPlayerWidget(Screen):
     def enterPatternCallBack(self, callback=None):
         if callback is not None and len(callback):
             self.searchPattern = callback
-            CSearchHistoryHelper.saveLastPattern(self.searchPattern)
+            if config.plugins.iptvplayer.osk_remember_last_search.value:
+                CSearchHistoryHelper.saveLastPattern(self.searchPattern)
             self.requestListFromHost('ForSearch')
 
     def configCallback(self):

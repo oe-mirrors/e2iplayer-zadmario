@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-# Last Modified: 2026-09-20 - CDisplayListItem.isFavourite/downloadState (row markers), CHostBase.getRowUrl()/getFavouriteDataOfRow()
+# Last Modified: 2026-09-30 - IHost.getRowUrl()/getFavouriteDataOfRow() defaults for hosts without CHostBase (hostxxx)
+# 2026-09-20 -CDisplayListItem.isFavourite/downloadState (row markers), CHostBase.getRowUrl()/getFavouriteDataOfRow()
 # 2026-08-18 - CBaseHostClass.searchItems() now adds "search_history_editor" between "search_history" and "delete_history".
 # CHostBase.getListForItem() catches this category and opens SearchHistoryEditor before any host handleService() runs.
 # CHostBase.setSearchPattern() no longer calls addHistoryItem() when a history entry is re-selected, only getSearchResults() writes new entries
@@ -415,6 +416,14 @@ class IHost:
 
     def markItemAsViewed(self, Index=0):
         return RetHost(RetHost.NOT_IMPLEMENTED, value=[])
+
+    # row data for the list markers (download state, favourite) - CHostBase implements them; hosts
+    # built directly on IHost (hostxxx) have none, so the widget printed a traceback per row
+    def getRowUrl(self, Index):
+        return ''
+
+    def getFavouriteDataOfRow(self, Index):
+        return None
 
 
 '''

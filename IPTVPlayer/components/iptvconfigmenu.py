@@ -105,8 +105,19 @@ else:
 config.plugins.iptvplayer.osk_type = ConfigSelection(default="", choices=[("", _("Auto")), ("system", _("System")), ("own", _("Own model"))])
 config.plugins.iptvplayer.osk_layout = ConfigText(default="", fixed_size=False)
 config.plugins.iptvplayer.osk_allow_suggestions = ConfigYesNo(default=True)
-config.plugins.iptvplayer.osk_default_suggestions = ConfigSelection(default="", choices=[("", _("Auto")), ("none", _("None")), ("google", "google.com"), ("filmweb", "filmweb.pl"), ("imdb", "imdb.com"), ("filmstarts", "filmstarts.de")])
+config.plugins.iptvplayer.osk_allow_search_history = ConfigYesNo(default=True)
+config.plugins.iptvplayer.osk_remember_last_search = ConfigYesNo(default=True)
+config.plugins.iptvplayer.osk_default_suggestions = ConfigSelection(default="", choices=[("", _("Auto")), ("none", _("None")), ("google", "google.com"), ("bing", "bing.com"), ("duckduckgo", "duckduckgo.com"), ("filmweb", "filmweb.pl"), ("imdb", "imdb.com"), ("filmstarts", "filmstarts.de")])
+config.plugins.iptvplayer.osk_allow_host_suggestions = ConfigYesNo(default=True)
 config.plugins.iptvplayer.osk_background_color = ConfigSelection(default="", choices=[('', _('Default')), ('transparent', _('Transparent')), ('#000000', _('Black')), ('#80000000', _('Darkgray')), ('#cc000000', _('Lightgray'))])
+# a plain selection of "-6".."6" (number keys can't type "-", and not every
+# image has ConfigSelectionNumber); the HD input line is close to its limit,
+# so the positive end is kept modest
+config.plugins.iptvplayer.osk_font_size_offset = ConfigSelection(default="0", choices=[(str(i), "%+d" % i if i else "0") for i in range(-6, 7)])
+config.plugins.iptvplayer.osk_searchfield_align = ConfigSelection(default="left", choices=[("left", _("Left")), ("right", _("Right"))])
+config.plugins.iptvplayer.osk_show_flags = ConfigYesNo(default=True)
+# digits-only keypad for page numbers and number settings - off = full keyboard / row input as before
+config.plugins.iptvplayer.osk_numpad = ConfigYesNo(default=True)
 
 
 def GetMoviePlayerName(player):
@@ -352,6 +363,43 @@ def IsUpdateNeededForHostsChangesCommit(enabledHostsListOld, enabledHostsList=No
 ###################################################
 
 
+def GetOskOwnModelConfigList(indent=True):
+    # the options of the "Own model" keyboard - for ConfigMenu (indented,
+    # under "Virtual Keyboard type") and for E2iVKQuickSettings (the
+    # keyboard's own MENU -> Settings screen), so both stay in sync.
+    # The first three texts keep their old msgids, whose indent is part of
+    # them and of their translations - it is stripped and added again here.
+    prefix = '    ' if indent else ''
+    cfg = config.plugins.iptvplayer
+    list = []
+    list.append(getConfigListEntry(prefix + _("    Background color").strip(), cfg.osk_background_color))
+    list.append(getConfigListEntry(prefix + _("    Show suggestions").strip(), cfg.osk_allow_suggestions))
+    list.append(getConfigListEntry(prefix + _("    Default suggestions provider").strip(), cfg.osk_default_suggestions))
+    list.append(getConfigListEntry(prefix + _("Allow host to override suggestions provider"), cfg.osk_allow_host_suggestions))
+    list.append(getConfigListEntry(prefix + _("Show search history"), cfg.osk_allow_search_history))
+    list.append(getConfigListEntry(prefix + _("Remember last search entry"), cfg.osk_remember_last_search))
+    list.append(getConfigListEntry(prefix + _("Show flags"), cfg.osk_show_flags))
+    list.append(getConfigListEntry(prefix + _("Font size offset"), cfg.osk_font_size_offset))
+    list.append(getConfigListEntry(prefix + _("Text field alignment"), cfg.osk_searchfield_align))
+    return list
+
+
+class E2iVKQuickSettings(ConfigBaseWidget):
+    # the keyboard's options, opened from the keyboard itself (MENU)
+
+    def __init__(self, session):
+        self.list = []
+        ConfigBaseWidget.__init__(self, session)
+
+    def layoutFinished(self):
+        ConfigBaseWidget.layoutFinished(self)
+        self.setTitle(_("E2iPlayer - keyboard settings"))
+
+    def runSetup(self):
+        self.list = GetOskOwnModelConfigList(indent=False)
+        ConfigBaseWidget.runSetup(self)
+
+
 class ConfigMenu(ConfigBaseWidget):
 
     def __init__(self, session):
@@ -372,6 +420,16 @@ class ConfigMenu(ConfigBaseWidget):
         self.subtConfVisible = False #SUBTITLES CONFIGURATION
         self.playConfVisible = False #PLAYERS CONFIGURATION
         self.otherConfVisible = False #OTHER SETTINGS
+        # INFO opens the info screen (BLUE pages down and is part of the
+        # hidden-options code here)
+        self["infoActions"] = ActionMap(["IPTVPlayerListActions"], {"info": self.keyInfo}, -2)
+
+    def keyInfo(self):
+        try:
+            from Plugins.Extensions.IPTVPlayer.components.iptvplayerinfoview import OpenInfoView
+            OpenInfoView(self.session)
+        except Exception:
+            printExc()
 
     def __del__(self):
         printDBG("ConfigMenu.__del__ -------------------------------")
@@ -421,10 +479,10 @@ class ConfigMenu(ConfigBaseWidget):
                 list.append(getConfigListEntry(_("Update"), config.plugins.iptvplayer.fakeUpdate))
 
             list.append(getConfigListEntry(_("Virtual Keyboard type"), config.plugins.iptvplayer.osk_type))
+            if config.plugins.iptvplayer.osk_type.value in ('', 'own'):
+                list.append(getConfigListEntry('    ' + _("Numeric keypad for numbers"), config.plugins.iptvplayer.osk_numpad))
             if config.plugins.iptvplayer.osk_type.value == 'own':
-                list.append(getConfigListEntry(_("    Background color"), config.plugins.iptvplayer.osk_background_color))
-                list.append(getConfigListEntry(_("    Show suggestions"), config.plugins.iptvplayer.osk_allow_suggestions))
-                list.append(getConfigListEntry(_("    Default suggestions provider"), config.plugins.iptvplayer.osk_default_suggestions))
+                list.extend(GetOskOwnModelConfigList(indent=True))
 
             list.append(getConfigListEntry(_("Platform"), config.plugins.iptvplayer.plarform))
             list.append(getConfigListEntry(_("Services configuration"), config.plugins.iptvplayer.fakeHostsList))
