@@ -6,23 +6,24 @@ on:
 
   workflow_dispatch:
 
+# CI/build.sh commits the chmod / dos2unix fixes and pushes them to master
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-24.04
 
     steps:
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: 'master'
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
+      # CI/PEP8.sh (autopep8) is switched off in CI/build.sh - add
+      # actions/setup-python and "pip install autopep8" again if it comes back
       - name: Build python CI
         run: |
           sudo apt-get -q update
           sudo apt-get install dos2unix
-          pip install --upgrade pip autopep8
           ./CI/build.sh

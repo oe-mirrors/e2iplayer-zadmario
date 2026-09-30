@@ -4866,3 +4866,288 @@ msgid ""
 "There is no \"%s\" build for OpenSSL %s on the E2iPlayer server.\n"
 "Install it from the image feed if it is available there (opkg install %s)."
 msgstr ""
+
+msgid "E2iPlayer virtual keyboard"
+msgstr ""
+
+msgid "Options"
+msgstr ""
+
+msgid "type selected character / confirm selection"
+msgstr ""
+
+msgid "GREEN"
+msgstr ""
+
+msgid "Enter (confirm and close)"
+msgstr ""
+
+msgid "RED"
+msgstr ""
+
+msgid "Backspace"
+msgstr ""
+
+msgid "YELLOW"
+msgstr ""
+
+msgid "AltGr"
+msgstr ""
+
+msgid "BLUE"
+msgstr ""
+
+msgid "Shift"
+msgstr ""
+
+msgid "MENU"
+msgstr ""
+
+msgid "Options (select language, clear search history, settings)"
+msgstr ""
+
+msgid "PREVIOUS/NEXT"
+msgstr ""
+
+msgid "switch between keyboard, suggestions and search history"
+msgstr ""
+
+msgid "LEFT/RIGHT at start/end of text - alternative way to switch panels"
+msgstr ""
+
+msgid "PAGE UP/PAGE DOWN"
+msgstr ""
+
+msgid "move cursor right/left"
+msgstr ""
+
+msgid "FAST FORWARD"
+msgstr ""
+
+msgid "insert space"
+msgstr ""
+
+msgid "REWIND"
+msgstr ""
+
+msgid "delete entered text"
+msgstr ""
+
+msgid "0-9"
+msgstr ""
+
+msgid "direct number input"
+msgstr ""
+
+msgid "Left"
+msgstr ""
+
+msgid "Right"
+msgstr ""
+
+msgid "Allow host to override suggestions provider"
+msgstr ""
+
+msgid "Show search history"
+msgstr ""
+
+msgid "Remember last search entry"
+msgstr ""
+
+msgid "Show flags"
+msgstr ""
+
+msgid "Font size offset"
+msgstr ""
+
+msgid "Text field alignment"
+msgstr ""
+
+msgid "E2iPlayer - keyboard settings"
+msgstr ""
+
+msgid "Numeric keypad for numbers"
+msgstr ""
+
+msgid "About"
+msgstr ""
+
+msgid "Log"
+msgstr ""
+
+msgid "free"
+msgstr ""
+
+msgid "www:"
+msgstr ""
+
+msgid "Lead programmer:"
+msgstr ""
+
+msgid "Developers:"
+msgstr ""
+
+msgid "Testers:"
+msgstr ""
+
+msgid "Skinners:"
+msgstr ""
+
+msgid "kernel reports"
+msgstr ""
+
+msgid "not installed"
+msgstr ""
+
+msgid "installed"
+msgstr ""
+
+msgid "not available (the Python parser is used)"
+msgstr ""
+
+msgid "loaded (no version)"
+msgstr ""
+
+msgid "not found"
+msgstr ""
+
+msgid "other binaries"
+msgstr ""
+
+msgid "Python modules"
+msgstr ""
+
+msgid "Image"
+msgstr ""
+
+msgid "Box"
+msgstr ""
+
+msgid "Storage"
+msgstr ""
+
+msgid "Config"
+msgstr ""
+
+msgid "Temp"
+msgstr ""
+
+msgid "Debug log"
+msgstr ""
+
+msgid "file"
+msgstr ""
+
+msgid "status"
+msgstr ""
+
+msgid "off / console"
+msgstr ""
+
+msgid "Binaries"
+msgstr ""
+
+msgid "(reading...)"
+msgstr ""
+
+msgid "could not run the probe"
+msgstr ""
+
+msgid "Reading binaries..."
+msgstr ""
+
+msgid "Clear log"
+msgstr ""
+
+#, python-format
+msgid "Auto refresh: %s"
+msgstr ""
+
+msgid "on"
+msgstr ""
+
+msgid "off"
+msgstr ""
+
+msgid ""
+"The debug log is disabled or set to console output.\n"
+"\n"
+"Enable it in the E2iPlayer configuration (Debug -> log to file) and "
+"reproduce the problem, then come back here."
+msgstr ""
+
+#, python-format
+msgid ""
+"The debug log file is empty:\n"
+"%s"
+msgstr ""
+
+msgid "The debug log is not active."
+msgstr ""
+
+#, python-format
+msgid ""
+"Clear the debug log file?\n"
+"%s"
+msgstr ""
+
+msgid "Nothing to save - the debug log is not active."
+msgstr ""
+
+#, python-format
+msgid ""
+"Saved to:\n"
+"%s"
+msgstr ""
+
+msgid "Could not write the file."
+msgstr ""
+
+msgid "No streams are available for this title yet."
+msgstr ""
+
+msgid "Missing API key - set it in Settings, Web streams, Windy Webcams"
+msgstr ""
+
+msgid "Locality:"
+msgstr ""
+
+msgid "This channel does not exist."
+msgstr ""
+
+msgid "This channel is currently offline."
+msgstr ""
+
+msgid ""
+"This channel requires a premium account, or the free connection limit has"
+" been reached. Enter your weeb.tv login data in the host configuration."
+msgstr ""
+
+msgid "This channel is not available in your country (geo-blocking)."
+msgstr ""
+
+msgid "Wrong weeb.tv username or password."
+msgstr ""
+
+msgid "The connection limit for your weeb.tv account has been reached."
+msgstr ""
+
+msgid "This channel is temporarily unavailable. Please try again later."
+msgstr ""
+
+msgid "Connection to the weeb.tv server failed."
+msgstr ""
+
+#, python-format
+msgid "weeb.tv did not return a valid stream (error %s)."
+msgstr ""
+
+msgid "weeb.tv did not return a valid stream for this channel."
+msgstr ""
+
+msgid "Bing Suggestions"
+msgstr ""
+
+msgid "DuckDuckGo Suggestions"
+msgstr ""
+
