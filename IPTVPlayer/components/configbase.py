@@ -9,7 +9,7 @@
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc
 from Plugins.Extensions.IPTVPlayer.components.iptvdirbrowser import IPTVDirectorySelectorWidget, IPTVFileSelectorWidget
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
-from Plugins.Extensions.IPTVPlayer.components.e2ivkselector import GetVirtualKeyboard
+from Plugins.Extensions.IPTVPlayer.components.e2ivkselector import GetVirtualKeyboard, GetNumericKeyboard
 ###################################################
 from Plugins.Extensions.IPTVPlayer.p2p3.pVer import isPY2
 if not isPY2():
@@ -23,9 +23,9 @@ from enigma import getDesktop
 from Screens.MessageBox import MessageBox
 from Screens.Screen import Screen
 
-from Components.ActionMap import ActionMap, HelpableActionMap
+from Components.ActionMap import ActionMap
 from Components.Label import Label
-from Components.config import config, ConfigDirectory, ConfigText, ConfigPassword, ConfigBoolean, ConfigSelection, configfile
+from Components.config import ConfigDirectory, ConfigText, ConfigPassword, ConfigBoolean, ConfigSelection, ConfigInteger, configfile
 from Components.ConfigList import ConfigListScreen
 from Tools.BoundFunction import boundFunction
 ###################################################
@@ -166,6 +166,8 @@ class ConfigBaseWidget(Screen, ConfigListScreen):
                 except Exception:
                     pass
                 return True
+            if isinstance(currItem, ConfigInteger) and GetNumericKeyboard() is not None:
+                return True
         return False
 
     def isSelectableActive(self):
@@ -290,6 +292,31 @@ class ConfigBaseWidget(Screen, ConfigListScreen):
             except Exception:
                 printExc()
             self.session.openWithCallback(boundFunction(VirtualKeyBoardCallBack, curIndex), GetVirtualKeyboard(), title=(_("Enter a value")), text=currItem.value)
+            return
+        elif isinstance(currItem, ConfigInteger) and GetNumericKeyboard() is not None:
+            # the number keys still type straight into the row as before,
+            # OK additionally opens the numeric keypad (unless switched off)
+            try:
+                minValue, maxValue = currItem.limits[0]
+            except Exception:
+                minValue, maxValue = None, None
+
+            def NumericKeyBoardCallBack(curIndex, newTxt):
+                if not newTxt:
+                    return
+                try:
+                    value = int(newTxt)
+                except (ValueError, TypeError):
+                    return
+                if minValue is not None:
+                    value = max(minValue, min(maxValue, value))
+                self["config"].list[curIndex][1].value = value
+                self["config"].invalidateCurrent()
+                # same follow-up as a value typed into the row itself
+                # (ConfigListScreen's on_change), e.g. dependent rows
+                self.changedEntry()
+            title = self["config"].list[curIndex][0].strip() or _("Enter a value")
+            self.session.openWithCallback(boundFunction(NumericKeyBoardCallBack, curIndex), GetNumericKeyboard(), title=title, text=str(currItem.value), additionalParams={'min_value': minValue, 'max_value': maxValue})
             return
 
         ConfigListScreen.keyOK(self)

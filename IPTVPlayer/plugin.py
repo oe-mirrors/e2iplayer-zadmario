@@ -162,6 +162,13 @@ def runMain(session, nextFunction=doRunMain):
                 os.remove(DBGfile)
             except Exception:
                 pass
+    # run the tool probe once and write the full system snapshot near the
+    # top of the (just cleared) debug log
+    try:
+        from Plugins.Extensions.IPTVPlayer.components.iptvplayerinfoview import LogSystemInfoAtStartup
+        LogSystemInfoAtStartup(force=True)
+    except Exception:
+        pass
 
     wgetpath = IsExecutable(config.plugins.iptvplayer.wgetpath.value)
     rtmpdumppath = IsExecutable(config.plugins.iptvplayer.rtmpdumppath.value)

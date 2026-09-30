@@ -478,7 +478,8 @@ def GetE2iPlayerRootfsDir(fileName=''):
 
 
 def GetE2iPlayerVKLayoutDir(fileName=''):
-    return GetE2iPlayerRootfsDir(os.path.join('etc/vk/', fileName))
+    # the keyboard layouts come with the plugin (IPTVPlayer/vk/<KLID>.kle)
+    return os.path.join(resolveFilename(SCOPE_PLUGINS, 'Extensions/IPTVPlayer/vk/'), fileName)
 
 
 def CreateTmpFile(filename, data=''):
@@ -705,6 +706,14 @@ def getDebugMode():
                 DBG = line.split("=")[1].strip()
                 break
     return DBG
+
+
+def GetDebugLogPath():
+    """The debug file path, or '' when logging is off / to the console."""
+    DBG = getDebugMode()
+    if not DBG or DBG == 'console':
+        return ''
+    return '/hdd/iptv.dbg' if DBG == 'debugfile' else DBG
 
 
 def printDBG(DBGtxt, writeMode='a'):
@@ -1431,6 +1440,10 @@ class CSearchHistoryHelper():
                 value = itemValue
                 if None is not itemType:
                     value = value + self.TYPE_SEP + itemType
+                if isPY2() and isinstance(value, str):
+                    # the file is read and written as unicode; a byte string
+                    # with an umlaut could not be written at all
+                    value = value.decode('utf-8', 'ignore')
                 # re-adding an already-present entry should just bump it back
                 # to the most recent position instead of piling up duplicate
                 # lines (file is oldest-first, one entry per line, same as
@@ -1681,6 +1694,29 @@ def GetIPTVPlayerComitStamp():
 
 def GetShortPythonVersion():
     return "%d.%d" % (sys.version_info[0], sys.version_info[1])
+
+
+def GetImageName():
+    """The image's PRETTY_NAME from /etc/os-release, or '' if unavailable."""
+    try:
+        with open('/etc/os-release') as f:
+            for line in f:
+                if line.startswith('PRETTY_NAME='):
+                    return line.split('=', 1)[1].strip().strip('"')
+    except Exception:
+        pass
+    return ''
+
+
+def GetShortSystemInfo():
+    """A one-line image/box/python string for the top of the debug log."""
+    box = ''
+    try:
+        import boxbranding
+        box = boxbranding.getBoxType()
+    except Exception:
+        pass
+    return "image[%s] box[%s] python[%s]" % (GetImageName() or '?', box or '?', GetShortPythonVersion())
 
 
 def GetVersionNum(ver):
