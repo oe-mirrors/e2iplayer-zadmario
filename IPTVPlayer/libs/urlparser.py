@@ -31,23 +31,12 @@ from Plugins.Extensions.IPTVPlayer.p2p3.pVer import isPY2
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote, urllib_unquote, urllib_urlencode
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlParse import parse_qs, urljoin, urlparse
 from Plugins.Extensions.IPTVPlayer.tools.e2ijs import js_execute, js_execute_ext
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import CSelOneLink, GetCookieDir, GetDefaultLang, GetJSScriptFile, GetPluginDir, printDBG, printExc, rm
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import CSelOneLink, GetCookieDir, GetDefaultLang, GetJSScriptFile, GetPluginDir, b64urlEncode, printDBG, printExc, rm
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 
 if not isPY2():
     basestring = str
     xrange = range
-
-
-def b64urlencode(b, strip=False):
-    if not isinstance(b, bytes if "bytes" in locals() or bytes is not str else (str, bytes)):
-        b = b.encode("utf-8") if hasattr(b, "encode") else bytes(b)
-    r = base64.urlsafe_b64encode(b)
-    if not isinstance(r, str):
-        r = r.decode("utf-8")
-    if strip:
-        r = r.rstrip("=")
-    return r
 
 
 def generate_vrf(movie_id, user_id):
@@ -265,6 +254,7 @@ class urlparser:
             "darkibox.com": self.pp.parserJWPLAYER,
             "dancima.shop": self.pp.parserJWPLAYER,
             "davioad.com": self.pp.parserJWPLAYER,
+            "devideosrc.co": self.pp.parserMEINECLOUD,
             "dhcplay.com": self.pp.parserJWPLAYER,
             "dhtpre.com": self.pp.parserJWPLAYER,
             "dingtezuni.com": self.pp.parserJWPLAYER,
@@ -2391,8 +2381,8 @@ class pageParser(CaptchaHelper):
             d_id = hexlify(urandom(x)).decode()
             ctime = int(time.time())
             t_data = {"viewer_id": v_id, "device_id": d_id, "confidence": round(uniform(y, z), 2), "iat": ctime, "exp": ctime + 600}
-            t_bdata = b64urlencode(json_dumps(t_data), strip=True)
-            t_sig = b64urlencode(sha256(t_bdata.encode()).digest(), strip=True)
+            t_bdata = b64urlEncode(json_dumps(t_data), strip=True)
+            t_sig = b64urlEncode(sha256(t_bdata.encode()).digest(), strip=True)
             token = "{0}.{1}".format(t_bdata, t_sig)
             t_data.update({"token": token})
             t_data.pop("iat")
@@ -2414,18 +2404,18 @@ class pageParser(CaptchaHelper):
             return b"".join(t)
 
         def fh(v):
-            return b64urlencode(sha256(str(v).encode("ascii")).digest(), strip=True)
+            return b64urlEncode(sha256(str(v).encode("ascii")).digest(), strip=True)
 
         def wn(challenge):
             sk = ECDSA_SigningKey.generate(curve=ECDSA_NIST256p, hashfunc=sha256)
             vk = sk.verifying_key.to_string()
             nonce = str(challenge.get("nonce") or "")
             signature = sk.sign(nonce.encode(), hashfunc=sha256)
-            pub = {"crv": "P-256", "ext": True, "key_ops": ["verify"], "kty": "EC", "x": b64urlencode(vk[:32], strip=True), "y": b64urlencode(vk[32:], strip=True)}
+            pub = {"crv": "P-256", "ext": True, "key_ops": ["verify"], "kty": "EC", "x": b64urlEncode(vk[:32], strip=True), "y": b64urlEncode(vk[32:], strip=True)}
             r = uniform(0, 1)
             return {
                 "viewer_id": "", "device_id": "", "challenge_id": challenge.get("challenge_id", ""), "nonce": nonce,
-                "signature": b64urlencode(signature, strip=True), "public_key": pub,
+                "signature": b64urlEncode(signature, strip=True), "public_key": pub,
                 "client": {
                     "user_agent": UA, "architecture": "arm", "bitness": "32", "platform": "Android", "platform_version": "10.0.0",
                     "model": "TX6s", "ua_full_version": "137.0.7337.0",
@@ -2945,10 +2935,10 @@ class pageParser(CaptchaHelper):
         return self.parserVIDSRC(innerUrl)
 
     def parserMEINECLOUD(self, baseUrl):  # add 270926
-        # meinecloud.click ("DeVideoSRC") player page -> its hoster embeds (libs/meinecloud.py) -> each resolved
+        # meinecloud.click / devideosrc.co ("DeVideoSRC") player page -> its hoster embeds (libs/meinecloud.py) -> each resolved
         printDBG("parserMEINECLOUD baseUrl[%s]" % baseUrl)
-        from Plugins.Extensions.IPTVPlayer.libs.meinecloud import MeineCloud
-        referer = strwithmeta(baseUrl).meta.get("Referer", "https://meinecloud.click/")
+        from Plugins.Extensions.IPTVPlayer.libs.meinecloud import MeineCloud, MAIN_URL as MC_URL
+        referer = strwithmeta(baseUrl).meta.get("Referer", MC_URL)
         mc = MeineCloud(self.cm, {"header": self.cm.getDefaultHeader(browser="chrome")}, referer)
         imdb = MeineCloud.imdbFromUrl(baseUrl)
         episode = re.search(r"/(?:serial|tv)/tt\d+/(\d+)/(\d+)", baseUrl)
@@ -2962,7 +2952,7 @@ class pageParser(CaptchaHelper):
             if up.checkHostSupport(embed) != 1:
                 continue
             hoster = up.getHostName(embed, True)
-            for item in up.getVideoLinkExt(strwithmeta(embed, {"Referer": "https://meinecloud.click/"})):
+            for item in up.getVideoLinkExt(strwithmeta(embed, {"Referer": MC_URL})):
                 item["name"] = "%s %s" % (hoster, item.get("name", ""))
                 urltab.append(item)
         return urltab
