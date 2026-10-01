@@ -54,9 +54,9 @@ class E2iNumericKeyBoard(Screen):
         self.keyRows = [['1', '2', '3'], ['4', '5', '6'], ['7', '8', '9'], ['sign' if self.allowNegative else 'clear', '0', 'back'], ['ok']]
 
         self.tier, self.scale = GetVKTier()
+        self.vkTitle = title
         self.skin = self.prepareSkin()
         Screen.__init__(self, session)
-        self.vkTitle = title
         self.setTitle(title)
 
         self["actions"] = NumberActionMap(["WizardActions", "DirectionActions", "ColorActions", "NumberActions", "KeyboardInputActions", "InputBoxActions", "InputAsciiActions"],
@@ -121,12 +121,16 @@ class E2iNumericKeyBoard(Screen):
         key = self.KEY_SIZE[self.tier]
         fontSpecial, fontDigit = self.KEY_FONT[self.tier]
         gridW = self.COLS * key
-        width = _s(440, scale)
+        # the title sits in the skin's window title bar, which can't wrap: the
+        # window grows with a long title ("Jump to a selected page, max: 455")
+        # - about 12 px per character at HD, capped - the keys stay centred
+        width = min(max(_s(440, scale), _s(12 * self._titleLen() + 60, scale)), _s(1000, scale))
         gridX = (width - gridW) // 2
         # colour keys on top like in the main window, the title in the
         # window's title bar
         keysY = _s(10, scale)
-        inputX, inputY, inputW, inputH = _s(40, scale), keysY + _s(30, scale) + _s(14, scale), width - _s(80, scale), _s(50, scale)
+        inputW = _s(360, scale)
+        inputX, inputY, inputH = (width - inputW) // 2, keysY + _s(30, scale) + _s(14, scale), _s(50, scale)
         rangeY = inputY + inputH + _s(6, scale)
         gridY = rangeY + _s(34, scale)
         height = gridY + len(self.keyRows) * key + _s(16, scale)
@@ -161,6 +165,16 @@ class E2iNumericKeyBoard(Screen):
 
         skinTab.append('</screen>')
         return '\n'.join(skinTab)
+
+    def _titleLen(self):
+        # characters, not bytes: a Python 2 str title is UTF-8 (umlauts are two bytes)
+        title = self.vkTitle or ""
+        try:
+            if not isinstance(title, type(u"")):
+                title = title.decode("utf-8", "ignore")
+        except Exception:
+            pass
+        return len(title)
 
     def _keyName(self, rowIdx, colIdx):
         return "key_%d_%d" % (rowIdx, colIdx)
