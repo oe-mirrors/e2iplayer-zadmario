@@ -50,6 +50,7 @@ config.plugins.iptvplayer.captConfVisible = NoSave(ConfigNothing())
 config.plugins.iptvplayer.subtConfVisible = NoSave(ConfigNothing())
 config.plugins.iptvplayer.playConfVisible = NoSave(ConfigNothing())
 config.plugins.iptvplayer.otherConfVisible = NoSave(ConfigNothing())
+config.plugins.iptvplayer.metaConfVisible = NoSave(ConfigNothing())
 
 from Plugins.Extensions.IPTVPlayer.components.configextmovieplayer import ConfigExtMoviePlayer
 
@@ -275,6 +276,17 @@ config.plugins.iptvplayer.normalize_media_names = ConfigYesNo(default=True)
 # third-party web service enc-dec.app. The settings screen makes the user
 # confirm twice before this can be turned on (see ConfigMenu._confirmExternalResolve).
 config.plugins.iptvplayer.allow_external_resolve = ConfigYesNo(default=False)
+# movie/series details on the info screen of hosts which support it (libs/moviemeta.py), asked in
+# the order TMDb, IMDb, TVmaze (series), Cinemeta, OMDb; TMDb and OMDb need the user's own free API
+# key, the others none; TMDb and IMDb texts come in meta_language where they have them
+config.plugins.iptvplayer.meta_tmdb = ConfigYesNo(default=True)
+config.plugins.iptvplayer.meta_imdb = ConfigYesNo(default=True)
+config.plugins.iptvplayer.meta_tvmaze = ConfigYesNo(default=True)
+config.plugins.iptvplayer.meta_cinemeta = ConfigYesNo(default=True)
+config.plugins.iptvplayer.meta_omdb = ConfigYesNo(default=False)
+config.plugins.iptvplayer.meta_language = ConfigSelection(default="auto", choices=[("auto", _("Auto")), ("ar", _("Arabic")), ("cs", _("Czech")), ("de", _("German")), ("el", _("Greek")), ("en", _("English")), ("es", _("Spanish")), ("fr", _("French")), ("hu", _("Hungarian")), ("it", _("Italian")), ("nl", _("Dutch")), ("pl", _("Polish")), ("pt", _("Portuguese")), ("ru", _("Russian")), ("tr", _("Turkish")), ("uk", _("Ukrainian"))])
+config.plugins.iptvplayer.meta_tmdb_apikey = ConfigText(default="", fixed_size=False)
+config.plugins.iptvplayer.meta_omdb_apikey = ConfigText(default="", fixed_size=False)
 
 
 def IsExternalResolveAllowed():
@@ -420,6 +432,7 @@ class ConfigMenu(ConfigBaseWidget):
         self.subtConfVisible = False #SUBTITLES CONFIGURATION
         self.playConfVisible = False #PLAYERS CONFIGURATION
         self.otherConfVisible = False #OTHER SETTINGS
+        self.metaConfVisible = False #METADATA PROVIDERS
         # INFO opens the info screen (BLUE pages down and is part of the
         # hidden-options code here)
         self["infoActions"] = ActionMap(["IPTVPlayerListActions"], {"info": self.keyInfo}, -2)
@@ -444,7 +457,7 @@ class ConfigMenu(ConfigBaseWidget):
 
     @staticmethod
     def fillConfigList(list, hiddenOptions=False, basicConfVisible=True, prxyConfVisible=False, buffConfVisible=False, downConfVisible=False,
-                                                  captConfVisible=False, subtConfVisible=False, playConfVisible=False, otherConfVisible=False):
+                                                  captConfVisible=False, subtConfVisible=False, playConfVisible=False, otherConfVisible=False, metaConfVisible=False):
         if hiddenOptions:
             list.append(getConfigListEntry('\\c00289496' + _("----- HIDDEN OPTIONS -----"), config.plugins.iptvplayer.FakeEntry))
             list.append(getConfigListEntry(_("Last checked version"), config.plugins.iptvplayer.updateLastCheckedVersion))
@@ -639,6 +652,20 @@ class ConfigMenu(ConfigBaseWidget):
             if 'exteplayer' in playersValues or 'extgstplayer' in playersValues or 'auto' in playersValues:
                 list.append(getConfigListEntry(_("External movie player config"), config.plugins.iptvplayer.fakExtMoviePlayerList))
 
+        list.append(getConfigListEntry('\\c00289496' + _("----- METADATA PROVIDERS (OK) -----"), config.plugins.iptvplayer.metaConfVisible))
+        if metaConfVisible: #METADATA PROVIDERS - libs/moviemeta.py, asked in this order until one knows the title
+            cp = config.plugins.iptvplayer
+            list.append(getConfigListEntry(_("Language of the details (TMDb, IMDb)"), cp.meta_language))
+            list.append(getConfigListEntry(_("Use TMDb"), cp.meta_tmdb))
+            if cp.meta_tmdb.value:
+                list.append(getConfigListEntry("    " + _("TMDb API key (free at themoviedb.org)"), cp.meta_tmdb_apikey))
+            list.append(getConfigListEntry(_("Use IMDb (no key)"), cp.meta_imdb))
+            list.append(getConfigListEntry(_("Use TVmaze for series (no key, English)"), cp.meta_tvmaze))
+            list.append(getConfigListEntry(_("Use Cinemeta (no key, English)"), cp.meta_cinemeta))
+            list.append(getConfigListEntry(_("Use OMDb"), cp.meta_omdb))
+            if cp.meta_omdb.value:
+                list.append(getConfigListEntry("    " + _("OMDb API key (free at omdbapi.com)"), cp.meta_omdb_apikey))
+
         list.append(getConfigListEntry('\\c00289496' + _("----- OTHER SETTINGS (OK) -----"), config.plugins.iptvplayer.otherConfVisible))
         if otherConfVisible: #OTHER SETTINGS
             list.append(getConfigListEntry(_("Autoplay start delay"), config.plugins.iptvplayer.autoplay_start_delay))
@@ -658,7 +685,7 @@ class ConfigMenu(ConfigBaseWidget):
     def runSetup(self):
         self.list = []
         ConfigMenu.fillConfigList(self.list, self.isHiddenOptionsUnlocked(), self.basicConfVisible, self.prxyConfVisible, self.buffConfVisible, self.downConfVisible,
-                                                                             self.captConfVisible, self.subtConfVisible, self.playConfVisible, self.otherConfVisible)
+                                                                             self.captConfVisible, self.subtConfVisible, self.playConfVisible, self.otherConfVisible, self.metaConfVisible)
         ConfigBaseWidget.runSetup(self)
 
     def onSelectionChanged(self):
@@ -789,6 +816,9 @@ class ConfigMenu(ConfigBaseWidget):
         elif config.plugins.iptvplayer.otherConfVisible == currItem:
             self.otherConfVisible = not self.otherConfVisible
             self.runSetup()
+        elif config.plugins.iptvplayer.metaConfVisible == currItem:
+            self.metaConfVisible = not self.metaConfVisible
+            self.runSetup()
         else:
             ConfigBaseWidget.keyOK(self)
 
@@ -847,6 +877,8 @@ class ConfigMenu(ConfigBaseWidget):
               config.plugins.iptvplayer.osk_type,
               config.plugins.iptvplayer.preferredupdateserver,
               config.plugins.iptvplayer.favourites_use_watched_flag,
+              config.plugins.iptvplayer.meta_tmdb,
+              config.plugins.iptvplayer.meta_omdb,
               ]
         players = []
         if 'sh4' == config.plugins.iptvplayer.plarform.value:
