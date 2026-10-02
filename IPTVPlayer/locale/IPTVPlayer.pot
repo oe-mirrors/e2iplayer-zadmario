@@ -5151,3 +5151,54 @@ msgstr ""
 msgid "DuckDuckGo Suggestions"
 msgstr ""
 
+msgid "Arabic"
+msgstr ""
+
+msgid "Czech"
+msgstr ""
+
+msgid "Greek"
+msgstr ""
+
+msgid "Hungarian"
+msgstr ""
+
+msgid "Dutch"
+msgstr ""
+
+msgid "Turkish"
+msgstr ""
+
+msgid "Ukrainian"
+msgstr ""
+
+msgid "----- METADATA PROVIDERS (OK) -----"
+msgstr ""
+
+msgid "Language of the details (TMDb, IMDb)"
+msgstr ""
+
+msgid "Use TMDb"
+msgstr ""
+
+msgid "TMDb API key (free at themoviedb.org)"
+msgstr ""
+
+msgid "Use IMDb (no key)"
+msgstr ""
+
+msgid "Use TVmaze for series (no key, English)"
+msgstr ""
+
+msgid "Use Cinemeta (no key, English)"
+msgstr ""
+
+msgid "Use OMDb"
+msgstr ""
+
+msgid "OMDb API key (free at omdbapi.com)"
+msgstr ""
+
+msgid "Show \"Newest videos\" of all YouTube channels in a group"
+msgstr ""
+

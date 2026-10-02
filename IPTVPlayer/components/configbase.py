@@ -46,18 +46,27 @@ class ConfigBaseWidget(Screen, ConfigListScreen):
         width = 920
         height = 860
         font = 28
+        listFont = 27
+        itemHeight = 38
     elif screenwidth == 1280:
         width = 720
         height = 600
         font = 22
+        listFont = 20
+        itemHeight = 28
     else:
         width = 620
         height = 440
         font = 22
+        listFont = 18
+        itemHeight = 26
 
+    # own font/itemHeight for the list: without them the image skin's
+    # SetupList values apply, and on some skins (OpenATV FHD) the row is
+    # lower than the font, which cuts off g, p, y...
     skin = """
         <screen position="center,center" size="%d,%d" title="" >
-            <widget name="config"    position="10,50" size="%d,%s" zPosition="1" transparent="1" scrollbarMode="showOnDemand" enableWrapAround="1" />
+            <widget name="config"    position="10,50" size="%d,%s" itemHeight="%d" font="Regular;%d" zPosition="1" transparent="1" scrollbarMode="showOnDemand" enableWrapAround="1" />
             <widget name="key_red"   position="10,10" zPosition="2" size="%d,35" valign="center" halign="left"   font="Regular;%d" transparent="1" foregroundColor="red" />
             <widget name="key_ok"    position="10,10" zPosition="2" size="%d,35" valign="center" halign="center" font="Regular;%d" transparent="1" foregroundColor="white" />
             <widget name="key_green" position="10,10" zPosition="2" size="%d,35" valign="center" halign="right"  font="Regular;%d" transparent="1" foregroundColor="green" />
@@ -65,7 +74,7 @@ class ConfigBaseWidget(Screen, ConfigListScreen):
             <widget name="key_blue"    position="0,0" zPosition="2" size="%d,35" valign="center" halign="right"  font="Regular;%d" transparent="1" foregroundColor="green" />
             <widget name="key_yellow"  position="0,0" zPosition="2" size="%d,35" valign="center" halign="right"  font="Regular;%d" transparent="1" foregroundColor="green" />
         </screen>""" % (width, height,
-                        width - 20, height - 80,
+                        width - 20, height - 80, itemHeight, listFont,
                         width - 20, font,
                         width - 20, font,
                         width - 20, font,
