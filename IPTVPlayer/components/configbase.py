@@ -339,13 +339,20 @@ class ConfigBaseWidget(Screen, ConfigListScreen):
     def keyCancel(self):
         self.cancelAndClose()
 
+    def addHiddenOptionsSecretKey(self, key):
+        # once unlocked the code stays, so paging with YELLOW/BLUE no longer
+        # hides the options again; before that only the last 8 keys count,
+        # so a wrong key does not block unlocking until the screen is reopened
+        if not self.isHiddenOptionsUnlocked():
+            self.hiddenOptionsSecretCode = (self.hiddenOptionsSecretCode + key)[-8:]
+
     def keyYellow(self):
-        self.hiddenOptionsSecretCode += "y"
+        self.addHiddenOptionsSecretKey("y")
         self.runSetup()
         self.keyPageUp()
 
     def keyBlue(self):
-        self.hiddenOptionsSecretCode += "b"
+        self.addHiddenOptionsSecretKey("b")
         self.runSetup()
         self.keyPageDown()
 

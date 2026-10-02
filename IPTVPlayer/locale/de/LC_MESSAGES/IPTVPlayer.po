@@ -5548,3 +5548,6 @@ msgstr "OMDb API-Schlüssel (kostenlos bei omdbapi.com)"
 msgid "Show \"Newest videos\" of all YouTube channels in a group"
 msgstr "\"Neueste Videos\" aller YouTube-Kanäle einer Gruppe anzeigen"
 
+msgid "----- HIDDEN OPTIONS (OK) -----"
+msgstr "----- VERSTECKTE OPTIONEN (OK) -----"
+

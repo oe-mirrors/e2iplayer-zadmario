@@ -42,6 +42,7 @@ config.plugins.iptvplayer = ConfigSubsection()
 
 config.plugins.iptvplayer.FakeEntry = NoSave(ConfigNothing())
 #show/hide sections
+config.plugins.iptvplayer.hiddenConfVisible = NoSave(ConfigNothing())
 config.plugins.iptvplayer.basicConfVisible = NoSave(ConfigNothing())
 config.plugins.iptvplayer.prxyConfVisible = NoSave(ConfigNothing())
 config.plugins.iptvplayer.buffConfVisible = NoSave(ConfigNothing())
@@ -424,6 +425,7 @@ class ConfigMenu(ConfigBaseWidget):
         self.platformOld = config.plugins.iptvplayer.plarform.value
         self.remove_diabled_hostsOld = config.plugins.iptvplayer.remove_diabled_hosts.value
         self.enabledHostsListOld = GetEnabledHostsList()
+        self.hiddenConfVisible = True #HIDDEN OPTIONS (only listed once unlocked)
         self.basicConfVisible = True #BASIC CONFIGURATION
         self.prxyConfVisible = False #PROXIES CONFIGURATION
         self.buffConfVisible = False #BUFFERING CONFIGURATION
@@ -457,9 +459,11 @@ class ConfigMenu(ConfigBaseWidget):
 
     @staticmethod
     def fillConfigList(list, hiddenOptions=False, basicConfVisible=True, prxyConfVisible=False, buffConfVisible=False, downConfVisible=False,
-                                                  captConfVisible=False, subtConfVisible=False, playConfVisible=False, otherConfVisible=False, metaConfVisible=False):
+                                                  captConfVisible=False, subtConfVisible=False, playConfVisible=False, otherConfVisible=False, metaConfVisible=False,
+                                                  hiddenConfVisible=True):
         if hiddenOptions:
-            list.append(getConfigListEntry('\\c00289496' + _("----- HIDDEN OPTIONS -----"), config.plugins.iptvplayer.FakeEntry))
+            list.append(getConfigListEntry('\\c00289496' + _("----- HIDDEN OPTIONS (OK) -----"), config.plugins.iptvplayer.hiddenConfVisible))
+        if hiddenOptions and hiddenConfVisible: #HIDDEN OPTIONS
             list.append(getConfigListEntry(_("Last checked version"), config.plugins.iptvplayer.updateLastCheckedVersion))
             list.append(getConfigListEntry(_("Show all version in the update menu"), config.plugins.iptvplayer.hiddenAllVersionInUpdate))
             list.append(getConfigListEntry(_("VFD set current title:"), config.plugins.iptvplayer.set_curr_title))
@@ -685,7 +689,8 @@ class ConfigMenu(ConfigBaseWidget):
     def runSetup(self):
         self.list = []
         ConfigMenu.fillConfigList(self.list, self.isHiddenOptionsUnlocked(), self.basicConfVisible, self.prxyConfVisible, self.buffConfVisible, self.downConfVisible,
-                                                                             self.captConfVisible, self.subtConfVisible, self.playConfVisible, self.otherConfVisible, self.metaConfVisible)
+                                                                             self.captConfVisible, self.subtConfVisible, self.playConfVisible, self.otherConfVisible, self.metaConfVisible,
+                                                                             self.hiddenConfVisible)
         ConfigBaseWidget.runSetup(self)
 
     def onSelectionChanged(self):
@@ -792,6 +797,9 @@ class ConfigMenu(ConfigBaseWidget):
             self.hostsList()
         elif config.plugins.iptvplayer.fakExtMoviePlayerList == currItem:
             self.extMoviePlayerList()
+        elif config.plugins.iptvplayer.hiddenConfVisible == currItem:
+            self.hiddenConfVisible = not self.hiddenConfVisible
+            self.runSetup()
         elif config.plugins.iptvplayer.basicConfVisible == currItem:
             self.basicConfVisible = not self.basicConfVisible
             self.runSetup()
