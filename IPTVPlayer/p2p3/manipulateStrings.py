@@ -82,3 +82,15 @@ def ensure_str(text, encoding='utf-8', errors='strict'): #based on six library
             except Exception:
                 return text.decode(encoding, 'ignore')
     return text # strwithmeta type defined in e2iplayer goes through it
+
+
+def ensure_str_deep(obj, encoding='utf-8', errors='strict'):
+    # ensure_str() applied recursively to dict keys/values and list items, e.g. for
+    # json.loads() results (unicode on Python 2 -> utf-8 str); other types unchanged
+    if isinstance(obj, dict):
+        return dict((ensure_str_deep(k, encoding, errors), ensure_str_deep(v, encoding, errors)) for k, v in obj.items())
+    if isinstance(obj, list):
+        return [ensure_str_deep(x, encoding, errors) for x in obj]
+    if isinstance(obj, (str, bytes)) or (isPY2() and isinstance(obj, unicode)):  # noqa: F821 - Python 2 only
+        return ensure_str(obj, encoding, errors)
+    return obj

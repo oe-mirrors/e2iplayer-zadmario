@@ -88,6 +88,114 @@ if not isPY2():
 ######################################################
 gDownloadManager = None
 
+# list entries that only page through the list they sit in
+PAGER_TYPES = (CDisplayListItem.TYPE_NEXT, CDisplayListItem.TYPE_JUMP, CDisplayListItem.TYPE_FIRST,
+               CDisplayListItem.TYPE_PREVIOUS, CDisplayListItem.TYPE_LAST)
+
+
+class CategoryPathEntry(str):
+    # one step of the header path. A pager step (next page, jump, first page ...) adds no name of its own,
+    # it only changes the page shown at the end of the path: "Search results > Page: 12", not
+    # "Search results > Next page (x3) > Jump > Next page".
+    pagerKind = ''
+    item = None  # the pager entry chosen
+    page = None
+    last = False
+    lastPage = None  # the highest page of the list when the host knows it: "Page: 2/12"
+
+
+def PagerKind(item):
+    # the pager type of a list entry ('' when it is none): most hosts use the item type, some keep
+    # TYPE_CATEGORY and mark their pager entries with the imageType
+    kind = getattr(item, 'type', '')
+    if kind not in PAGER_TYPES:
+        kind = getattr(item, 'imageType', '')
+    return kind if kind in PAGER_TYPES else ''
+
+
+def ListPage(entry, previousPage, items):
+    # (page number or None, last page, highest page or None) of a list that was just opened through entry;
+    # a list reached by paging that has no "Next page" entry any more is the last page. The highest page
+    # comes from the "Next page" entry (lastPage), set only by hosts that know it
+    page = _ListPageNumber(entry, previousPage, items)
+    nexts = [item for item in items if PagerKind(item) == CDisplayListItem.TYPE_NEXT]
+    last = bool(getattr(entry, 'pagerKind', '')) and not nexts
+    lastPage = getattr(nexts[0], 'lastPage', None) if nexts else None
+    if not (isinstance(lastPage, int) and page and page < lastPage):
+        lastPage = None
+    return page, last, lastPage
+
+
+def _ListPageNumber(entry, previousPage, items):
+    nextPage = None
+    hasNext = False
+    for item in items:
+        if PagerKind(item) == CDisplayListItem.TYPE_NEXT:
+            hasNext = True
+            # a "Next page" entry with 'page' knows the page it leads to - also after a jump
+            nextPage = getattr(item, 'listPage', None)
+            break
+    if isinstance(nextPage, int) and 1 < nextPage:
+        return nextPage - 1
+    kind = getattr(entry, 'pagerKind', '')
+    if not kind:
+        return 1 if hasNext else None
+    target = getattr(getattr(entry, 'item', None), 'listPage', None)
+    if isinstance(target, int) and 0 < target:
+        return target
+    if kind == CDisplayListItem.TYPE_FIRST:
+        return 1
+    if previousPage and kind == CDisplayListItem.TYPE_NEXT:
+        return previousPage + 1
+    if previousPage and kind == CDisplayListItem.TYPE_PREVIOUS and 1 < previousPage:
+        return previousPage - 1
+    return None
+
+
+def _shortenName(name, maxLen):
+    # cut by characters, not bytes: on Python 2 the names are utf-8 str
+    if isPY2():
+        text = name.decode('utf-8', 'ignore')
+        return ensure_str(text[:maxLen - 1].rstrip() + u'\u2026') if maxLen < len(text) else name
+    return (name[:maxLen - 1].rstrip() + u'\u2026') if maxLen < len(name) else name
+
+
+def CategoryPath(title, categoryList, pageLabel, lastLabel, maxLen=0):
+    # the header path: repeated names as "(xN)", pager steps left out, the current page at the end;
+    # maxLen > 0 shortens every longer name to maxLen characters
+    def _getCat(cat, num):
+        if '' == cat:
+            return ''
+        if 0 < maxLen:
+            cat = _shortenName(cat, maxLen)
+        cat = ' > ' + cat
+        if 1 < num:
+            cat += (' (x%d)' % num)
+        return cat
+
+    path = title
+    prevCat = ''
+    prevNum = 0
+    for cat in categoryList:
+        if getattr(cat, 'pagerKind', ''):
+            continue
+        if prevCat != cat:
+            path += _getCat(prevCat, prevNum)
+            prevCat = cat
+            prevNum = 1
+        else:
+            prevNum += 1
+    path += _getCat(prevCat, prevNum)
+    entry = categoryList[-1] if categoryList else None
+    page = getattr(entry, 'page', None)
+    if getattr(entry, 'last', False):
+        path += ' > %s %s' % (pageLabel, ('%s (%d)' % (lastLabel, page)) if page else lastLabel)
+    elif page and getattr(entry, 'lastPage', None):
+        path += ' > %s %d/%d' % (pageLabel, page, entry.lastPage)
+    elif page:
+        path += ' > %s %d' % (pageLabel, page)
+    return path
+
 
 class E2iPlayerWidget(Screen):
     if getIPTVplayerOPKGVersion() != '':
@@ -2406,9 +2514,13 @@ class E2iPlayerWidget(Screen):
             if (type == 'ForItem' or type == 'ForSearch') and getattr(self.currItem, 'type', None) not in CDisplayListItem.NON_NAVIGATING_TYPES:
                 self.prevSelList.append(self.currSelIndex)
                 if type == 'ForSearch':
-                    self.categoryList.append(_("Search results"))
+                    self.categoryList.append(CategoryPathEntry(ensure_str(_("Search results"))))
                 else:
-                    self.categoryList.append(self.currItem.name)
+                    entry = CategoryPathEntry(ensure_str(self.currItem.name))
+                    entry.pagerKind = PagerKind(self.currItem)
+                    if entry.pagerKind:
+                        entry.item = self.currItem
+                    self.categoryList.append(entry)
                 # new list, so select first index
                 self.nextSelIndex = 0
 
@@ -2652,7 +2764,10 @@ class E2iPlayerWidget(Screen):
             # a new list of icons should be downloaded
             self.iconMenager.addToDQueue(iconList)
 
-        self["headertext"].setText(self.getCategoryPath())
+        if self.categoryList and isinstance(self.categoryList[-1], CategoryPathEntry):
+            previousPage = getattr(self.categoryList[-2], 'page', None) if 1 < len(self.categoryList) else None
+            self.categoryList[-1].page, self.categoryList[-1].last, self.categoryList[-1].lastPage = ListPage(self.categoryList[-1], previousPage, self.currList)
+        self.setHeaderText()
         if len(self.currList) <= 0:
             disMessage = _("No item to display. \nPress OK to refresh.\n")
             if ret.message and ret.message != '':
@@ -2685,28 +2800,20 @@ class E2iPlayerWidget(Screen):
             self.autoPlaySequencerNext()
     # end reloadList(self, ret):
 
-    def getCategoryPath(self):
-        def _getCat(cat, num):
-            if '' == cat:
-                return ''
-            cat = ' > ' + cat
-            if 1 < num:
-                cat += (' (x%d)' % num)
-            return cat
+    def getCategoryPath(self, maxLen=0):
+        return CategoryPath(self.hostTitle, self.categoryList, _('Page:'), _('Last'), maxLen)
 
-        # str = self.hostName
-        str = self.hostTitle
-        prevCat = ''
-        prevNum = 0
-        for cat in self.categoryList:
-            if prevCat != cat:
-                str += _getCat(prevCat, prevNum)
-                prevCat = cat
-                prevNum = 1
-            else:
-                prevNum += 1
-        str += _getCat(prevCat, prevNum)
-        return str
+    def setHeaderText(self):
+        # the header is one line high: long names (a video title, a search phrase) are shortened until
+        # the path fits, measured on the label so it works with every skin
+        label = self["headertext"]
+        for maxLen in (0, 60, 40, 25, 15):
+            label.setText(self.getCategoryPath(maxLen))
+            try:
+                if label.instance.calculateSize().height() <= label.instance.size().height():
+                    break
+            except Exception:
+                break
 
     def getRefreshedCurrList(self):
         currSelIndex = self["list"].getCurrentIndex()
@@ -2719,7 +2826,7 @@ class E2iPlayerWidget(Screen):
         self.currList = []
         self.currItem = CDisplayListItem()
         self.favouritesCurrentGroupId = ''
-        self["headertext"].setText(self.getCategoryPath())
+        self.setHeaderText()
         self.requestListFromHost('Initial')
 
     def hideWindow(self):
