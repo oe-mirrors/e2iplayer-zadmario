@@ -515,8 +515,11 @@ class CHostBase(IHost):
     def getFavouriteItem(self, Index=0):
         retCode = RetHost.ERROR
         retlist = []
-        if not self.isValidIndex(Index, self.favouriteTypes):
-            RetHost(retCode, value=retlist)
+        if not self.isValidIndex(Index):
+            return RetHost(retCode, value=retlist)
+        # folder rows a host marks with good_for_fav are favourites too
+        if not self.host.currList[Index].get('good_for_fav', False) and not self.isValidIndex(Index, self.favouriteTypes):
+            return RetHost(retCode, value=retlist)
 
         cItem = self.host.currList[Index]
         data = self.host.getFavouriteData(cItem)
@@ -703,7 +706,8 @@ class CHostBase(IHost):
     def setSearchPattern(self):
         try:
             list = self.host.getCurrList()
-            if 'history' == list[self.currIndex]['name']:
+            # rows without "name" are normal (many hosts) - only search history rows matter here
+            if 'history' == list[self.currIndex].get('name'):
                 pattern = list[self.currIndex]['title']
                 searchtype = list[self.currIndex]['search_type']
                 try:
@@ -803,7 +807,7 @@ class CHostBase(IHost):
         else:
             imageType = type
 
-        return CDisplayListItem(name=title,
+        hostItem = CDisplayListItem(name=title,
                                     description=description,
                                     type=type,
                                     urlItems=hostLinks,
@@ -814,6 +818,26 @@ class CHostBase(IHost):
                                     isGoodForFavourites=isGoodForFavourites,
                                     textColor=textColor,
                                     pinCode=pinCode, imageType=imageType)
+        # a pager entry's 'page' is the page it leads to: the header path takes the list's page from it, also after a
+        # jump, where counting the steps cannot know the page
+        if type == CDisplayListItem.TYPE_NEXT or imageType in (CDisplayListItem.TYPE_NEXT, CDisplayListItem.TYPE_FIRST,
+                                                               CDisplayListItem.TYPE_PREVIOUS, CDisplayListItem.TYPE_LAST):
+            try:
+                if int(cItem.get('page')) > 0:
+                    hostItem.listPage = int(cItem.get('page'))
+            except (TypeError, ValueError):
+                pass
+        # a host that knows the highest page puts it in its "Next page" entry as 'last_page':
+        # "Next page (2/12)" in the list, "Page: 1/12" in the header path
+        if type == CDisplayListItem.TYPE_NEXT:
+            try:
+                lastPage = int(cItem.get('last_page'))
+                if isinstance(getattr(hostItem, 'listPage', None), int) and hostItem.listPage <= lastPage:
+                    hostItem.lastPage = lastPage
+                    hostItem.name = '%s (%d/%d)' % (hostItem.name, hostItem.listPage, lastPage)
+            except (TypeError, ValueError):
+                pass
+        return hostItem
     # end converItem
 
     def getSearchResults(self, searchpattern, searchType=None):

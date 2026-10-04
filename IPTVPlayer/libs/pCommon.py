@@ -6,10 +6,10 @@
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, GetIPTVNotify, GetIPTVSleep
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, IsHttpsCertValidationEnabled, byteify, GetDefaultLang, rm, UsePyCurl, GetJSScriptFile, \
-                                                        IsExecutable, iptv_system
+                                                        IsExecutable, iptv_system, GetTmpDir
 from Plugins.Extensions.IPTVPlayer.components.asynccall import IsMainThread, IsThreadTerminated, SetThreadKillable, iptv_execute
 from Plugins.Extensions.IPTVPlayer.tools.e2ijs import js_execute_ext
-from Plugins.Extensions.IPTVPlayer.libs import ph
+from Plugins.Extensions.IPTVPlayer.libs import curlimpersonate, ph
 from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads, dumps as json_dumps
 ###################################################
 from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_binary, strDecode, iterDictItems, ensure_str
@@ -24,13 +24,13 @@ if isPY2():
         from StringIO import StringIO
 else:
     import http.cookiejar as cookielib
-    from http.client import IncompleteRead
+    from http.client import HTTPMessage, IncompleteRead
     from io import BytesIO
     basestring = str
     file = open
     unichr = chr
 from Components.config import config, ConfigText, configfile
-from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_addinfourl, urllib_unquote, urllib_quote_plus, urllib_urlencode, urllib_quote, \
+from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_addinfourl, urllib_unquote, urllib_unquote_plus, urllib_quote_plus, urllib_urlencode, urllib_quote, \
                                                       urllib2_HTTPRedirectHandler, urllib2_BaseHandler, urllib2_HTTPHandler, urllib2_HTTPError, \
                                                       urllib2_URLError, urllib2_build_opener, urllib2_urlopen, urllib2_HTTPCookieProcessor, \
                                                       urllib2_HTTPSHandler, urllib2_ProxyHandler, urllib2_Request
@@ -43,7 +43,9 @@ try:
 except Exception:
     pass
 import os
+import random
 import re
+import tempfile
 import time
 import unicodedata
 import zlib
@@ -64,6 +66,61 @@ except Exception:
     pass
 from binascii import hexlify
 ###################################################
+
+# Query/form fields that carry a credential (captcha services: 2captcha "key", 9kw "apikey",
+# DeathByCaptcha "password"). Their values never go into the debug log - users post it.
+_SECRET_FIELDS = ('key', 'apikey', 'api_key', 'password', 'passwd')
+_SECRET_FIELD_RE = re.compile(r'(?<![A-Za-z0-9_])(%s)=[^&\s\'"]+' % '|'.join(_SECRET_FIELDS), re.IGNORECASE)
+
+
+def maskSecrets(value):
+    """`value` (URL, form body, dict of params or post data) for the debug log, credentials as ***."""
+    if isinstance(value, dict):
+        return {k: '***' if str(k).lower() in _SECRET_FIELDS else maskSecrets(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return type(value)(maskSecrets(v) for v in value)
+    if isinstance(value, basestring):  # py2: utf-8 str stays str (a unicode result would break printDBG)
+        return _SECRET_FIELD_RE.sub(r'\1=***', value)
+    if isinstance(value, bytes):
+        return _SECRET_FIELD_RE.sub(r'\1=***', value.decode('utf-8', 'replace'))
+    return value
+
+
+# curl-impersonate (libs/curlimpersonate.py): hosts whose Cloudflare let a request with Chrome's
+# TLS/HTTP2 fingerprint through (found by getPageCFProtection, or a host's own impersonate=True
+# request that got an answer) - every later getPage() / saveWebFile() to them goes that way for the
+# rest of the session (covers from IconMenager, subtitles, ... come without the host's params).
+# Stored without a leading "www."; a registered name also covers its subdomains
+# (mlblive.net -> www.mlblive.net, img.mlblive.net), never its parent or sibling domains.
+_impersonateDomains = set()
+_impersonateMissingLogged = [False]
+
+
+def _impersonateDomain(url):
+    try:
+        host = (urlparse(url).hostname or '').lower()
+    except Exception:
+        return ''
+    if host.startswith('www.') and host.count('.') >= 2:
+        host = host[4:]
+    return host
+
+
+def _impersonateMatch(url):
+    """the registered name that covers url's host (itself or a parent domain), else ''"""
+    host = _impersonateDomain(url)
+    while host and '.' in host:
+        if host in _impersonateDomains:
+            return host
+        host = host.split('.', 1)[1]
+    return ''
+
+
+def _impersonateRegister(url):
+    domain = _impersonateDomain(url)
+    if domain and not _impersonateMatch(url):
+        _impersonateDomains.add(domain)  # set.add: atomic in CPython, the worker threads share it
+        printDBG('impersonate: %s registered for later requests (pages, covers, files)' % domain)
 
 
 # AVIF images are ISO-BMFF files: a 4-byte box size, then "ftyp" + brand
@@ -171,6 +228,83 @@ def EncodeGzipped(data):
     encoded = f.getvalue()
     f.close()
     return encoded
+
+
+class _ImpersonateHeaders(dict):
+    """py2: urllib2's HTTPMessage needs a file to parse - the response headers of a curl-impersonate
+    request as a dict with case-insensitive get() / [] / in, plus getheader() like mimetools.Message"""
+
+    def __init__(self, headers=None):
+        dict.__init__(self)
+        for name, value in (headers or {}).items():
+            self[name] = value
+
+    def __setitem__(self, name, value):
+        dict.__setitem__(self, name.lower(), value)
+
+    def __getitem__(self, name):
+        return dict.__getitem__(self, name.lower())
+
+    def __contains__(self, name):
+        return dict.__contains__(self, name.lower())
+
+    def get(self, name, default=None):
+        return dict.get(self, name.lower(), default)
+
+    getheader = get
+
+
+class ImpersonateResponse(object):
+    """what getPage(..., {'return_data': False}) returns for a curl-impersonate request: the urllib
+    response methods over the body curl wrote to a temporary file, which close() removes"""
+
+    def __init__(self, bodyFile, url, status, headers):
+        self._path = bodyFile
+        self._fp = open(bodyFile, 'rb')
+        self.url = url
+        self.code = self.status = status
+        if isPY2():
+            self.headers = _ImpersonateHeaders(headers)
+        else:
+            self.headers = HTTPMessage()
+            for name, value in (headers or {}).items():
+                self.headers[name] = value
+
+    def geturl(self):
+        return self.url
+
+    def getcode(self):
+        return self.code
+
+    def info(self):
+        return self.headers
+
+    def read(self, size=-1):
+        return self._fp.read(size)
+
+    def readline(self, size=-1):
+        return self._fp.readline(size)
+
+    def close(self):
+        if self._fp is not None:
+            self._fp.close()
+            self._fp = None
+            try:
+                os.remove(self._path)
+            except OSError:
+                pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass
 
 
 class NoRedirection(urllib2_HTTPRedirectHandler):
@@ -391,19 +525,78 @@ class CParsingHelper:
         return ph.clean_html(str)
 
 
+# browser versions for all User-Agents below - only change them here
+CHROME_VERSION = '154'  # also Edge and Android Chrome
+FIREFOX_VERSION = '157'
+OPERA_VERSION = '136'
+OPERA_CHROME_VERSION = '152'  # Opera ships an older Chromium than Chrome
+SAFARI_VERSION = '27.0'  # also iOS / iPadOS
+SAFARI_IOS_UA_VERSION = '18_7'  # since Safari 26 the iOS version in the UA is frozen
+SAMSUNG_VERSION = '30.0'
+SAMSUNG_CHROME_VERSION = '143'
+VLC_VERSION = '3.0.24'
+
+_CHROME = 'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s.0.0.0' % CHROME_VERSION
+_FIREFOX = 'rv:%s.0) Gecko/20100101 Firefox/%s.0' % (FIREFOX_VERSION, FIREFOX_VERSION)
+_SAFARI_IOS = 'OS %s like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/%s Mobile/15E148 Safari/604.1' % (SAFARI_IOS_UA_VERSION, SAFARI_VERSION)
+_MAG = 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) %s stbapp ver: 2 rev: 250 Safari/533.3'
+
+
 class common:
-    HOST = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
+    HOST = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) %s Safari/537.36' % _CHROME
     HEADER = None
     ph = CParsingHelper
+    # every User-Agent can be asked for by its name, e.g. getDefaultHeader(browser='android')
+    USER_AGENTS = {
+        'chrome': HOST,
+        'chrome_mac': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) %s Safari/537.36' % _CHROME,
+        'chrome_linux': 'Mozilla/5.0 (X11; Linux x86_64) %s Safari/537.36' % _CHROME,
+        'firefox': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; %s' % _FIREFOX,
+        'firefox_mac': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; %s' % _FIREFOX,
+        'firefox_linux': 'Mozilla/5.0 (X11; Linux x86_64; %s' % _FIREFOX,
+        'edge': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) %s Safari/537.36 Edg/%s.0.0.0' % (_CHROME, CHROME_VERSION),
+        'opera': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s.0.0.0 Safari/537.36 OPR/%s.0.0.0' % (OPERA_CHROME_VERSION, OPERA_VERSION),
+        'safari': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/%s Safari/605.1.15' % SAFARI_VERSION,
+        'iphone': 'Mozilla/5.0 (iPhone; CPU iPhone %s' % _SAFARI_IOS,
+        'ipad': 'Mozilla/5.0 (iPad; CPU %s' % _SAFARI_IOS,
+        'android': 'Mozilla/5.0 (Linux; Android 10; K) %s Mobile Safari/537.36' % _CHROME,
+        'samsung': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/%s Chrome/%s.0.0.0 Mobile Safari/537.36' % (SAMSUNG_VERSION, SAMSUNG_CHROME_VERSION),
+        # media player, for IPTV/m3u servers and CDNs that only let players through
+        'vlc': 'VLC/%s LibVLC/%s' % (VLC_VERSION, VLC_VERSION),
+        # MAG set-top boxes (Stalker portals)
+        'mag200': _MAG % 'MAG200',
+        'mag250': _MAG % 'MAG250',
+        'mag254': _MAG % 'MAG254',
+        'mag322': _MAG % 'MAG322',
+        'mag352': _MAG % 'MAG352',
+        'mag540': _MAG % 'MAG540',
+    }
+    # randomUA=True picks from the group; without it a group name gives its first entry
+    USER_AGENT_GROUPS = {
+        'chrome': ['chrome', 'chrome_mac', 'chrome_linux'],
+        'firefox': ['firefox', 'firefox_mac', 'firefox_linux'],
+        'desktop': ['chrome', 'chrome_mac', 'chrome_linux', 'firefox', 'firefox_mac', 'firefox_linux', 'edge', 'opera', 'safari'],
+        'mobile': ['iphone', 'android', 'samsung', 'ipad'],
+        'mag': ['mag250', 'mag200', 'mag254', 'mag322', 'mag352', 'mag540'],
+    }
+    USER_AGENT_ALIASES = {'iphone_3_0': 'iphone', 'qt': 'mag'}
 
     @staticmethod
-    def getDefaultHeader(browser='firefox'):
-        if browser == 'firefox':
-            ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:150.0) Gecko/20100101 Firefox/150.0'
-        elif browser == 'iphone_3_0':
-            ua = 'Mozilla/5.0 (iPhone; U; CPU iPhone OS 3_0 like Mac OS X; en-us) AppleWebKit/528.18 (KHTML, like Gecko) Version/4.0 Mobile/7A341 Safari/528.16'
-        else:
-            ua = common.HOST
+    def getDefaultUserAgent(browser='chrome', randomUA=False):
+        # unknown names (also 'Firefox' with a capital F) keep getting the Chrome UA like before;
+        # randomUA picks a new UA on every call, so call it once per host and reuse the header -
+        # Cloudflare's cf_clearance and many session cookies only stay valid for the same UA
+        browser = common.USER_AGENT_ALIASES.get(browser, browser)
+        group = common.USER_AGENT_GROUPS.get(browser)
+        if randomUA and group:
+            browser = random.choice(group)
+        elif group and browser not in common.USER_AGENTS:
+            browser = group[0]
+        return common.USER_AGENTS.get(browser, common.HOST)
+
+    @staticmethod
+    def getDefaultHeader(browser='firefox', randomUA=False):
+        ua = common.getDefaultUserAgent(browser, randomUA)
         HTTP_HEADER = {'User-Agent': ua, 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 'Accept-Encoding': 'gzip, deflate', 'DNT': 1}
         return dict(HTTP_HEADER)
 
@@ -483,6 +676,28 @@ class common:
         _query = []
         _process(_query, query, '')
         return _query
+
+    @staticmethod
+    def buildURLWithParams(url='http://fake/', Query=None, MultiQuery=None):  # NOSONAR
+        # adds or replaces query parameters; the other parameters stay byte for byte (repeated keys, empty
+        # values, their own encoding), as does the #fragment; a list value gives a repeated key
+        if not Query:
+            return url
+        try:
+            if MultiQuery:
+                newParams = common.buildHTTPQuery(Query)
+            else:
+                newParams = list(Query.items()) if isinstance(Query, dict) else list(Query)
+            newKeys = set(str(param[0]) for param in newParams)
+            parsedUrl = urlparse(url)
+            query = [part for part in parsedUrl.query.split('&') if part and urllib_unquote_plus(part.split('=', 1)[0]) not in newKeys]
+            newQuery = urllib_urlencode(newParams, doseq=True)
+            if newQuery:
+                query.append(newQuery)
+            return urlunparse(parsedUrl._replace(query='&'.join(query)))
+        except Exception:
+            printExc()
+            return url
 
     def __init__(self, proxyURL='', useProxy=False, useMozillaCookieJar=True):
         self.proxyURL = proxyURL
@@ -578,6 +793,9 @@ class common:
         return cj
 
     def clearCookie(self, cookiefile, leaveNames=[], removeNames=None, ignoreDiscard=True, ignoreExpires=False):
+        if not os.path.isfile(cookiefile):
+            # nothing saved yet for this host - nothing to clear (was logged as an exception)
+            return True
         try:
             toRemove = []
             if self.usePyCurl():
@@ -614,9 +832,12 @@ class common:
 
     def getCookieItems(self, cookiefile, ignoreDiscard=True, ignoreExpires=False):
         cookiesDict = {}
+        if not cookiefile or not os.path.isfile(cookiefile):
+            # nothing saved yet for this host - no cookies (was logged as two exceptions)
+            return cookiesDict
         try:
             cj = self.getCookie(cookiefile, ignoreDiscard, ignoreExpires)
-            for cookie in cj:
+            for cookie in cj or []:
                 cookiesDict[cookie.name] = cookie.value
         except Exception:
             printExc()
@@ -641,7 +862,7 @@ class common:
         if IsMainThread():
             msg1 = _('It is not allowed to call getURLRequestData from main thread.')
             msg2 = _('You should never perform block I/O operations in the __init__.')
-            GetIPTVNotify().push('\s'.join([msg1, msg2]), 'error', 40)
+            GetIPTVNotify().push(' '.join([msg1, msg2]), 'error', 40)
             raise Exception("Wrong usage!")
 
         # by default we will work in return_data mode
@@ -828,6 +1049,18 @@ class common:
                 curlSession.setopt(pycurl.HTTPHEADER, customHeaders)
 
             curlSession.setopt(pycurl.ACCEPT_ENCODING, "") # enable all supported built-in compressions
+            # ipv4_only: sites whose Cloudflare blocks IPv6 clients (curl resolves names itself, a socket-level
+            # IPv4 lookup does not reach it); ipv6_only: a token bound to the client address must be fetched
+            # over the family the player will use (fails without IPv6 - the caller falls back). ipv4_only wins
+            # when both are set; set every time, a session can be reused. Only pycurl and curl-impersonate
+            # honour them, the urllib path has no address family control.
+            if params.get('ipv4_only'):
+                ipResolve = pycurl.IPRESOLVE_V4
+            elif params.get('ipv6_only'):
+                ipResolve = pycurl.IPRESOLVE_V6
+            else:
+                ipResolve = pycurl.IPRESOLVE_WHATEVER
+            curlSession.setopt(pycurl.IPRESOLVE, ipResolve)
             if None != params.get('ssl_protocol', None):
                 sslProtoVer = self.getPyCurlSSLProtocolVersion(params['ssl_protocol'])
                 if None != sslProtoVer:
@@ -982,7 +1215,11 @@ class common:
                 metadata['pycurl_error'] = (e[0], str(e[1]))
             except Exception:
                 metadata['pycurl_error'] = (e.args[0], e.args[1]) # it seems pycurl in p3 has different structure
-            printExc()
+            if metadata['pycurl_error'][0] == getattr(pycurl, 'E_ABORTED_BY_CALLBACK', 42) and IsThreadTerminated():
+                # the user left the list/host while loading: _terminateFunction aborts the transfer on purpose
+                printDBG('pCommon - getPageWithPyCurl() -> request cancelled (thread terminated)')
+            else:
+                printExc()
         except Exception:
             printExc()
 
@@ -1055,8 +1292,10 @@ class common:
                     if key in responseHeaders:
                         metadata[key.lower()] = responseHeaders[key]
 
-            for header, value in iterDictItems(responseHeaders):
-                metadata[header.lower()] = responseHeaders[header]
+            # (py2: an HTTPMessage of urllib2 has items() but no iteritems() - iterDictItems failed on every
+            # 403 answer, so its headers never reached the bot protection check)
+            for header, value in responseHeaders.items():
+                metadata[header.lower()] = value
 
     def _readHttpResponse(self, fp, maxSize=-1):
         # Some servers close the connection before delivering the full
@@ -1075,8 +1314,277 @@ class common:
             printDBG("common._readHttpResponse: IncompleteRead, using partial data (%d bytes)" % len(e.partial or b''))
             return e.partial
 
+    def _useImpersonate(self, url, params):
+        wanted = params.get('impersonate', None)
+        if wanted is None:
+            return _impersonateMatch(url) != ''
+        return bool(wanted)
+
+    def _impersonateFetch(self, url, params, post_data=None, outFile='', caller='getPageImpersonate'):
+        '''one request through curl-impersonate with pCommon's params (header, cookies, post data, proxy,
+        timeout, ...). Returns the curlimpersonate.fetch() dict for an answer (self.meta then has url,
+        status_code, impersonate and the headers), None when the binary is missing or cannot run (the
+        caller then uses the normal path), False when the request failed (main thread, no answer).
+        outFile: curl writes the body there - the caller removes it when the answer is not wanted.
+        An explicit params['impersonate'] that gets a 2xx/3xx registers the domain for later requests.'''
+        binary = curlimpersonate.getImpersonateBinary()
+        if not binary:
+            if not _impersonateMissingLogged[0]:
+                _impersonateMissingLogged[0] = True
+                printDBG('pCommon - %s() curl-impersonate is not installed, using the normal HTTP path' % caller)
+            return None
+
+        self.meta = {}
+        if IsMainThread():
+            msg1 = _('It is not allowed to call getURLRequestData from main thread.')
+            msg2 = _('You should never perform block I/O operations in the __init__.')
+            GetIPTVNotify().push(' '.join([msg1, msg2]), 'error', 40)
+            return False
+
+        if 'header' in params:
+            headers = params['header']
+        elif None is not self.HEADER:
+            headers = self.HEADER
+        else:
+            headers = {}
+
+        useCookie = params.get('use_cookie', False)
+        if 'use_cookie' not in params and 'cookiefile' in params and ('load_cookie' in params or 'save_cookie' in params):
+            useCookie = True
+        cookieFile = params.get('cookiefile', '') if useCookie else ''
+
+        postBody = None
+        if None is not post_data:
+            printDBG('pCommon - %s() -> post data: %s' % (caller, maskSecrets(post_data)))
+            if params.get('raw_post_data', False):
+                postBody = ensure_binary(post_data)
+            else:
+                postBody = ensure_binary(urllib_urlencode(post_data))
+
+        http_proxy = self.proxyURL if self.useProxy else ''
+        if 'http_proxy' in params:
+            http_proxy = params['http_proxy']
+
+        pageUrl = url
+        proxy_gateway = params.get('proxy_gateway', '')
+        if proxy_gateway != '':
+            pageUrl = proxy_gateway.format(urllib_quote_plus(pageUrl, ''))
+        if '","' in pageUrl:  # see getURLRequestData
+            pageUrl = pageUrl.split('"', 1)[0]
+        pageUrl = self.iriToUri(pageUrl)
+
+        printDBG('pCommon - %s() -> params: %s' % (caller, maskSecrets(params)))
+        printDBG('pCommon - %s() -> headers: %s' % (caller, headers))
+        printDBG("pageUrl: [%s]" % maskSecrets(pageUrl))
+
+        metadata = self.meta
+        try:
+            res = curlimpersonate.fetch(binary, pageUrl, GetTmpDir(), headers=headers, cookieFile=cookieFile,
+                                        loadCookie=params.get('load_cookie', False), saveCookie=params.get('save_cookie', False),
+                                        cookieItems=params.get('cookie_items') if useCookie else None, postBody=postBody,
+                                        noRedirection=params.get('no_redirection', False), timeout=params.get('timeout', None),
+                                        proxy=http_proxy, insecure=not IsHttpsCertValidationEnabled(), ipv4Only=params.get('ipv4_only', False),
+                                        maxDataSize=params.get('max_data_size', -1), shouldAbort=IsThreadTerminated,
+                                        log=lambda msg: printDBG(maskSecrets(ensure_str(msg))), outFile=outFile,
+                                        ipv6Only=params.get('ipv6_only', False))
+        except curlimpersonate.ImpersonateUnavailable as e:
+            printDBG('pCommon - %s() %s - using the normal HTTP path from now on' % (caller, e))
+            curlimpersonate.markBinaryUnusable()
+            return None
+        except Exception:
+            printExc()
+            return False
+
+        if isPY2():
+            # curlimpersonate reads url, headers and curl's message as unicode - the hosts work with utf-8 str
+            res['url'] = ensure_str(res['url'])
+            res['error'] = ensure_str(res['error'])
+            res['headers'] = dict((ensure_str(k), ensure_str(v)) for k, v in res['headers'].items())
+
+        status = res['status']
+        if res['aborted'] or res['exitcode'] != 0 or not status:
+            metadata['curl_error'] = (res['exitcode'], res['error'])
+            printDBG('pCommon - %s() failed: curl exit %s [%s] HTTP %s' % (caller, res['exitcode'], res['error'], status))
+            return False
+
+        metadata['url'] = res['url']
+        metadata['status_code'] = status
+        metadata['impersonate'] = res['profile']
+        # an error answer keeps every header (like the urllib 403 path) - botprotection.detect() needs them
+        self.fillHeaderItems(metadata, res['headers'], collectAllHeaders=params.get('collect_all_headers') or status >= 400)
+        if params.get('impersonate') and 200 <= status < 400:
+            # the host asked for it and it works: covers / files fetched later without the host's params too
+            _impersonateRegister(url)
+        return res
+
+    def getPageImpersonate(self, url, params={}, post_data=None):
+        '''getPage() through curl-impersonate (Chrome's TLS/HTTP2 fingerprint and its own User-Agent /
+        Accept* / sec-ch-ua headers, the host's other headers are sent as given). Same (sts, data) and
+        metadata convention as the urllib path. Returns None when the binary is missing or cannot run,
+        the caller then uses the normal path.
+        return_data False: like urllib, data is a response object (read(), geturl(), getcode(), info())
+        over a temporary file that close() removes; an HTTP error gives (False, that object).'''
+        params = dict(params)
+        if not params.get('return_data', True):
+            return self._getResponseImpersonate(url, params, post_data)
+        params['return_data'] = True
+
+        res = self._impersonateFetch(url, params, post_data)
+        if res is None:
+            return None
+        if res is False:
+            return False, None
+        metadata = self.meta
+        status = res['status']
+
+        if 200 <= status < 400:
+            sts = True  # 3xx only arrives with no_redirection - like urllib's NoRedirection
+        else:
+            sts = False
+            for ignoreCodeRange in params.get('ignore_http_code_ranges', [(404, 404), (500, 500)]):
+                if ignoreCodeRange[0] <= status <= ignoreCodeRange[1]:
+                    sts = True
+                    break
+
+        body = res['body']
+        if status == 403:
+            metadata['body_head'] = body[:65536].decode('utf-8', 'ignore')
+        data, metadata = self.handleCharset(params, body, metadata)
+        if isinstance(data, bytes):
+            data = strDecode(data, 'ignore')
+
+        printDBG('pCommon - getPageImpersonate() return -> sts: %s, HTTP %s, url: %s' % (sts, status, maskSecrets(metadata['url'])))
+        if params.get('with_metadata', False) or not sts:
+            data = strwithmeta(data, metadata)
+        return sts, data
+
+    def _getResponseImpersonate(self, url, params, post_data=None):
+        '''getPage(..., {'return_data': False}) through curl-impersonate, see getPageImpersonate'''
+        if 'max_data_size' in params:
+            printDBG('pCommon - getPageImpersonate() return_data False is not accepted with max_data_size')
+            return False, None  # urllib path: getURLRequestData raises, getPage returns (False, None)
+        fd, bodyFile = tempfile.mkstemp(prefix='e2i_impdl_', dir=GetTmpDir())
+        os.close(fd)
+        try:
+            res = self._impersonateFetch(url, params, post_data, outFile=bodyFile)
+            if not res:
+                rm(bodyFile)
+                return None if res is None else (False, None)
+            status = res['status']
+            if status == 403:
+                # like the urllib path: what identifies the protection system, the text "Access Forbidden"
+                with open(bodyFile, 'rb') as f:
+                    self.meta['body_head'] = f.read(65536).decode('utf-8', 'ignore')
+                rm(bodyFile)
+                return False, strwithmeta(_('Access Forbidden'), self.meta)
+            response = ImpersonateResponse(bodyFile, res['url'], status, res['headers'])
+        except Exception:
+            printExc()
+            rm(bodyFile)
+            return False, None
+        printDBG('pCommon - getPageImpersonate() return_data False -> HTTP %s, %d bytes, url: %s' % (status, res['size'], maskSecrets(res['url'])))
+        # urllib raises HTTPError (readable, .code) for every status >= 400 here
+        return (200 <= status < 400), response
+
+    def _saveWebFileImpersonate(self, file_path, url, addParams, post_data=None):
+        '''saveWebFile() through curl-impersonate: curl writes the body to file_path. Same result dict
+        ({'sts', 'fsize', 'reason'}) and checks (HTTP status, maintype / subtypes, check_first_bytes,
+        WebP/AVIF conversion) as the pycurl / urllib paths; a failed download leaves no file behind.
+        None when the binary is missing or cannot run - the caller then uses the normal path.'''
+        params = dict(addParams)
+        params.pop('max_data_size', None)
+        res = self._impersonateFetch(url, params, post_data, outFile=file_path, caller='saveWebFileImpersonate')
+        if res is None:
+            return None
+        reason = ''
+        size = 0
+        if res is False:
+            error = self.meta.get('curl_error')
+            reason = ('curl error %r' % (error,)) if error else 'no connection (see the error above)'
+        else:
+            status = res['status']
+            size = res['size']
+            self.meta['size_download'] = size
+            contentType = self.meta.get('content-type', res['headers'].get('content-type', ''))
+            mimeType = contentType.split(';', 1)[0].strip().lower()
+            mainType = params.get('check_maintype', params.get('maintype'))
+            subTypes = params.get('check_subtypes', params.get('subtypes'))
+            if not (200 <= status < 400):
+                reason = 'HTTP %s' % status
+            elif mainType is not None and mainType != mimeType.split('/', 1)[0]:
+                reason = 'wrong content-type %s' % contentType
+            elif subTypes is not None and mimeType.split('/', 1)[-1] not in subTypes:
+                reason = 'wrong content-type %s' % contentType
+            elif size <= 0:
+                reason = 'empty answer'
+            elif params.get('check_first_bytes'):
+                with open(file_path, 'rb') as f:
+                    head = f.read(16)
+                if not MatchFirstBytes(head, params['check_first_bytes']):
+                    reason = 'not a picture, content-type[%s] first bytes %r' % (contentType, head)
+        if reason:
+            printDBG('pCommon - saveWebFileImpersonate() failed: %s' % reason)
+            if os.path.exists(file_path):
+                rm(file_path)
+            return {'sts': False, 'fsize': 0, 'reason': reason}
+
+        # decode WebP/AVIF to jpeg/png (image downloads, or a .webp URL) like the other paths
+        if (url.endswith('.webp') or 'check_first_bytes' in params or mimeType == 'image/webp') and IsConvertibleImage(file_path):
+            self.convertWebp(file_path, png=params.get('webp_convert_to_png', False))
+        printDBG('pCommon - saveWebFileImpersonate() -> %d bytes, HTTP %s, url: %s' % (size, status, maskSecrets(res['url'])))
+        return {'sts': True, 'fsize': size, 'reason': ''}
+
+    def _retryImpersonate(self, baseUrl, params, post_data, data):
+        '''getPageCFProtection: the answer is a Cloudflare challenge - ask again as Chrome (curl-impersonate).
+        Returns (sts, data) when that got a normal answer (the domain then keeps using it), else None.'''
+        if params.get('impersonate', None) is not None:
+            return None  # the host asked for it (already tried) or switched it off
+        domain = _impersonateDomain(baseUrl)
+        registered = _impersonateMatch(baseUrl)
+        if registered:
+            # the remembered domain asks again: a cf_clearance from MyE2i only works with the solving
+            # browser's User-Agent, which the impersonated request would not send
+            printDBG('PROTECTION: %s challenges curl-impersonate now as well, back to the normal path' % registered)
+            _impersonateDomains.discard(registered)
+            return None
+        if not curlimpersonate.getImpersonateBinary():
+            return None
+        try:
+            from Plugins.Extensions.IPTVPlayer.libs.botprotection import detect as detectProtection, KIND_CLOUDFLARE
+            failMeta = getattr(data, 'meta', None) or {}
+            found = detectProtection(failMeta.get('status_code', 0), failMeta, failMeta.get('body_head') or (data if isinstance(data, str) else ''), failMeta.get('url', baseUrl))
+            if found is None or found.kind != KIND_CLOUDFLARE:
+                return None
+            printDBG('PROTECTION: %s - retrying with curl-impersonate' % found.describe())
+            newParams = dict(params)
+            newParams['impersonate'] = True
+            sts2, data2 = self.getPage(baseUrl, newParams, post_data)
+            meta2 = getattr(data2, 'meta', None) or {}
+            if data2 is None or not meta2.get('impersonate'):
+                printDBG('PROTECTION: curl-impersonate gave no answer')
+                return None
+            if not sts2:
+                found2 = detectProtection(meta2.get('status_code', 0), meta2, meta2.get('body_head') or data2, meta2.get('url', baseUrl))
+                if found2 is not None:
+                    printDBG('PROTECTION: curl-impersonate stopped too: %s' % found2.describe())
+                    return None
+            _impersonateDomains.add(domain)
+            printDBG('impersonate: %s passes as Chrome (%s)' % (domain, meta2.get('impersonate')))
+            return sts2, data2
+        except Exception:
+            printExc()
+        return None
+
     def getPage(self, url, addParams={}, post_data=None):
         ''' wraps getURLRequestData '''
+
+        # impersonate: Chrome's TLS/HTTP2 fingerprint through curl-impersonate (True from the host, or a
+        # registered domain, see _impersonateDomains; False keeps the normal path). Without the binary or
+        # with multipart data the normal path below is used.
+        if self._useImpersonate(url, addParams) and not addParams.get('multipart_post_data', False):
+            result = self.getPageImpersonate(url, addParams, post_data)
+            if result is not None:
+                return result
 
         # if curl should be used and can be used
         if addParams.get('return_data', True) and not addParams.get('CFProtection', False) and self.usePyCurl():
@@ -1090,7 +1598,8 @@ class common:
             status = True
         except urllib2_HTTPError as e:
             try:
-                printExc()
+                # an HTTP error answer (403 Cloudflare challenge, 404 ...) is handled below - its traceback says nothing more
+                printDBG('pCommon - getPage() -> HTTP %s [%s]' % (e.code, maskSecrets(url)))
                 if e.code == 308:
                     return self.getPage(e.fp.info().get('Location', ''), addParams, post_data)
                 status = False
@@ -1175,7 +1684,15 @@ class common:
         start_time = time.time()
         sts, data = self.getPage(baseUrl, params, post_data)
 
-        if not sts and None != data:
+        impersonated = False
+        if not sts and data is not None:
+            # a Cloudflare challenge may only look at the TLS fingerprint - try once as Chrome first
+            retried = self._retryImpersonate(baseUrl, params, post_data, data)
+            if retried is not None:
+                sts, data = retried
+                impersonated = True
+
+        if not impersonated and not sts and data is not None:
             solveMode = 'CF'
             try:
                 from Plugins.Extensions.IPTVPlayer.libs.botprotection import detect as detectProtection, KIND_BLOCK, KIND_CAPTCHA, KIND_COOKIE_GATE
@@ -1303,6 +1820,12 @@ class common:
             header = {'User-Agent': host, 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'}
             addParams['header'] = header
         addParams['return_data'] = False
+
+        # Chrome's fingerprint (a host's impersonate=True, or a registered domain - covers, subtitles)
+        if self._useImpersonate(url, addParams) and not addParams.get('multipart_post_data', False):
+            ret = self._saveWebFileImpersonate(file_path, url, addParams, post_data)
+            if ret is not None:
+                return ret
 
         # if curl should and can be used
         if self.usePyCurl():
@@ -1474,7 +1997,7 @@ class common:
         if IsMainThread():
             msg1 = _('It is not allowed to call getURLRequestData from main thread.')
             msg2 = _('You should never perform block I/O operations in the __init__.')
-            GetIPTVNotify().push('\s'.join([msg1, msg2]), 'error', 40)
+            GetIPTVNotify().push(' '.join([msg1, msg2]), 'error', 40)
             raise Exception("Wrong usage!")
 
         if 'max_data_size' in params and not params.get('return_data', False):
@@ -1687,11 +2210,11 @@ class common:
             if params.get('return_data', False) and params.get('convert_charset', True):
                 encoding = ''
                 if 'content-type' in metadata:
-                    encoding = self.ph.getSearchGroups(metadata['content-type'], '''charset=([A-Za-z0-9\-]+)''', 1, True)[0].strip().upper()
+                    encoding = self.ph.getSearchGroups(metadata['content-type'], r'''charset=([A-Za-z0-9\-]+)''', 1, True)[0].strip().upper()
 
                 if encoding == '' and params.get('search_charset', False):
                     encoding = self.ph.getSearchGroups(strDecode(data, 'ignore'), '''(<meta[^>]+?Content-Type[^>]+?>)''', ignoreCase=True)[0]
-                    encoding = self.ph.getSearchGroups(encoding, '''charset=([A-Za-z0-9\-]+)''', 1, True)[0].strip().upper()
+                    encoding = self.ph.getSearchGroups(encoding, r'''charset=([A-Za-z0-9\-]+)''', 1, True)[0].strip().upper()
                 if encoding not in ['', 'UTF-8']:
                     printDBG(">> encoding[%s]" % encoding)
                     try:

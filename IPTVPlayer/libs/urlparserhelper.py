@@ -33,7 +33,7 @@ try:
     def hex_md5(e):
         return md5(ensure_binary(e)).hexdigest()
 except Exception:
-    from Plugins.Extensions.IPTVPlayer.libs.crypto.hash.md5Hash import MD5 as md5
+    from Plugins.Extensions.IPTVPlayer.libs.crypto.hash.md5Hash import MD5
 
     def hex_md5(e):
         hashAlg = MD5()
@@ -124,7 +124,6 @@ def drdX_fx(e):
 def VIDEOMEGA_decryptPlayerParams(p, a, c, k, e, d):
     def e1(c):
         return JS_toString(c, 36)
-        return ret
 
     def k1(matchobj):
         return d[matchobj.group(0)]
@@ -517,9 +516,16 @@ def getDirectM3U8Playlist(M3U8Url, checkExt=True, variantCheck=True, cookieParam
         if '' == finallM3U8Url:
             params['with_metadata'] = True
             sts, data = cm.getPage(M3U8Url, params, postData)
+            if not sts:
+                # HTTP error (e.g. 403 for a token bound to another IP): no traceback
+                printDBG("getDirectM3U8Playlist playlist request failed [%s]" % M3U8Url)
+                return []
             finallM3U8Url = data.meta['url']
         else:
             sts, data = cm.getPage(M3U8Url, params, postData)
+            if not sts:
+                printDBG("getDirectM3U8Playlist playlist request failed [%s]" % M3U8Url)
+                return []
             data = data.strip()
 
         m3u8Obj = m3u8.inits(data, finallM3U8Url)
@@ -585,6 +591,43 @@ def getDirectM3U8Playlist(M3U8Url, checkExt=True, variantCheck=True, cookieParam
     except Exception:
         printExc()
     return retPlaylists
+
+
+# ffmpeg >= 7.1.1 (exteplayer3) opens an HLS stream only when every segment url has one of these extensions
+# (hls demuxer option allowed_segment_extensions, "Invalid data found when processing input" otherwise)
+FFMPEG_HLS_SEGMENT_EXTS = ('3gp', 'aac', 'avi', 'ac3', 'eac3', 'flac', 'mkv', 'm3u8', 'm4a', 'm4s', 'm4v', 'mpg', 'mov', 'mp2',
+                           'mp3', 'mp4', 'mpeg', 'mpegts', 'ogg', 'ogv', 'oga', 'ts', 'vob', 'vtt', 'wav', 'webvtt', 'cmfv', 'cmfa', 'ec3', 'fmp4')
+
+
+def requireDownloaderForDisguisedHls(links):
+    # streams that disguise their segments (.js/.css/.png/no extension, anti-adblock) are refused by
+    # exteplayer3's ffmpeg; hlsdl does not care -> force buffering for them. Costs one media playlist request.
+    if not links:
+        return links
+    url = links[0]['url']
+    meta = getattr(url, 'meta', {})
+    if meta.get('iptv_proto') != 'm3u8' or meta.get('iptv_buffering'):
+        return links
+    cm = common()
+    params, postData = cm.getParamsFromUrlWithMeta(url)
+    sts, data = cm.getPage(url, params, postData)
+    if not sts or '#EXTM3U' not in data:
+        return links
+    try:
+        segments = m3u8.inits(data, url).segments
+        segUrl = segments[0].absolute_uri if len(segments) else ''
+    except Exception:
+        printExc()
+        return links
+    path = segUrl.split('?', 1)[0].split('#', 1)[0].rsplit('/', 1)[-1]
+    ext = path.rsplit('.', 1)[-1].lower() if '.' in path else ''
+    if segUrl and ext not in FFMPEG_HLS_SEGMENT_EXTS:
+        printDBG("requireDownloaderForDisguisedHls segment [%s] -> iptv_buffering required" % path)
+        for item in links:
+            itemMeta = dict(getattr(item['url'], 'meta', {}))
+            itemMeta['iptv_buffering'] = 'required'
+            item['url'] = strwithmeta(item['url'], itemMeta)
+    return links
 
 
 def getF4MLinksWithMeta(manifestUrl, checkExt=True, cookieParams={}, sortWithMaxBitrate=-1):
@@ -656,7 +699,7 @@ def getMPDLinksWithMeta(manifestUrl, checkExt=True, cookieParams={}, sortWithMax
 
     def _getNumAttrib(data, name, default=0):
         try:
-            return int(cm.ph.getSearchGroups(data, '[\s]' + name + '''=['"]([^'^"]+?)['"]''')[0])
+            return int(cm.ph.getSearchGroups(data, r'[\s]' + name + '''=['"]([^'^"]+?)['"]''')[0])
         except Exception:
             return default
 

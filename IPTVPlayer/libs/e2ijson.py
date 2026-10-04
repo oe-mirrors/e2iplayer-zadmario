@@ -61,5 +61,13 @@ def loads(inputString, noneReplacement=None, baseTypesAsString=False, utf8=True)
         return outDict
 
 
+def loads_safe(inputString, default=None):
+    # loads() for answers that may not be JSON at all (error pages, empty body): default instead of an exception
+    try:
+        return loads(inputString)
+    except (ValueError, TypeError):
+        return default
+
+
 def dumps(inputString, *args, **kwargs):
     return json.dumps(inputString, *args, **kwargs)
