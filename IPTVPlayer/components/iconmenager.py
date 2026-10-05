@@ -14,7 +14,6 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvtools import mkdirs, \
                       RemoveAllDirsIconsFromPath, GetIconsFilesFromDir, GetNewIconsDirName, \
                       GetIconsDirs, RemoveIconsDirByPath, MergeDicts
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
-from Plugins.Extensions.IPTVPlayer.libs import ph
 ###################################################
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlParse import urlparse, urljoin
 from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import strDecode
@@ -407,45 +406,42 @@ class IconMenager:
             elif 'watchseriesmovie.' in domain or 'gowatchseries' in domain:
                 baseUrl = img_url
                 img_url = self.cm.ph.getDataBeetwenNodes(data, ('<div', '>', 'picture'), ('</div', '>'), False)[1]
-                img_url = self.cm.ph.getSearchGroups(img_url, '<img[^>]+?src="([^"]+?)"')[0]
+                img_url = self.cm.ph.getSearchGroups(img_url, r'<img[^>]+?src="([^"]+?)"')[0]
                 if img_url.startswith('/'):
                     img_url = urljoin(baseUrl, img_url)
             elif 'classiccinemaonline.com' in domain:
                 baseUrl = img_url
                 img_url = self.cm.ph.getDataBeetwenNodes(data, ('<center>', '</center>', '<img'), ('<', '>'))[1]
-                img_url = self.cm.ph.getSearchGroups(img_url, '<img[^>]+?src="([^"]+?\.(:?jpe?g|png)(:?\?[^"]+?)?)"')[0]
+                img_url = self.cm.ph.getSearchGroups(img_url, r'<img[^>]+?src="([^"]+?\.(:?jpe?g|png)(:?\?[^"]+?)?)"')[0]
                 if img_url.startswith('/'):
                     img_url = urljoin(baseUrl, img_url)
             elif 'nasze-kino.tv' in domain:
                 baseUrl = img_url
                 img_url = self.cm.ph.getDataBeetwenNodes(data, ('<div', '>', 'single-poster'), ('<img', '>'))[1]
-                img_url = self.cm.ph.getSearchGroups(img_url, '<img[^>]+?src="([^"]+?\.(:?jpe?g|png)(:?\?[^"]+?)?)"')[0]
+                img_url = self.cm.ph.getSearchGroups(img_url, r'<img[^>]+?src="([^"]+?\.(:?jpe?g|png)(:?\?[^"]+?)?)"')[0]
                 if img_url.startswith('/'):
                     img_url = urljoin(baseUrl, img_url)
             elif 'allbox.' in domain:
                 baseUrl = img_url
                 img_url = self.cm.ph.getDataBeetwenNodes(data, ('<img', '>', '"image"'), ('<', '>'))[1]
                 if img_url != '':
-                    img_url = self.cm.ph.getSearchGroups(img_url, '<img[^>]+?src="([^"]+?\.(:?jpe?g|png)(:?\?[^"]+?)?)"')[0]
+                    img_url = self.cm.ph.getSearchGroups(img_url, r'<img[^>]+?src="([^"]+?\.(:?jpe?g|png)(:?\?[^"]+?)?)"')[0]
                 else:
-                    img_url = self.cm.ph.getSearchGroups(data, 'url\(([^"^\)]+?\.(:?jpe?g|png)(:?\?[^"^\)]+?)?)\);')[0].strip()
+                    img_url = self.cm.ph.getSearchGroups(data, r'url\(([^"^\)]+?\.(:?jpe?g|png)(:?\?[^"^\)]+?)?)\);')[0].strip()
                 if img_url.startswith('/'):
                     img_url = urljoin(baseUrl, img_url)
             elif 'efilmy.' in domain:
                 baseUrl = img_url
                 img_url = self.cm.ph.getDataBeetwenNodes(data, ('<img', '>', 'align="left"'), ('<', '>'))[1]
-                img_url = self.cm.ph.getSearchGroups(img_url, '<img[^>]+?src="([^"]+?\.(:?jpe?g|png)(:?\?[^"]+?)?)"')[0]
+                img_url = self.cm.ph.getSearchGroups(img_url, r'<img[^>]+?src="([^"]+?\.(:?jpe?g|png)(:?\?[^"]+?)?)"')[0]
                 img_url = self.cm.getFullUrl(img_url, baseUrl)
             elif 'bajeczki.org' == domain:
                 baseUrl = img_url
                 img_url = self.cm.ph.getDataBeetwenNodes(data, ('<img', '>', 'wp-post-image'), ('<', '>'))[1]
                 if img_url != '':
-                    img_url = self.cm.ph.getSearchGroups(img_url, '<img[^>]+?src="([^"]+?\.(:?jpe?g|png)(?:\?[^"]+?)?)"')[0]
+                    img_url = self.cm.ph.getSearchGroups(img_url, r'<img[^>]+?src="([^"]+?\.(:?jpe?g|png)(?:\?[^"]+?)?)"')[0]
                 if img_url.startswith('/'):
                     img_url = urljoin(baseUrl, img_url)
-            elif '7tv.de' == domain:
-                data = ph.find(data, ('<meta', '>', 'thumbnail_image_url'))[1]
-                img_url = ph.getattr(data, 'content')
             if not self.cm.isValidUrl(img_url):
                 self.lastError = 'no picture url found on the page, got %r' % img_url
                 return False

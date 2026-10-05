@@ -391,39 +391,29 @@ class CParsingHelper:
             return True, data[match1.end(0): (match1.end(0) + match2.start(0))]
 
     @staticmethod
+    def _markerFlags(withMarkers, caseSensitive):
+        # ph.find/findall/rfind/rfindall flags for the getDataBeetwen... / getAllItemsBeetwen... wrappers
+        flags = ph.START_E | ph.END_E if withMarkers else 0
+        return flags if caseSensitive else flags | ph.IGNORECASE
+
+    @staticmethod
     def getDataBeetwenMarkers(data, marker1, marker2, withMarkers=True, caseSensitive=True):
-        flags = 0
-        if withMarkers:
-            flags |= ph.START_E | ph.END_E
-        if not caseSensitive:
-            flags |= ph.IGNORECASE
+        flags = CParsingHelper._markerFlags(withMarkers, caseSensitive)
         return ph.find(data, marker1, marker2, flags)
 
     @staticmethod
     def getAllItemsBeetwenMarkers(data, marker1, marker2, withMarkers=True, caseSensitive=True):
-        flags = 0
-        if withMarkers:
-            flags |= ph.START_E | ph.END_E
-        if not caseSensitive:
-            flags |= ph.IGNORECASE
+        flags = CParsingHelper._markerFlags(withMarkers, caseSensitive)
         return ph.findall(data, marker1, marker2, flags)
 
     @staticmethod
     def rgetAllItemsBeetwenMarkers(data, marker1, marker2, withMarkers=True, caseSensitive=True):
-        flags = 0
-        if withMarkers:
-            flags |= ph.START_E | ph.END_E
-        if not caseSensitive:
-            flags |= ph.IGNORECASE
+        flags = CParsingHelper._markerFlags(withMarkers, caseSensitive)
         return ph.rfindall(data, marker1, marker2, flags)
 
     @staticmethod
     def rgetDataBeetwenMarkers2(data, marker1, marker2, withMarkers=True, caseSensitive=True):
-        flags = 0
-        if withMarkers:
-            flags |= ph.START_E | ph.END_E
-        if not caseSensitive:
-            flags |= ph.IGNORECASE
+        flags = CParsingHelper._markerFlags(withMarkers, caseSensitive)
         return ph.rfind(data, marker1, marker2, flags)
 
     @staticmethod
@@ -444,38 +434,22 @@ class CParsingHelper:
 
     @staticmethod
     def getDataBeetwenNodes(data, node1, node2, withNodes=True, caseSensitive=True):
-        flags = 0
-        if withNodes:
-            flags |= ph.START_E | ph.END_E
-        if not caseSensitive:
-            flags |= ph.IGNORECASE
+        flags = CParsingHelper._markerFlags(withNodes, caseSensitive)
         return ph.find(data, node1, node2, flags)
 
     @staticmethod
     def getAllItemsBeetwenNodes(data, node1, node2, withNodes=True, numNodes=-1, caseSensitive=True):
-        flags = 0
-        if withNodes:
-            flags |= ph.START_E | ph.END_E
-        if not caseSensitive:
-            flags |= ph.IGNORECASE
+        flags = CParsingHelper._markerFlags(withNodes, caseSensitive)
         return ph.findall(data, node1, node2, flags, limits=numNodes)
 
     @staticmethod
     def rgetDataBeetwenNodes(data, node1, node2, withNodes=True, caseSensitive=True):
-        flags = 0
-        if withNodes:
-            flags |= ph.START_E | ph.END_E
-        if not caseSensitive:
-            flags |= ph.IGNORECASE
+        flags = CParsingHelper._markerFlags(withNodes, caseSensitive)
         return ph.rfind(data, node1, node2, flags)
 
     @staticmethod
     def rgetAllItemsBeetwenNodes(data, node1, node2, withNodes=True, numNodes=-1, caseSensitive=True):
-        flags = 0
-        if withNodes:
-            flags |= ph.START_E | ph.END_E
-        if not caseSensitive:
-            flags |= ph.IGNORECASE
+        flags = CParsingHelper._markerFlags(withNodes, caseSensitive)
         return ph.rfindall(data, node1, node2, flags, limits=numNodes)
 
     # this method is useful only for developers
@@ -490,10 +464,10 @@ class CParsingHelper:
 
     @staticmethod
     def getNormalizeStr(txt, idx=None):
-        POLISH_CHARACTERS = {u'ą': u'a', u'ć': u'c', u'ę': u'ę', u'ł': u'l', u'ń': u'n', u'ó': u'o', u'ś': u's', u'ż': u'z', u'ź': u'z',
+        POLISH_CHARACTERS = {u'ą': u'a', u'ć': u'c', u'ę': u'e', u'ł': u'l', u'ń': u'n', u'ó': u'o', u'ś': u's', u'ż': u'z', u'ź': u'z',
                              u'Ą': u'A', u'Ć': u'C', u'Ę': u'E', u'Ł': u'L', u'Ń': u'N', u'Ó': u'O', u'Ś': u'S', u'Ż': u'Z', u'Ź': u'Z',
-                             u'á': u'a', u'é': u'e', u'í': u'i', u'ñ': u'n', u'ó': u'o', u'ú': u'u', u'ü': u'u',
-                             u'Á': u'A', u'É': u'E', u'Í': u'I', u'Ñ': u'N', u'Ó': u'O', u'Ú': u'U', u'Ü': u'U',
+                             u'á': u'a', u'é': u'e', u'í': u'i', u'ñ': u'n', u'ú': u'u', u'ü': u'u',
+                             u'Á': u'A', u'É': u'E', u'Í': u'I', u'Ñ': u'N', u'Ú': u'U', u'Ü': u'U',
                             }
         if isPY2():
             txt = txt.decode('utf-8')
