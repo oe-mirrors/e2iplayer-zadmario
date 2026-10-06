@@ -137,17 +137,20 @@ class DMHelper:
         date = strftime("%Y-%m-%d_%H:%M:%S_", gmtime())
 
         if not addDateToFileName:
+            # the number goes before the extension ("Name 2.mp4"), so the copies sort next to the first file
+            # (it was a prefix: "2. Name.mp4")
+            name, ext = os.path.splitext(os.path.basename(fileName))
             tries = 10
             for idx in range(tries):
                 if idx > 0:
-                    uniqueID = str(idx + 1) + '. '
+                    uniqueID = ' ' + str(idx + 1)
                 else:
                     uniqueID = ''
-                newFileName = os.path.dirname(fileName) + os.sep + uniqueID + os.path.basename(fileName)
+                newFileName = os.path.dirname(fileName) + os.sep + name + uniqueID + ext
                 if fileExists(newFileName):
                     continue
                 if withTmpFileName:
-                    tmpFileName = os.path.dirname(fileName) + os.sep + "." + uniqueID + os.path.basename(fileName)
+                    tmpFileName = os.path.dirname(fileName) + os.sep + "." + name + uniqueID + ext
                     if fileExists(tmpFileName):
                         continue
                     return newFileName, tmpFileName
