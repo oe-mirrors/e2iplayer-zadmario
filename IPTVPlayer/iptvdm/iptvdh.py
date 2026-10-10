@@ -42,6 +42,8 @@ class DMItemBase:
 
         self.status = DMHelper.STS.WAITING
         self.tries = DMHelper.DOWNLOAD_TYPE.INITIAL
+        # getName() of the downloader that ran the item ("hlsdl m3u8", "wget" ...)
+        self.downloaderName = ""
 
         # instance of downloader
         self.downloader = None
@@ -102,6 +104,10 @@ class DMHelper:
     def GET_HLSDL_PATH():
         return config.plugins.iptvplayer.hlsdlpath.value
 
+    # hlsdl -R keeps "<output>.hlsdl.resume" next to the output while a VOD download runs,
+    # so an interrupted run can be continued instead of started over
+    HLSDL_RESUME_SUFFIX = '.hlsdl.resume'
+    _hlsdlResumeSupported = None
     _hlsdlHelpText = None
 
     @staticmethod
@@ -128,6 +134,56 @@ class DMHelper:
                 printExc()
             DMHelper._hlsdlHelpText = text or None
         return DMHelper._hlsdlHelpText or ''
+
+    @staticmethod
+    def hlsdlResumeInHelp(helpText):
+        # the usage text of an hlsdl that can resume: version 0.31+ (the sidecar format the
+        # plugin relies on) and the -R option listed
+        try:
+            text = helpText or ''
+            if DMHelper.hlsdlVersionInHelp(text) < (0, 31):
+                return False
+            return re.search(r'^-R \.\.\. ', text, re.MULTILINE) is not None
+        except Exception:
+            printExc()
+            return False
+
+    @staticmethod
+    def hlsdlSupportsResume():
+        # A build without -R must never be handed the option (it aborts with the usage text),
+        # so any doubt means "not supported" and the old behaviour (start over) stays. Nothing is
+        # remembered while hlsdl is missing (it may be installed later)
+        if DMHelper._hlsdlResumeSupported is None:
+            helpText = DMHelper.hlsdlHelpText()
+            if not helpText:
+                return False
+            DMHelper._hlsdlResumeSupported = DMHelper.hlsdlResumeInHelp(helpText)
+            printDBG("DMHelper.hlsdlSupportsResume [%r]" % DMHelper._hlsdlResumeSupported)
+        return DMHelper._hlsdlResumeSupported
+
+    @staticmethod
+    def _hlsdlResumeFiles(filePath):
+        from Plugins.Extensions.IPTVPlayer.iptvdm.downloaderhelpers import fsPath
+        sidecar = fsPath(filePath) + DMHelper.HLSDL_RESUME_SUFFIX
+        return [sidecar, sidecar + '.tmp']
+
+    @staticmethod
+    def hasHlsdlResumeFile(filePath):
+        try:
+            return bool(filePath) and os.path.isfile(DMHelper._hlsdlResumeFiles(filePath)[0])
+        except Exception:
+            printExc()
+            return False
+
+    @staticmethod
+    def removeHlsdlResumeFiles(filePath):
+        try:
+            if filePath:
+                for path in DMHelper._hlsdlResumeFiles(filePath):
+                    if os.path.isfile(path):
+                        os.remove(path)
+        except Exception:
+            printExc()
 
     @staticmethod
     def hlsdlCutsImageHeads():

@@ -142,6 +142,8 @@ class IPTVDMApi():
                 os.remove(item.fileName)
             except Exception:
                 printDBG("deleteDownloadItem removing file[%s] error" % item.fileName)
+            # hlsdl's resume sidecar belongs to the file (no-op for the other downloaders)
+            DMHelper.removeHlsdlResumeFiles(item.fileName)
 
             # remove item from self.queueDQ
             del self.queueDQ[listUDIdx]
@@ -163,6 +165,8 @@ class IPTVDMApi():
                 os.remove(item.fileName)
             except Exception:
                 printDBG("removeDownloadItem removing file[%s] error" % item.fileName)
+            # hlsdl's resume sidecar belongs to the file (no-op for the other downloaders)
+            DMHelper.removeHlsdlResumeFiles(item.fileName)
 
             # remove item from self.queueAA
             del self.queueAA[listUDIdx]
@@ -264,6 +268,7 @@ class IPTVDMApi():
 
         if bRet:
             newItem = DMItem(downloader.getUrl(), downloader.getFullFileName())
+            newItem.downloaderName = downloader.getName()
 
             # at now we need to pack it to download item
             self.downloadIdx += 1
@@ -330,6 +335,9 @@ class IPTVDMApi():
         # rename the finished file to its true container extension
         try:
             self.queueUD[listUDIdx].downloader.allowFinalRename = True
+            if DMHelper.DOWNLOAD_TYPE.CONTINUE == item.tries:
+                self.queueUD[listUDIdx].downloader.resumeExisting = True
+            self.queueUD[listUDIdx].downloaderName = self.queueUD[listUDIdx].downloader.getName()
         except Exception:
             printExc()
         self.queueUD[listUDIdx].callback = boundFunction(self.cmdFinished, item.downloadIdx)

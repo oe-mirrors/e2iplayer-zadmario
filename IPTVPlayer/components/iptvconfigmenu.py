@@ -94,6 +94,12 @@ config.plugins.iptvplayer.requestedAudioBuffSize = ConfigInteger(256, (1, 10240)
 config.plugins.iptvplayer.IPTVDMRunAtStart = ConfigYesNo(default=False)
 config.plugins.iptvplayer.IPTVDMShowAfterAdd = ConfigYesNo(default=True)
 config.plugins.iptvplayer.IPTVDMMaxDownloadItem = ConfigSelection(default="1", choices=[("1", "1"), ("2", "2"), ("3", "3"), ("4", "4"), ("5", "5"), ("10", "10"), ("20", "20"), ("30", "30"), ("40", "40"), ("50", "50")])
+# container of HLS (M3U8) downloads, hlsdl or ffmpeg, and of single files ffmpeg downloads (iptv_use_ffmpeg);
+# auto = the one the site delivers
+config.plugins.iptvplayer.hls_out_container = ConfigSelection(default="auto", choices=[("auto", _("Automatic")), ("matroska", "MKV"), ("mp4", "MP4"), ("mpegts", "TS")])
+config.plugins.iptvplayer.file_out_container = ConfigSelection(default="auto", choices=[("auto", _("Automatic")), ("matroska", "MKV"), ("mp4", "MP4"), ("mpegts", "TS")])
+# container of DASH (MPD) downloads, which ffmpeg muxes; a host may still set its own (ff_out_container)
+config.plugins.iptvplayer.dash_out_container = ConfigSelection(default="matroska", choices=[("matroska", "MKV"), ("mp4", "MP4"), ("mpegts", "TS")])
 
 config.plugins.iptvplayer.AktualizacjaWmenu = ConfigYesNo(default=True)
 config.plugins.iptvplayer.sortuj = ConfigYesNo(default=True)
@@ -649,6 +655,9 @@ class ConfigMenu(ConfigBaseWidget):
             list.append(getConfigListEntry(_("Start download manager per default"), config.plugins.iptvplayer.IPTVDMRunAtStart))
             list.append(getConfigListEntry(_("Show download manager after adding new item"), config.plugins.iptvplayer.IPTVDMShowAfterAdd))
             list.append(getConfigListEntry(_("Number of downloaded files simultaneously"), config.plugins.iptvplayer.IPTVDMMaxDownloadItem))
+            list.append(getConfigListEntry(_("File format of HLS (M3U8) downloads"), config.plugins.iptvplayer.hls_out_container))
+            list.append(getConfigListEntry(_("File format of single video files (FFmpeg)"), config.plugins.iptvplayer.file_out_container))
+            list.append(getConfigListEntry(_("File format of DASH (MPD) downloads"), config.plugins.iptvplayer.dash_out_container))
 
             list.append(getConfigListEntry(_("%s e-mail") % ('My JDownloader'), config.plugins.iptvplayer.myjd_login))
             list.append(getConfigListEntry(_("%s password") % ('My JDownloader'), config.plugins.iptvplayer.myjd_password))
