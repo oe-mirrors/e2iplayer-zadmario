@@ -5205,3 +5205,431 @@ msgstr ""
 msgid "----- HIDDEN OPTIONS (OK) -----"
 msgstr ""
 
+#, python-format
+msgid "Settings of service [%s] cannot be opened."
+msgstr ""
+
+msgid "Alternative proxy server (3)"
+msgstr ""
+
+msgid "Alternative proxy server (4)"
+msgstr ""
+
+msgid "Alternative proxy server (5)"
+msgstr ""
+
+msgid "Default (2 minutes)"
+msgstr ""
+
+msgid "1 minute"
+msgstr ""
+
+msgid "30 seconds"
+msgstr ""
+
+msgid "15 seconds"
+msgstr ""
+
+msgid "5 seconds"
+msgstr ""
+
+msgid "At the live edge"
+msgstr ""
+
+msgid "Off"
+msgstr ""
+
+msgid "RAM"
+msgstr ""
+
+msgid "Folder on HDD / USB"
+msgstr ""
+
+msgid "unlimited"
+msgstr ""
+
+msgid ""
+"Torrents are peer-to-peer: while a torrent plays, the receiver connects "
+"to other users and your IP address is visible to them. Depending on your "
+"country, downloading or sharing copyrighted content through torrents may "
+"be illegal - you alone are responsible for what you play. Upload to other"
+" peers stays off unless you switch it on.\n"
+"\n"
+"TorrServer itself is not part of E2iPlayer, it has to be installed "
+"separately."
+msgstr ""
+
+msgid "Remember a host's pin until E2iPlayer is closed"
+msgstr ""
+
+msgid "API Key"
+msgstr ""
+
+msgid "----- TORRENT CONFIGURATION (OK) -----"
+msgstr ""
+
+msgid "Play torrents with TorrServer"
+msgstr ""
+
+msgid "TorrServer binary (OK = choose, empty = search automatically)"
+msgstr ""
+
+msgid "TorrServer port"
+msgstr ""
+
+msgid "TorrServer web interface in the home network"
+msgstr ""
+
+msgid "Cache location"
+msgstr ""
+
+msgid "Cache folder"
+msgstr ""
+
+msgid "Cache size on disk"
+msgstr ""
+
+msgid "Delete the cache when the torrent is closed"
+msgstr ""
+
+msgid "Cache size in RAM"
+msgstr ""
+
+msgid "Fill cache before playback"
+msgstr ""
+
+msgid "Read ahead (share of the cache)"
+msgstr ""
+
+msgid "Connections per torrent"
+msgstr ""
+
+msgid "Download speed limit"
+msgstr ""
+
+msgid "Allow upload to other peers (seeding)"
+msgstr ""
+
+msgid "Upload speed limit"
+msgstr ""
+
+msgid "Encrypted connections only"
+msgstr ""
+
+msgid "Close an unused torrent after"
+msgstr ""
+
+msgid "DLNA server of TorrServer"
+msgstr ""
+
+msgid "Stop TorrServer when E2iPlayer is closed"
+msgstr ""
+
+msgid "Select the TorrServer binary"
+msgstr ""
+
+msgid "Choose the TorrServer binary"
+msgstr ""
+
+msgid "Search automatically"
+msgstr ""
+
+msgid "Switch on torrent playback?"
+msgstr ""
+
+msgid "Pin protection for this host"
+msgstr ""
+
+msgid "Use own pin instead of the player pin"
+msgstr ""
+
+msgid "Change own pin"
+msgstr ""
+
+msgid "Set own pin"
+msgstr ""
+
+msgid "as Chrome this session"
+msgstr ""
+
+msgid "Page:"
+msgstr ""
+
+msgid "Last"
+msgstr ""
+
+msgid "The server did not send a subtitle file."
+msgstr ""
+
+#, python-format
+msgid ""
+"curl-impersonate is not installed on the receiver (%s). This stream only "
+"plays with it."
+msgstr ""
+
+#, python-format
+msgid "The helper script %s is missing."
+msgstr ""
+
+msgid "Python was not found on the receiver."
+msgstr ""
+
+msgid "The helper process ended unexpectedly."
+msgstr ""
+
+#, python-format
+msgid "Download \"%s\" (for this receiver) from %s"
+msgstr ""
+
+#, python-format
+msgid "Download the Linux file for the CPU of this receiver from %s"
+msgstr ""
+
+msgid ""
+"TorrServer was not found on the receiver. It is not part of E2iPlayer and"
+" not in the image feeds - install it yourself:"
+msgstr ""
+
+msgid ""
+"Copy it to /usr/bin/TorrServer (or a folder on HDD/USB) and make it "
+"executable (chmod 755)."
+msgstr ""
+
+msgid ""
+"Not in /usr/bin: choose the file under \"TorrServer binary\" in the "
+"torrent configuration."
+msgstr ""
+
+msgid "This video is Premium-only content."
+msgstr ""
+
+msgid "The video has been removed."
+msgstr ""
+
+msgid ""
+"Vimeo: this video is private, removed or may only be played on the site "
+"that embeds it."
+msgstr ""
+
+#, python-format
+msgid ""
+"%s blocks the connection of the receiver (HTTP 403). Please choose "
+"another server."
+msgstr ""
+
+#, python-format
+msgid ""
+"%s blocks the connection of the receiver (HTTP 403). It only plays with "
+"curl-impersonate installed on the receiver - otherwise please choose "
+"another server."
+msgstr ""
+
+#, python-format
+msgid "%s: decrypting the stream, this can take a while (%d s)"
+msgstr ""
+
+#, python-format
+msgid "%s could not solve the captcha."
+msgstr ""
+
+msgid ""
+"MixDrop: this file is not available as a video stream (deleted or "
+"download only)."
+msgstr ""
+
+msgid ""
+"The hoster sends an advert redirect instead of the video at the moment. "
+"Try another hoster."
+msgstr ""
+
+msgid "The link has expired. Please open the video again."
+msgstr ""
+
+msgid "Video link not found."
+msgstr ""
+
+msgid "Encrypted stream list - not supported"
+msgstr ""
+
+msgid "netu/hqq: the player check failed, try again later."
+msgstr ""
+
+msgid ""
+"Torrent links are played with TorrServer.\n"
+"Switch on \"Play torrents with TorrServer\" in the E2iPlayer settings "
+"(Torrent configuration)."
+msgstr ""
+
+#, python-format
+msgid "TorrServer could not be started (%s)."
+msgstr ""
+
+msgid "TorrServer got no file list for this torrent (no peers or a dead link?)."
+msgstr ""
+
+msgid "The OpenSubtitles.com server did not answer. Please try again later."
+msgstr ""
+
+#, python-format
+msgid ""
+"OpenSubtitles.com rejected the request (HTTP %s). Please check the API "
+"key in the E2iPlayer settings."
+msgstr ""
+
+msgid "Too many requests. Please try again later."
+msgstr ""
+
+msgid ""
+"OpenSubtitles.com needs an API key. Create a free API consumer at "
+"https://www.opensubtitles.com/consumers and enter its key in the "
+"E2iPlayer settings (Subtitles)."
+msgstr ""
+
+#, python-format
+msgid ""
+"OpenSubtitles.com login failed for user \"%s\". Please check your login "
+"and password."
+msgstr ""
+
+msgid "No subtitles found."
+msgstr ""
+
+msgid "Hearing impaired"
+msgstr ""
+
+msgid "machine translated"
+msgstr ""
+
+msgid "Foreign parts only"
+msgstr ""
+
+#, python-format
+msgid "Downloads: %s"
+msgstr ""
+
+#, python-format
+msgid "Author: %s"
+msgstr ""
+
+msgid "The daily download limit is reached."
+msgstr ""
+
+msgid ""
+"An opensubtitles.com account (login and password in the E2iPlayer "
+"settings) raises the limit."
+msgstr ""
+
+msgid "First Page"
+msgstr ""
+
+#, python-format
+msgid "The service \"%s\" is protected by a PIN, open it on the receiver."
+msgstr ""
+
+msgid "Latest episodes"
+msgstr ""
+
+msgid "No stream available"
+msgstr ""
+
+#, python-format
+msgid "Youth protection: only available between %s and %s."
+msgstr ""
+
+msgid "Not available in your country (geo-blocking)."
+msgstr ""
+
+msgid "MyE2i (solve on your phone/PC)"
+msgstr ""
+
+msgid "Tags"
+msgstr ""
+
+msgid "All videos"
+msgstr ""
+
+#, python-format
+msgid "Rating: %s"
+msgstr ""
+
+msgid "No matching entries found."
+msgstr ""
+
+msgid "Released"
+msgstr ""
+
+msgid "Search string must have at least 4 characters."
+msgstr ""
+
+msgid "Recently added"
+msgstr ""
+
+msgid "Top rated movies"
+msgstr ""
+
+msgid "Family"
+msgstr ""
+
+msgid "Series genres"
+msgstr ""
+
+msgid "No episodes available yet."
+msgstr ""
+
+msgid "No free player available for this title."
+msgstr ""
+
+#, python-format
+msgid "Live stream starts %s"
+msgstr ""
+
+msgid "Live streams by day"
+msgstr ""
+
+msgid "Popular sports"
+msgstr ""
+
+msgid "Top leagues and clubs"
+msgstr ""
+
+msgid "Tomorrow"
+msgstr ""
+
+msgid "Upcoming"
+msgstr ""
+
+msgid "Leagues, clubs and events"
+msgstr ""
+
+msgid "Clubs and athletes"
+msgstr ""
+
+msgid "No free videos or live streams here at the moment."
+msgstr ""
+
+msgid "This content needs a login - not supported."
+msgstr ""
+
+#, python-format
+msgid "Clipped by: %s"
+msgstr ""
+
+msgid "Live channels"
+msgstr ""
+
+msgid "VAVOO did not hand out a session signature. Try again later."
+msgstr ""
+
+msgid "Next"
+msgstr ""
+
+msgid "sources"
+msgstr ""
+
+msgid "This source is offline at the moment. Try another source of the channel."
+msgstr ""
+
+msgid ""
+"weeb.tv streams need a weeb.tv account - enter the login in the host "
+"configuration (Web streams, WeebTV)"
+msgstr ""

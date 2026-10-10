@@ -5551,3 +5551,486 @@ msgstr "\"Neueste Videos\" aller YouTube-Kanäle einer Gruppe anzeigen"
 msgid "----- HIDDEN OPTIONS (OK) -----"
 msgstr "----- VERSTECKTE OPTIONEN (OK) -----"
 
+#, python-format
+msgid "Settings of service [%s] cannot be opened."
+msgstr "Die Einstellungen des Service [%s] können nicht geöffnet werden."
+
+msgid "Alternative proxy server (3)"
+msgstr "Alternativer Proxy Server (3)"
+
+msgid "Alternative proxy server (4)"
+msgstr "Alternativer Proxy Server (4)"
+
+msgid "Alternative proxy server (5)"
+msgstr "Alternativer Proxy Server (5)"
+
+msgid "Default (2 minutes)"
+msgstr "Standard (2 Minuten)"
+
+msgid "1 minute"
+msgstr "1 Minute"
+
+msgid "30 seconds"
+msgstr "30 Sekunden"
+
+msgid "15 seconds"
+msgstr "15 Sekunden"
+
+msgid "5 seconds"
+msgstr "5 Sekunden"
+
+msgid "At the live edge"
+msgstr "Am Live-Punkt"
+
+msgid "Off"
+msgstr "Aus"
+
+msgid "RAM"
+msgstr "RAM"
+
+msgid "Folder on HDD / USB"
+msgstr "Ordner auf HDD / USB"
+
+msgid "unlimited"
+msgstr "unbegrenzt"
+
+msgid ""
+"Torrents are peer-to-peer: while a torrent plays, the receiver connects "
+"to other users and your IP address is visible to them. Depending on your "
+"country, downloading or sharing copyrighted content through torrents may "
+"be illegal - you alone are responsible for what you play. Upload to other"
+" peers stays off unless you switch it on.\n"
+"\n"
+"TorrServer itself is not part of E2iPlayer, it has to be installed "
+"separately."
+msgstr ""
+"Torrents sind Peer-to-Peer: Während ein Torrent läuft, verbindet sich der"
+" Receiver mit anderen Nutzern, und Ihre IP-Adresse ist für diese "
+"sichtbar. Je nach Land kann das Herunterladen oder Teilen "
+"urheberrechtlich geschützter Inhalte über Torrents illegal sein - Sie "
+"allein sind dafür verantwortlich, was Sie abspielen. Der Upload an andere"
+" Peers bleibt aus, solange Sie ihn nicht einschalten.\n"
+"\n"
+"TorrServer selbst ist nicht Teil von E2iPlayer und muss separat "
+"installiert werden."
+
+msgid "Remember a host's pin until E2iPlayer is closed"
+msgstr "PIN eines Hosts merken, bis E2iPlayer geschlossen wird"
+
+msgid "API Key"
+msgstr "API-Schlüssel"
+
+msgid "----- TORRENT CONFIGURATION (OK) -----"
+msgstr "----- TORRENT-KONFIGURATION (OK) -----"
+
+msgid "Play torrents with TorrServer"
+msgstr "Torrents mit TorrServer abspielen"
+
+msgid "TorrServer binary (OK = choose, empty = search automatically)"
+msgstr "TorrServer-Programmdatei (OK = auswählen, leer = automatisch suchen)"
+
+msgid "TorrServer port"
+msgstr "TorrServer-Port"
+
+msgid "TorrServer web interface in the home network"
+msgstr "TorrServer-Weboberfläche im Heimnetz"
+
+msgid "Cache location"
+msgstr "Cache-Speicherort"
+
+msgid "Cache folder"
+msgstr "Cache-Ordner"
+
+msgid "Cache size on disk"
+msgstr "Cache-Größe auf dem Datenträger"
+
+msgid "Delete the cache when the torrent is closed"
+msgstr "Cache löschen, wenn der Torrent geschlossen wird"
+
+msgid "Cache size in RAM"
+msgstr "Cache-Größe im RAM"
+
+msgid "Fill cache before playback"
+msgstr "Cache vor der Wiedergabe füllen"
+
+msgid "Read ahead (share of the cache)"
+msgstr "Vorauslesen (Anteil am Cache)"
+
+msgid "Connections per torrent"
+msgstr "Verbindungen pro Torrent"
+
+msgid "Download speed limit"
+msgstr "Download-Geschwindigkeitslimit"
+
+msgid "Allow upload to other peers (seeding)"
+msgstr "Upload an andere Peers erlauben (Seeding)"
+
+msgid "Upload speed limit"
+msgstr "Upload-Geschwindigkeitslimit"
+
+msgid "Encrypted connections only"
+msgstr "Nur verschlüsselte Verbindungen"
+
+msgid "Close an unused torrent after"
+msgstr "Unbenutzten Torrent schließen nach"
+
+msgid "DLNA server of TorrServer"
+msgstr "DLNA-Server von TorrServer"
+
+msgid "Stop TorrServer when E2iPlayer is closed"
+msgstr "TorrServer beenden, wenn E2iPlayer geschlossen wird"
+
+msgid "Select the TorrServer binary"
+msgstr "TorrServer-Programmdatei auswählen"
+
+msgid "Choose the TorrServer binary"
+msgstr "TorrServer-Programmdatei auswählen"
+
+msgid "Search automatically"
+msgstr "Automatisch suchen"
+
+msgid "Switch on torrent playback?"
+msgstr "Torrent-Wiedergabe einschalten?"
+
+msgid "Pin protection for this host"
+msgstr "PIN-Schutz für diesen Host"
+
+msgid "Use own pin instead of the player pin"
+msgstr "Eigenen PIN statt des Player-PINs verwenden"
+
+msgid "Change own pin"
+msgstr "Eigenen PIN ändern"
+
+msgid "Set own pin"
+msgstr "Eigenen PIN festlegen"
+
+msgid "as Chrome this session"
+msgstr "als Chrome in dieser Sitzung"
+
+msgid "Page:"
+msgstr "Seite:"
+
+msgid "Last"
+msgstr "Letzte"
+
+msgid "The server did not send a subtitle file."
+msgstr "Der Server hat keine Untertiteldatei gesendet."
+
+#, python-format
+msgid ""
+"curl-impersonate is not installed on the receiver (%s). This stream only "
+"plays with it."
+msgstr ""
+"curl-impersonate ist auf dem Receiver nicht installiert (%s). Dieser "
+"Stream spielt nur damit."
+
+#, python-format
+msgid "The helper script %s is missing."
+msgstr "Das Hilfsskript %s fehlt."
+
+msgid "Python was not found on the receiver."
+msgstr "Python wurde auf dem Receiver nicht gefunden."
+
+msgid "The helper process ended unexpectedly."
+msgstr "Der Hilfsprozess wurde unerwartet beendet."
+
+#, python-format
+msgid "Download \"%s\" (for this receiver) from %s"
+msgstr "Laden Sie \"%s\" (für diesen Receiver) von %s herunter"
+
+#, python-format
+msgid "Download the Linux file for the CPU of this receiver from %s"
+msgstr "Laden Sie die Linux-Datei für die CPU dieses Receivers von %s herunter"
+
+msgid ""
+"TorrServer was not found on the receiver. It is not part of E2iPlayer and"
+" not in the image feeds - install it yourself:"
+msgstr ""
+"TorrServer wurde auf dem Receiver nicht gefunden. Er ist nicht Teil von "
+"E2iPlayer und nicht in den Image-Feeds - installieren Sie ihn selbst:"
+
+msgid ""
+"Copy it to /usr/bin/TorrServer (or a folder on HDD/USB) and make it "
+"executable (chmod 755)."
+msgstr ""
+"Kopieren Sie sie nach /usr/bin/TorrServer (oder in einen Ordner auf "
+"HDD/USB) und machen Sie sie ausführbar (chmod 755)."
+
+msgid ""
+"Not in /usr/bin: choose the file under \"TorrServer binary\" in the "
+"torrent configuration."
+msgstr ""
+"Nicht in /usr/bin: Wählen Sie die Datei unter \"TorrServer-"
+"Programmdatei\" in der Torrent-Konfiguration aus."
+
+msgid "This video is Premium-only content."
+msgstr "Dieses Video ist ein reiner Premium-Inhalt."
+
+msgid "The video has been removed."
+msgstr "Das Video wurde entfernt."
+
+msgid ""
+"Vimeo: this video is private, removed or may only be played on the site "
+"that embeds it."
+msgstr ""
+"Vimeo: Dieses Video ist privat, entfernt oder darf nur auf der "
+"einbettenden Seite abgespielt werden."
+
+#, python-format
+msgid ""
+"%s blocks the connection of the receiver (HTTP 403). Please choose "
+"another server."
+msgstr ""
+"%s blockiert die Verbindung des Receivers (HTTP 403). Bitte wählen Sie "
+"einen anderen Server."
+
+#, python-format
+msgid ""
+"%s blocks the connection of the receiver (HTTP 403). It only plays with "
+"curl-impersonate installed on the receiver - otherwise please choose "
+"another server."
+msgstr ""
+"%s blockiert die Verbindung des Receivers (HTTP 403). Es spielt nur mit "
+"auf dem Receiver installiertem curl-impersonate - andernfalls wählen Sie "
+"bitte einen anderen Server."
+
+#, python-format
+msgid "%s: decrypting the stream, this can take a while (%d s)"
+msgstr "%s: Der Stream wird entschlüsselt, das kann eine Weile dauern (%d s)"
+
+#, python-format
+msgid "%s could not solve the captcha."
+msgstr "%s konnte das Captcha nicht lösen."
+
+msgid ""
+"MixDrop: this file is not available as a video stream (deleted or "
+"download only)."
+msgstr ""
+"MixDrop: Diese Datei ist nicht als Videostream verfügbar (gelöscht oder "
+"nur Download)."
+
+msgid ""
+"The hoster sends an advert redirect instead of the video at the moment. "
+"Try another hoster."
+msgstr ""
+"Der Hoster liefert zurzeit eine Werbeumleitung statt des Videos. "
+"Versuchen Sie einen anderen Hoster."
+
+msgid "The link has expired. Please open the video again."
+msgstr "Der Link ist abgelaufen. Bitte öffnen Sie das Video erneut."
+
+msgid "Video link not found."
+msgstr "Videolink nicht gefunden."
+
+msgid "Encrypted stream list - not supported"
+msgstr "Verschlüsselte Streamliste - nicht unterstützt"
+
+msgid "netu/hqq: the player check failed, try again later."
+msgstr ""
+"netu/hqq: Die Player-Prüfung ist fehlgeschlagen, versuchen Sie es später "
+"erneut."
+
+msgid ""
+"Torrent links are played with TorrServer.\n"
+"Switch on \"Play torrents with TorrServer\" in the E2iPlayer settings "
+"(Torrent configuration)."
+msgstr ""
+"Torrent-Links werden mit TorrServer abgespielt.\n"
+"Schalten Sie \"Torrents mit TorrServer abspielen\" in den E2iPlayer-"
+"Einstellungen (Torrent-Konfiguration) ein."
+
+#, python-format
+msgid "TorrServer could not be started (%s)."
+msgstr "TorrServer konnte nicht gestartet werden (%s)."
+
+msgid "TorrServer got no file list for this torrent (no peers or a dead link?)."
+msgstr ""
+"TorrServer hat für diesen Torrent keine Dateiliste erhalten (keine Peers "
+"oder toter Link?)."
+
+msgid "The OpenSubtitles.com server did not answer. Please try again later."
+msgstr ""
+"Der OpenSubtitles.com-Server hat nicht geantwortet. Bitte versuchen Sie "
+"es später erneut."
+
+#, python-format
+msgid ""
+"OpenSubtitles.com rejected the request (HTTP %s). Please check the API "
+"key in the E2iPlayer settings."
+msgstr ""
+"OpenSubtitles.com hat die Anfrage abgelehnt (HTTP %s). Bitte prüfen Sie "
+"den API-Schlüssel in den E2iPlayer-Einstellungen."
+
+msgid "Too many requests. Please try again later."
+msgstr "Zu viele Anfragen. Bitte versuchen Sie es später erneut."
+
+msgid ""
+"OpenSubtitles.com needs an API key. Create a free API consumer at "
+"https://www.opensubtitles.com/consumers and enter its key in the "
+"E2iPlayer settings (Subtitles)."
+msgstr ""
+"OpenSubtitles.com benötigt einen API-Schlüssel. Legen Sie unter "
+"https://www.opensubtitles.com/consumers kostenlos einen API-Consumer an "
+"und tragen Sie dessen Schlüssel in den E2iPlayer-Einstellungen "
+"(Untertitel) ein."
+
+#, python-format
+msgid ""
+"OpenSubtitles.com login failed for user \"%s\". Please check your login "
+"and password."
+msgstr ""
+"OpenSubtitles.com-Anmeldung für Benutzer \"%s\" fehlgeschlagen. Bitte "
+"prüfen Sie Benutzername und Passwort."
+
+msgid "No subtitles found."
+msgstr "Keine Untertitel gefunden."
+
+msgid "Hearing impaired"
+msgstr "Für Hörgeschädigte"
+
+msgid "machine translated"
+msgstr "maschinell übersetzt"
+
+msgid "Foreign parts only"
+msgstr "Nur fremdsprachige Teile"
+
+#, python-format
+msgid "Downloads: %s"
+msgstr "Downloads: %s"
+
+#, python-format
+msgid "Author: %s"
+msgstr "Autor: %s"
+
+msgid "The daily download limit is reached."
+msgstr "Das tägliche Download-Limit ist erreicht."
+
+msgid ""
+"An opensubtitles.com account (login and password in the E2iPlayer "
+"settings) raises the limit."
+msgstr ""
+"Ein opensubtitles.com-Konto (Benutzername und Passwort in den E2iPlayer-"
+"Einstellungen) erhöht das Limit."
+
+msgid "First Page"
+msgstr "Erste Seite"
+
+#, python-format
+msgid "The service \"%s\" is protected by a PIN, open it on the receiver."
+msgstr ""
+"Der Service \"%s\" ist durch eine PIN geschützt, öffnen Sie ihn am "
+"Receiver."
+
+msgid "Latest episodes"
+msgstr "Neueste Episoden"
+
+msgid "No stream available"
+msgstr "Kein Stream verfügbar"
+
+#, python-format
+msgid "Youth protection: only available between %s and %s."
+msgstr "Jugendschutz: nur zwischen %s und %s verfügbar."
+
+msgid "Not available in your country (geo-blocking)."
+msgstr "In Ihrem Land nicht verfügbar (Geoblocking)."
+
+msgid "MyE2i (solve on your phone/PC)"
+msgstr "MyE2i (auf Handy/PC lösen)"
+
+msgid "Tags"
+msgstr "Tags"
+
+msgid "All videos"
+msgstr "Alle Videos"
+
+#, python-format
+msgid "Rating: %s"
+msgstr "Bewertung: %s"
+
+msgid "No matching entries found."
+msgstr "Keine passenden Einträge gefunden."
+
+msgid "Released"
+msgstr "Veröffentlicht"
+
+msgid "Search string must have at least 4 characters."
+msgstr "Der Suchbegriff muss mindestens 4 Zeichen haben."
+
+msgid "Recently added"
+msgstr "Zuletzt hinzugefügt"
+
+msgid "Top rated movies"
+msgstr "Bestbewertete Filme"
+
+msgid "Family"
+msgstr "Familie"
+
+msgid "Series genres"
+msgstr "Serien-Genres"
+
+msgid "No episodes available yet."
+msgstr "Noch keine Episoden verfügbar."
+
+msgid "No free player available for this title."
+msgstr "Für diesen Titel ist kein kostenloser Player verfügbar."
+
+#, python-format
+msgid "Live stream starts %s"
+msgstr "Live-Stream beginnt %s"
+
+msgid "Live streams by day"
+msgstr "Live-Streams nach Tag"
+
+msgid "Popular sports"
+msgstr "Beliebte Sportarten"
+
+msgid "Top leagues and clubs"
+msgstr "Top-Ligen und -Vereine"
+
+msgid "Tomorrow"
+msgstr "Morgen"
+
+msgid "Upcoming"
+msgstr "Demnächst"
+
+msgid "Leagues, clubs and events"
+msgstr "Ligen, Vereine und Events"
+
+msgid "Clubs and athletes"
+msgstr "Vereine und Sportler"
+
+msgid "No free videos or live streams here at the moment."
+msgstr "Hier gibt es derzeit keine kostenlosen Videos oder Live-Streams."
+
+msgid "This content needs a login - not supported."
+msgstr "Dieser Inhalt erfordert eine Anmeldung - nicht unterstützt."
+
+#, python-format
+msgid "Clipped by: %s"
+msgstr "Geclippt von: %s"
+
+msgid "Live channels"
+msgstr "Live-Kanäle"
+
+msgid "VAVOO did not hand out a session signature. Try again later."
+msgstr ""
+"VAVOO hat keine Sitzungssignatur ausgegeben. Bitte versuchen Sie es "
+"später erneut."
+
+msgid "Next"
+msgstr "Nächste"
+
+msgid "sources"
+msgstr "Quellen"
+
+msgid "This source is offline at the moment. Try another source of the channel."
+msgstr ""
+"Diese Quelle ist derzeit offline. Versuchen Sie eine andere Quelle des "
+"Senders."
+
+msgid ""
+"weeb.tv streams need a weeb.tv account - enter the login in the host "
+"configuration (Web streams, WeebTV)"
+msgstr ""
+"weeb.tv-Streams benötigen ein weeb.tv-Konto - geben Sie die Anmeldedaten "
+"in der Host-Konfiguration ein (Web streams, WeebTV)"

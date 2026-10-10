@@ -444,6 +444,9 @@ class Body():
         tempText = '<body bgcolor=\"#666666\" text=\"#FFFFFF\">\n'
         tempText += IncludeMENU(MenuStatusMSG, ShowCancelButton)
         tempText += '<div class="main">\n'
+        if getattr(settings, 'pinLockedHost', '') and 'Name' not in settings.activeHost.keys():
+            # initActiveHost() refused a PIN protected host
+            tempText += '<p><b>%s</b></p>\n' % (_('The service "%s" is protected by a PIN, open it on the receiver.') % settings.pinLockedHost)
         #Status table
         if not isNewHostListShown() and not isThreadRunning('doUseHostAction') and 'Name' in settings.activeHost.keys():
             tempText += '<table border="0" cellspacing="5px"><tbody>\n'

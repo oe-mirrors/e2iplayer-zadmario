@@ -14,6 +14,7 @@ import Plugins.Extensions.IPTVPlayer.components.iptvplayerwidget
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdmapi import IPTVDMApi, DMItem
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdownloadercreator import IsUrlDownloadable
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import GetHostsList, IsHostEnabled, SaveHostsOrderList, SortHostsList, GetLogoDir, GetHostsOrderList, getDebugMode, formatBytes, printDBG
+from Plugins.Extensions.IPTVPlayer.components.iptvhostpin import IsHostPinProtected
 from Components.config import config
 
 ########################################################
@@ -61,7 +62,8 @@ class buildActiveHostsHTML(threading.Thread):
         for hostName in SortHostsList(GetHostsList()):
             if hostName in ['localmedia', 'urllist']: # those are local hosts, nothing to do via web interface
                 continue
-            if not IsHostEnabled(hostName):
+            # a PIN protected host stays GUI only: the web interface cannot ask for the PIN
+            if not IsHostEnabled(hostName) or IsHostPinProtected(hostName):
                 continue
             # column 1 containing logo and link if available
             try:
@@ -209,8 +211,8 @@ class buildConfigsHTML(threading.Thread):
                 hostNameWithURLandLOGO = '<a>%s</a>' % (logo)
             # Column 2 TBD
 
-            # Column 3 enable/disable host in GUI
-            if IsHostEnabled(hostName):
+            # Column 3 enable/disable host in GUI - the host's own switch (a torrent host stays "on" while TorrServer is off)
+            if IsHostEnabled(hostName, switchOnly=True):
                 OnOffState = formSUBMITvalue([('cmd', 'OFF:host' + hostName)], _('Disable'))
             else:
                 OnOffState = formSUBMITvalue([('cmd', 'ON:host' + hostName)], _('Enable'))
@@ -305,6 +307,9 @@ class doUseHostAction(threading.Thread):
             else:
                 print("selectResolvedVideoLinks: wrong status or value")
 
+        elif self.key == 'ListForItem' and self.arg.isdigit() and getattr(settings.retObj.value[int(self.arg)], 'pinLocked', False):
+            # e.g. a favourite of a PIN protected host - the web interface cannot ask for the PIN
+            print("ListForItem: entry is protected by a PIN, open it on the receiver")
         elif self.key == 'ListForItem' and self.arg.isdigit():
             myID = int(self.arg)
             settings.activeHost['selectedItemType'] = settings.retObj.value[myID].type
@@ -343,7 +348,8 @@ class doUseHostAction(threading.Thread):
             settings.retObj = settings.activeHost['Obj'].getSearchResults(self.arg, self.searchType)
         elif self.key == 'activeHostSearchHistory' and self.arg != '':
             initActiveHost(self.arg)
-            settings.retObj = settings.activeHost['Obj'].getSearchResults(settings.GlobalSearchQuery, '')
+            if isActiveHostInitiated():
+                settings.retObj = settings.activeHost['Obj'].getSearchResults(settings.GlobalSearchQuery, '')
 ########################################################
 
 
@@ -383,7 +389,7 @@ class doGlobalSearch(threading.Thread):
                 continue
             elif hostName in ['seriesonline']: # those hosts have issues wth global search, need more investigation
                 continue
-            elif not IsHostEnabled(hostName):
+            elif not IsHostEnabled(hostName) or IsHostPinProtected(hostName):
                 continue
             #print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ---------------- %s ---------------- !!!!!!!!!!!!!!!!!!!!!!!!!" % hostName)
             try:

@@ -320,6 +320,8 @@ class IPTVSubDownloaderWidget(Screen):
             _temp = __import__('Plugins.Extensions.IPTVPlayer.subproviders.subprov_' + self.hostName, globals(), locals(), ['IPTVSubProvider'], 0) #absolute import for P3 compatybility
             params = dict(self.params)
             params['confirmed_title'] = self.movieTitle
+            # the stream / file name as it came - release tags (1080p, BluRay, group) for ranking the subtitles
+            params['release_title'] = self.params.get('movie_title', '')
             self.host = _temp.IPTVSubProvider(params)
             if not isinstance(self.host, ISubProvider):
                 printDBG("Host [%r] does not inherit from ISubProvider" % self.hostName)
@@ -603,6 +605,7 @@ class IPTVSubDownloaderWidget(Screen):
         subtitlesgr = {'title': "Subtitles.gr", 'sub_provider': 'subtitlesgr'}
         prijevodi = {'title': "Prijevodi-Online.org", 'sub_provider': 'prijevodi'}
         subsro = {'title': "Subs.ro", 'sub_provider': 'subsro'}
+        openSubtitlesCom = {'title': "OpenSubtitles.com API", 'sub_provider': 'opensubtitlescom'}
 
         defaultLang = GetDefaultLang()
 
@@ -629,6 +632,8 @@ class IPTVSubDownloaderWidget(Screen):
         subProvidersList.append(openSubtitles2)
         subProvidersList.append(openSubtitles3)
         subProvidersList.append(openSubtitles)
+        # needs an API key in the settings
+        subProvidersList.append(openSubtitlesCom)
         subProvidersList.append(podnapisinet)
         subProvidersList.append(titlovi)
         subProvidersList.append(subscene)

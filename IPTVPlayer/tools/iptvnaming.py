@@ -107,7 +107,7 @@ def normalizeMediathekTitle(classicTitle, date='', year='', sxeHint='', isMovie=
         # drop only a trailing "| ..." segment that is clearly a mediathek meta
         # tail, never a real subtitle that happens to use a pipe
         tail = title.rsplit('|', 1)[-1] if '|' in title else ''
-        if tail and re.search(r'verf[uü]gbar|Video|UT\b|H[oö]rfassung|Audiodeskription|\bmin\b|\d{1,2}\.\d{1,2}\.\d{2,4}', tail, re.I):
+        if tail and re.search(r'verf(?:u|ü)gbar|Video|UT\b|H(?:o|ö)rfassung|Audiodeskription|\bmin\b|\d{1,2}\.\d{1,2}\.\d{2,4}', tail, re.I):
             title = title.rsplit('|', 1)[0].strip() or classicTitle
         title = re.sub(r'\s{2,}', ' ', title)
 

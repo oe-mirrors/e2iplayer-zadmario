@@ -286,6 +286,11 @@ def clean_html(html):
         return ""
     if isinstance(html, bytes) and not isPY2():
         html = ensure_str(html)
+    elif isPY2() and isinstance(html, str):
+        # Python 2: HTMLParser.unescape() gives unicode for an entity and failed (UnicodeDecodeError) on a
+        # UTF-8 byte string with umlauts and an entity ("K\xc3\xbcche &amp; Bad"); ensure_str() at the end
+        # makes it UTF-8 bytes again
+        html = html.decode("utf-8", "replace")
     html = CDATA_RE.sub(r"\1", html)
     html = STRIP_HTML_COMMENT_RE.sub("", html)
     html = SCRIPT_STYLE_RE.sub(" ", html)

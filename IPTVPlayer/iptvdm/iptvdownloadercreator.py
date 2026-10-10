@@ -22,7 +22,11 @@ from Plugins.Extensions.IPTVPlayer.iptvdm.rtmpdownloader import RtmpDownloader
 from Plugins.Extensions.IPTVPlayer.iptvdm.f4mdownloader import F4mDownloader
 from Plugins.Extensions.IPTVPlayer.iptvdm.mergedownloader import MergeDownloader
 from Plugins.Extensions.IPTVPlayer.iptvdm.ffmpegdownloader import FFMPEGDownloader
+from Plugins.Extensions.IPTVPlayer.iptvdm.impersonatehlsdownloader import ImpersonateHLSDownloader  # add 071026
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdh import DMHelper
+from Plugins.Extensions.IPTVPlayer.p2p3.pVer import isPY2
+if not isPY2():
+    basestring = str  # the url check in DownloaderCreator() raised a NameError on Python 3
 ###################################################
 
 ###################################################
@@ -155,6 +159,20 @@ def DownloaderCreator(url, forDownload=False):
         printDBG("DownloaderCreator: echter Download von YouTube merge:// -> MergeDownloader")
         try:
             return MergeDownloader()
+        except Exception:
+            printExc()
+
+    #################################################
+    # add 071026: HLS whose CDN answers 403 to every OpenSSL
+    # client (hlsdl, ffmpeg, wget) - only curl-impersonate
+    # gets the playlist and the segments. Set by
+    # urlparserhelper.getImpersonateM3U8Playlist, for
+    # buffered playback and real downloads alike.
+    #################################################
+    if urlMeta.get('iptv_impersonate_hls', False):
+        printDBG("DownloaderCreator: iptv_impersonate_hls -> ImpersonateHLSDownloader")
+        try:
+            return ImpersonateHLSDownloader()
         except Exception:
             printExc()
 

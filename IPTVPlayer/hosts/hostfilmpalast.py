@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-# Last Modified: 06.08.2026 - Centralized watched helper integration incl. favourite hash sync, Custom menu action handling (mark/unmark watched) added, sidecar/MKV article request now skipped when both are disabled - Kamikaze24
-# Last Modified: 23.08.2026 - getSuggestionsProvider() added (forces Google search suggestions) - Kamikaze24
+# Last Modified: 10.10.2026
+# 23.08.2026 - getSuggestionsProvider() added (forces Google search suggestions) - Kamikaze24
+# 10.10.2026 - links are no longer renamed to "*name*" after use - that broke the link list's own used mark (tick + colour)
 ###################################################
 # LOCAL import
 ###################################################
@@ -389,24 +390,24 @@ class FilmPalastTo(CBaseHostClass):
         sidecarLines = []
 
         if imdb_rating and imdb_rating != "-":
-            sidecarLines.append(u"IMDb: %s" % imdb_rating)
+            sidecarLines.append("IMDb: %s" % imdb_rating)
 
         infoLine = []
         if sidecarYear:
-            infoLine.append(u"Jahr: %s" % sidecarYear)
+            infoLine.append("Jahr: %s" % sidecarYear)
         if sidecarDuration:
-            infoLine.append(u"Spielzeit: %s" % sidecarDuration)
+            infoLine.append("Spielzeit: %s" % sidecarDuration)
         if infoLine:
-            sidecarLines.append(u" / ".join(infoLine))
+            sidecarLines.append(" / ".join(infoLine))
 
         if sidecarGenre:
             sidecarLines.append(sidecarGenre)
 
         if sidecarLines:
-            prefix = u"\n".join(sidecarLines)
+            prefix = "\n".join(sidecarLines)
             if sidecarTxt:
                 if not sidecarTxt.startswith("IMDb:"):
-                    sidecarTxt = prefix + u"\n\n" + sidecarTxt
+                    sidecarTxt = prefix + "\n\n" + sidecarTxt
             else:
                 sidecarTxt = prefix
 
@@ -450,11 +451,6 @@ class FilmPalastTo(CBaseHostClass):
             return decorateResolvedLinkItems(videoLinks, sidecar, cfgMkvEnabled)
 
         key = videoUrl.meta.get("links_key", "")
-        if key != "":
-            if key in self.cacheLinks:
-                for idx in range(len(self.cacheLinks[key])):
-                    if self.cacheLinks[key][idx]["url"] == videoUrl and not self.cacheLinks[key][idx]["name"].startswith("*"):
-                        self.cacheLinks[key][idx]["name"] = "*" + self.cacheLinks[key][idx]["name"]
 
         data_id = videoUrl.meta.get("data_id", "")
         data_stamp = videoUrl.meta.get("data_stamp", "")
@@ -607,7 +603,7 @@ class FilmPalastTo(CBaseHostClass):
             self.listSearchResult(cItem, searchPattern, searchType)
         # HISTORIA SEARCH
         elif category == "search_history":
-            self.listsHistory({"name": "history", "category": "search"}, "desc", _("Type: "))
+            self.listsHistory({"name": "history", "category": "search"}, "desc")
         else:
             printExc()
 
