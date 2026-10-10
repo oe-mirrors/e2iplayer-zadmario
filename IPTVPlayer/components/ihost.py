@@ -25,9 +25,15 @@ from Screens.MessageBox import MessageBox
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlParse import urljoin
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import isPY2
 from Plugins.Extensions.IPTVPlayer.components.searchhistoryeditor import SearchHistoryEditor
+from Plugins.Extensions.IPTVPlayer.components.iptvhostpin import HostNameOf, IsHostPinProtected, GetHostPinCode
+from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
+import re
 if not isPY2():
     basestring = str
 ######################################################
+
+# icon urls scraped from JSON inside a page instead of decoding it: "https:\/\/x\/a.jpg?w=1&h=2"
+ICON_JSON_ESCAPE_RE = re.compile(r'\\u([0-9a-fA-F]{4})')
 
 
 class CUrlItem:
@@ -130,6 +136,8 @@ class CDisplayListItem:
             self.pinLocked = False
 
         self.pinCode = str(pinCode)
+        # name of the PIN protected host a favourite comes from ('' = none)
+        self.pinHost = ''
 
         if isGoodForFavourites:
             self.isGoodForFavourites = True
@@ -318,15 +326,14 @@ class RetHost:
 
 class IHost:
 
+    # PIN protection per host (components/iptvhostpin.py): set in the host's settings, no host code needed
     def isProtectedByPinCode(self):
-        return False
+        return IsHostPinProtected(HostNameOf(self))
 
-    # optional per-host PIN code, checked instead of the global player
-    # PIN when isProtectedByPinCode() is True. Return '' (default) to
-    # keep using the global player PIN - only a host that overrides
-    # this to return its own 4-digit code opts out of that default.
+    # the host's own PIN, checked instead of the global player PIN when isProtectedByPinCode() is True;
+    # '' = the global player PIN
     def getPinCode(self):
-        return ''
+        return GetHostPinCode(HostNameOf(self))
 
     # return list of types which can be added as favourite
     def getSupportedFavoritesTypes(self):
@@ -697,11 +704,12 @@ class CHostBase(IHost):
         try:
             list = self.host.getCurrList()
             for i in range(len(list)):
-                if list[i]['category'] == 'search':
+                if list[i].get('category', '') == 'search':
                     return i
         except Exception:
             printDBG('getSearchItemInx EXCEPTION')
-            return -1
+        # no search row: -1 (None failed in the "> -1" check on Python 3)
+        return -1
 
     def setSearchPattern(self):
         try:
@@ -742,7 +750,21 @@ class CHostBase(IHost):
     def getDefaulIcon(self, cItem):
         return self.host.getDefaulIcon(cItem)
 
+    @staticmethod
+    def cleanIconUrl(url):
+        # JSON escapes and stray quotes a host copied along with the icon url
+        if not isinstance(url, str) or not url:
+            return url
+        clean = url.strip().strip('"\'')
+        if '\\' in clean:
+            # json_loads instead of chr(): py2 chr() only takes 0-255
+            clean = ICON_JSON_ESCAPE_RE.sub(lambda m: ensure_str(json_loads('"%s"' % m.group(0))), clean.replace('\\/', '/'))
+        if clean == url:
+            return url
+        return strwithmeta(clean, url.meta) if isinstance(url, strwithmeta) else clean
+
     def getFullIconUrl(self, url, currUrl=None):
+        url = self.cleanIconUrl(url)
         if currUrl is not None:
             return self.host.getFullIconUrl(url, currUrl)
         else:
@@ -818,6 +840,7 @@ class CHostBase(IHost):
                                     isGoodForFavourites=isGoodForFavourites,
                                     textColor=textColor,
                                     pinCode=pinCode, imageType=imageType)
+        hostItem.pinHost = cItem.get('pin_host', '')
         # a pager entry's 'page' is the page it leads to: the header path takes the list's page from it, also after a
         # jump, where counting the steps cannot know the page
         if type == CDisplayListItem.TYPE_NEXT or imageType in (CDisplayListItem.TYPE_NEXT, CDisplayListItem.TYPE_FIRST,

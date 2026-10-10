@@ -13,7 +13,7 @@ if not isPY2():
     basestring = str
     unicode = str
     from functools import cmp_to_key
-from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib2_urlopen, urllib2_Request, urllib2_URLError, urllib2_HTTPError
+from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib2_urlopen, urllib2_Request, urllib2_URLError, urllib2_HTTPError, urllib_quote
 from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import strDecode, iterDictItems, ensure_str, ensure_binary
 ###################################################
 
@@ -165,7 +165,9 @@ def GetNice(pid=None):
     try:
         with open(filePath, 'r') as f:
             data = f.read()
-            data = data.split(' ')[19]
+            # field 19 is nice (field 20 is num_threads); comm (field 2) may contain
+            # spaces, so count from the closing ')' where field 3 (state) starts
+            data = data.rsplit(')', 1)[1].split()[16]
             nice = int(data)
     except Exception:
         printExc()
@@ -746,11 +748,48 @@ def GetDebugLogPath():
     return '/hdd/iptv.dbg' if DBG == 'debugfile' else DBG
 
 
+# Credentials a host knows (an IPTV account's password, a portal's MAC) that also end up in lines the host does
+# not write itself - stream urls like /live/<user>/<password>/1.m3u8 in the downloader / player lines. A host
+# registers them once, printDBG then masks them in every line (only as a whole word, so a short password does
+# not mask parts of other words). Users post their debug log.
+_g_log_secrets = set()
+_g_log_secrets_re = [None]
+
+
+def registerLogSecret(*values):
+    changed = False
+    for value in values:
+        try:
+            value = ensure_str(value).strip() if value else ''
+        except Exception:
+            continue
+        if len(value) < 3 or value in _g_log_secrets:
+            continue
+        for form in set([value, value.lower(), value.upper(), urllib_quote(value, safe='')]):
+            _g_log_secrets.add(form)
+        changed = True
+    if changed:
+        # longest first, so "user%40x" is masked before "user"
+        alternatives = '|'.join(re.escape(s) for s in sorted(_g_log_secrets, key=len, reverse=True))
+        _g_log_secrets_re[0] = re.compile(r'(?<![A-Za-z0-9])(?:%s)(?![A-Za-z0-9])' % alternatives)
+
+
+def maskLogSecrets(text):
+    regex = _g_log_secrets_re[0]
+    if regex is None:
+        return text
+    try:
+        return regex.sub('***', text if isinstance(text, basestring) else str(text))
+    except Exception:
+        return text
+
+
 def printDBG(DBGtxt, writeMode='a'):
     DBG = getDebugMode()
     if DBG == '':
         return
-    elif DBG == 'console':
+    DBGtxt = maskLogSecrets(DBGtxt)
+    if DBG == 'console':
         print(DBGtxt)
     else:
         if DBG == 'debugfile':
@@ -951,14 +990,159 @@ def GetSkinsList():
     return skins
 
 
-def IsHostEnabled(hostName):
+# hosts that only play through TorrServer - the same hosts as the "torrent" group of hosts/hostgroups.txt;
+# hidden everywhere while torrent playback is off
+TORRENT_HOSTS = ('arabp2p', 'eztv', 'torrent9', 'torrentdb', 'torrentgalaxy', 'yts')
+
+
+def IsTorrentPlaybackEnabled():
+    try:
+        return bool(config.plugins.iptvplayer.torrserver_enabled.value)
+    except Exception:
+        return False
+
+
+def IsHostEnabled(hostName, switchOnly=False):
+    # switchOnly: just the host's own on/off switch (host settings, the switch in the web interface)
     hostEnabled = False
     try:
         if getattr(config.plugins.iptvplayer, 'host' + hostName).value:
             hostEnabled = True
     except Exception:
         hostEnabled = False
+    if hostEnabled and not switchOnly and hostName in TORRENT_HOSTS:
+        hostEnabled = IsTorrentPlaybackEnabled()
     return hostEnabled
+
+
+# host titles read from the host file instead of importing it: almost every host has
+# "def gettytul(): return '<fixed text>'" (or _('<text>')) - used by the host PIN dialogs
+_HOST_TITLE_DEF_RE = re.compile(r'^def\s+gettytul\s*\(\s*\)\s*:\s*(?:#.*)?$')
+# (the lines are rstrip()ed before they are matched)
+_HOST_TITLE_RETURN_RE = re.compile(r'''^\s+return\s+(_\(\s*)?([rRuU]?(?:'[^'\\]*(?:\\.[^'\\]*)*'|"[^"\\]*(?:\\.[^"\\]*)*"))\s*(\)\s*)?(?:#.*)?$''')
+_HOST_TITLE_DOC_RE = re.compile(r'''^\s+[rRuU]?("""|\'\'\'|"|').*\1$''')
+_HOST_TITLE_CACHE = {}
+
+
+def _readHostTitleFromFile(path):
+    # -> the fixed title of the host file's gettytul(), or None when it is not
+    # a single "return <string>" (then the caller imports the host as before)
+    import io
+    from ast import literal_eval
+    with io.open(path, 'r', encoding='utf-8', errors='replace') as f:
+        for line in f:
+            if _HOST_TITLE_DEF_RE.match(line.rstrip()):
+                break
+        else:
+            return None
+        title = None
+        docSkipped = False
+        for line in f:
+            line = line.rstrip()
+            if line.strip() == '' or line.lstrip().startswith('#'):
+                continue
+            if title is None:
+                if not docSkipped and not line.lstrip().startswith('return') and _HOST_TITLE_DOC_RE.match(line):
+                    # one-line docstring
+                    docSkipped = True
+                    continue
+                match = _HOST_TITLE_RETURN_RE.match(line)
+                if not match or bool(match.group(1)) != bool(match.group(3)):
+                    return None
+                title = literal_eval(match.group(2))
+                if not isinstance(title, str):
+                    title = ensure_str(title)
+                if match.group(1):
+                    # zadmario: iptvtools has no module level TranslateTXT
+                    from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT
+                    title = TranslateTXT(title)
+                continue
+            # anything indented after the return means more body -> not a fixed title
+            return title if not line[0].isspace() else None
+        return title
+
+
+def GetHostTitle(hostName):
+    # gettytul() of a host without loading the host; None when the host is
+    # broken (only noticed if its title needs the import). Installs with
+    # only .pyc/.pyo files have nothing to read -> import as before.
+    path = __getHostsPath('host%s.py' % hostName)
+    try:
+        st = os.stat(path)
+        key = (st.st_mtime, st.st_size)
+    except Exception:
+        key = None
+    cached = _HOST_TITLE_CACHE.get(hostName)
+    if cached and cached[0] == key:
+        return cached[1]
+    title = None
+    if key is not None:
+        try:
+            title = _readHostTitleFromFile(path)
+        except Exception:
+            printExc()
+    if title is None:
+        try:
+            module = __import__('Plugins.Extensions.IPTVPlayer.hosts.host' + hostName, globals(), locals(), ['gettytul'], 0)
+            title = module.gettytul()
+        except Exception:
+            printExc('get host name exception for host "%s"' % hostName)
+            return None
+    _HOST_TITLE_CACHE[hostName] = (key, title)
+    return title
+
+
+_RAM_FS_TYPES = ('tmpfs', 'ramfs', 'devtmpfs')
+
+
+def _GetFsTypeFromMounts(resolvedPath, mountsText):
+    # fs type of the longest matching mount point; for equal mount points the later entry wins
+    bestMountPoint = ''
+    fsType = ''
+    for line in mountsText.splitlines():
+        parts = line.split()
+        if len(parts) < 3:
+            continue
+        mountPoint = parts[1].replace('\\040', ' ')  # /proc/mounts escapes blanks
+        if resolvedPath == mountPoint or resolvedPath.startswith(mountPoint.rstrip('/') + '/'):
+            if len(mountPoint) >= len(bestMountPoint):
+                bestMountPoint = mountPoint
+                fsType = parts[2]
+    return fsType
+
+
+def _IsDiskBlockDevice(dev):
+    # the block device behind a device number is a disk (sda1, nvme0n1p1: HDD, SSD, USB stick), not the box's
+    # flash (mmcblk*, mtd*; ubifs has no block device at all)
+    try:
+        name = os.path.basename(os.path.realpath('/sys/dev/block/%d:%d' % (os.major(dev), os.minor(dev))))
+    except Exception:
+        return False
+    return name.startswith(('sd', 'nvme', 'hd'))
+
+
+def IsRealStoragePresent(path):
+    # nearest existing ancestor on another device than "/" (an empty mount-point folder on flash is not storage)
+    check = path.rstrip('/') or '/'
+    while not os.path.isdir(check):
+        parent = os.path.dirname(check)
+        if parent == check:
+            break
+        check = parent
+    try:
+        rootDev = os.stat('/').st_dev
+        # the device of "/" is the box's flash - unless the image itself runs from a disk (NeoBoot, USB boot)
+        if os.stat(check).st_dev == rootDev and not _IsDiskBlockDevice(rootDev):
+            return False
+    except Exception:
+        return False
+    # another device is not enough: some images mount a tiny tmpfs on /media (RAM, gone after reboot)
+    try:
+        with open('/proc/mounts') as f:
+            fsType = _GetFsTypeFromMounts(os.path.realpath(check), f.read())
+    except Exception:
+        fsType = ''  # cannot tell -> keep the device-number verdict
+    return fsType not in _RAM_FS_TYPES
 
 ##############################################################
 # check if we have enough free space
@@ -2232,3 +2416,11 @@ def E2ColoR(color):
         return COLORS_DEFINITIONS.get(color, '') if config.plugins.iptvplayer.use_colors.value else ''
     except AttributeError:
         return ''
+
+
+COLOR_CODE_RE = re.compile(r'\\c[0-9a-fA-F]{8}')
+
+
+def StripColorCodes(text):
+    # the \cAARRGGBB codes of E2ColoR, for places that need the plain text (searches, file names)
+    return COLOR_CODE_RE.sub('', text or '')

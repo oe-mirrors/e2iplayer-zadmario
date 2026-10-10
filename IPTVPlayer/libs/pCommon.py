@@ -25,7 +25,7 @@ if isPY2():
 else:
     import http.cookiejar as cookielib
     from http.client import HTTPMessage, IncompleteRead
-    from io import BytesIO
+    from io import BytesIO, StringIO  # StringIO: _pyCurlLoadCookie (was a NameError on Python 3)
     basestring = str
     file = open
     unichr = chr
@@ -67,10 +67,17 @@ except Exception:
 from binascii import hexlify
 ###################################################
 
-# Query/form fields that carry a credential (captcha services: 2captcha "key", 9kw "apikey",
-# DeathByCaptcha "password"). Their values never go into the debug log - users post it.
-_SECRET_FIELDS = ('key', 'apikey', 'api_key', 'password', 'passwd')
-_SECRET_FIELD_RE = re.compile(r'(?<![A-Za-z0-9_])(%s)=[^&\s\'"]+' % '|'.join(_SECRET_FIELDS), re.IGNORECASE)
+# Query/form fields and headers that carry a credential (captcha services: 2captcha "key", 9kw "apikey",
+# DeathByCaptcha "password"; the "Api-Key" / "Authorization: Bearer ..." headers of APIs such as
+# opensubtitles.com). Their values never go into the debug log - users post it.
+_SECRET_FIELDS = ('key', 'apikey', 'api_key', 'api-key', 'password', 'passwd', 'authorization',
+                  # Stalker / MAG portals (hoststalker.py): the box identity in the query and the "mac=" cookie
+                  'mac', 'sn', 'device_id', 'device_id2', 'signature', 'metrics')
+_SECRET_FIELD_RE = re.compile(r'(?<![A-Za-z0-9_])(%s)=[^&;\s\'"]+' % '|'.join(_SECRET_FIELDS), re.IGNORECASE)
+# the same fields in a JSON body ('{"username": "me", "password": "x"}' sent as raw_post_data)
+_SECRET_JSON_RE = re.compile(r'("(?:%s)"\s*:\s*)"(?:[^"\\]|\\.)*"' % '|'.join(_SECRET_FIELDS), re.IGNORECASE)
+# a header line in a command line (curl-impersonate: "-H Api-Key: x -H Authorization: Bearer y")
+_SECRET_HEADER_RE = re.compile(r'(?<![A-Za-z0-9_-])((?:api-key|authorization)\s*:\s*)(?:(?:bearer|basic)\s+)?[^\s\'"]+', re.IGNORECASE)
 
 
 def maskSecrets(value):
@@ -79,10 +86,11 @@ def maskSecrets(value):
         return {k: '***' if str(k).lower() in _SECRET_FIELDS else maskSecrets(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
         return type(value)(maskSecrets(v) for v in value)
+    if isinstance(value, bytes) and not isinstance(value, basestring):
+        value = value.decode('utf-8', 'replace')
     if isinstance(value, basestring):  # py2: utf-8 str stays str (a unicode result would break printDBG)
-        return _SECRET_FIELD_RE.sub(r'\1=***', value)
-    if isinstance(value, bytes):
-        return _SECRET_FIELD_RE.sub(r'\1=***', value.decode('utf-8', 'replace'))
+        value = _SECRET_FIELD_RE.sub(r'\1=***', value)
+        return _SECRET_HEADER_RE.sub(r'\1***', _SECRET_JSON_RE.sub(r'\1"***"', value))
     return value
 
 
@@ -94,6 +102,11 @@ def maskSecrets(value):
 # (mlblive.net -> www.mlblive.net, img.mlblive.net), never its parent or sibling domains.
 _impersonateDomains = set()
 _impersonateMissingLogged = [False]
+
+# add 101026: domains with a second browser check behind Cloudflare (HostAdmin.online WAF: kinoger) - MyE2i's
+# CF mode only brings cf_clearance back, their check needs every cookie of the site. Found by getPageCFProtection
+# (Cloudflare solved, then the WAF page); their next challenge starts the cookie mode straight away
+_cookieGateDomains = set()
 
 
 def _impersonateDomain(url):
@@ -766,6 +779,20 @@ class common:
             cj._really_load(StringIO(''.join(lines)), cookiefile, ignore_discard=ignoreDiscard, ignore_expires=ignoreExpires)
         return cj
 
+    def _pyCurlPrepareCookieFile(self, cookiefile):
+        # the reverse of _pyCurlLoadCookie: session cookies get expires 0 (an empty field = line dropped by curl);
+        # rewritten only when such a line may be there. _pyCurlLoadCookie, curlimpersonate.normalizeCookieFile and
+        # a current Python 3 MozillaCookieJar read 0 back as a session cookie
+        if not cookiefile or not os.path.isfile(cookiefile):
+            return
+        try:
+            with open(cookiefile, 'rb') as f:
+                if b'\t\t' not in f.read():
+                    return
+            curlimpersonate.prepareCookieFile(cookiefile, cookiefile)
+        except Exception:
+            printExc()
+
     def clearCookie(self, cookiefile, leaveNames=[], removeNames=None, ignoreDiscard=True, ignoreExpires=False):
         if not os.path.isfile(cookiefile):
             # nothing saved yet for this host - nothing to clear (was logged as an exception)
@@ -983,8 +1010,8 @@ class common:
             if 'User-Agent' not in headers:
                 headers['User-Agent'] = host
 
-            printDBG('pCommon - getPageWithPyCurl() -> params: ' + str(params))
-            printDBG('pCommon - getPageWithPyCurl() -> headers: ' + str(headers))
+            printDBG('pCommon - getPageWithPyCurl() -> params: ' + str(maskSecrets(params)))
+            printDBG('pCommon - getPageWithPyCurl() -> headers: ' + str(maskSecrets(headers)))
 
             if 'save_to_file' in params:
                 fileHandler = file(params['save_to_file'], "wb")
@@ -1053,6 +1080,10 @@ class common:
                     curlSession.setopt(pycurl.COOKIE, cookiesStr) #'Set-Cookie: foo=baar') #
 
                 if params.get('load_cookie', False):
+                    # upd 091026: a file saved by the urllib path (MozillaCookieJar) has an empty "expires" field
+                    # for session cookies (e.g. PHPSESSID) - curl 8.x drops such lines silently and the request
+                    # went out without them; curl wants 0 there (what it writes itself for session cookies)
+                    self._pyCurlPrepareCookieFile(params.get('cookiefile', ''))
                     curlSession.setopt(pycurl.COOKIEFILE, params.get('cookiefile', ''))
 
                 if params.get('save_cookie', False):
@@ -1099,12 +1130,12 @@ class common:
             proxy_gateway = params.get('proxy_gateway', '')
             if proxy_gateway != '':
                 pageUrl = proxy_gateway.format(urllib_quote_plus(pageUrl, ''))
-            printDBG("pageUrl: [%s]" % pageUrl)
+            printDBG("pageUrl: [%s]" % maskSecrets(pageUrl))
 
             curlSession.setopt(pycurl.URL, pageUrl)
 
             if None != post_data:
-                printDBG('pCommon - getPageWithPyCurl() -> post data: ' + str(post_data))
+                printDBG('pCommon - getPageWithPyCurl() -> post data: ' + str(maskSecrets(post_data)))
                 if params.get('raw_post_data', False):
                     curlSession.setopt(pycurl.POSTFIELDS, post_data)
                 elif params.get('multipart_post_data', False):
@@ -1169,7 +1200,11 @@ class common:
                     out_data = ""
 
                 out_data, metadata = self.handleCharset(params, out_data, metadata)
-                if metadata['status_code'] != 200:
+                if params.get('no_redirection', False) and 300 <= metadata['status_code'] < 400:
+                    # fix 071026: a redirect the caller asked not to follow is an answer (target in
+                    # meta['location']) - the urllib path (NoRedirection) and curl-impersonate already say True
+                    sts = True
+                elif metadata['status_code'] != 200:
                     ignoreCodeRanges = params.get('ignore_http_code_ranges', [(404, 404), (500, 500)])
                     for ignoreCodeRange in ignoreCodeRanges:
                         if metadata['status_code'] >= ignoreCodeRange[0] and metadata['status_code'] <= ignoreCodeRange[1]:
@@ -1199,7 +1234,7 @@ class common:
 
         SetThreadKillable(True)
 
-        printDBG('pCommon - getPageWithPyCurl() return -> \nsts: %s\nmetadata: %s\n' % (sts, metadata))
+        printDBG('pCommon - getPageWithPyCurl() return -> \nsts: %s\nmetadata: %s\n' % (sts, maskSecrets(metadata)))
         if params.get('with_metadata', False):
             out_data = strwithmeta(out_data, metadata)
 
@@ -1348,7 +1383,7 @@ class common:
         pageUrl = self.iriToUri(pageUrl)
 
         printDBG('pCommon - %s() -> params: %s' % (caller, maskSecrets(params)))
-        printDBG('pCommon - %s() -> headers: %s' % (caller, headers))
+        printDBG('pCommon - %s() -> headers: %s' % (caller, maskSecrets(headers)))
         printDBG("pageUrl: [%s]" % maskSecrets(pageUrl))
 
         metadata = self.meta
@@ -1508,6 +1543,21 @@ class common:
         printDBG('pCommon - saveWebFileImpersonate() -> %d bytes, HTTP %s, url: %s' % (size, status, maskSecrets(res['url'])))
         return {'sts': True, 'fsize': size, 'reason': ''}
 
+    def _gatePageOnSuccess(self, data, baseUrl):
+        '''a getPage "success" that is really a browser-check page (HostAdmin.online "Verification...", HTTP 200)'''
+        if not isinstance(data, str):
+            return None
+        try:
+            from Plugins.Extensions.IPTVPlayer.libs.botprotection import gate_page_on_success
+            meta = getattr(data, 'meta', None) or {}
+            found = gate_page_on_success(meta.get('status_code', 200), meta, data[:65536], meta.get('url', baseUrl))
+            if found is not None:
+                printDBG('PROTECTION: %s (HTTP 200 check page)' % found.describe())
+            return found
+        except Exception:
+            printExc()
+        return None
+
     def _retryImpersonate(self, baseUrl, params, post_data, data):
         '''getPageCFProtection: the answer is a Cloudflare challenge - ask again as Chrome (curl-impersonate).
         Returns (sts, data) when that got a normal answer (the domain then keeps using it), else None.'''
@@ -1542,6 +1592,8 @@ class common:
                 if found2 is not None:
                     printDBG('PROTECTION: curl-impersonate stopped too: %s' % found2.describe())
                     return None
+            elif self._gatePageOnSuccess(data2, baseUrl):
+                return None  # Chrome got past Cloudflare onto a second check page (200) - MyE2i has to solve it
             _impersonateDomains.add(domain)
             printDBG('impersonate: %s passes as Chrome (%s)' % (domain, meta2.get('impersonate')))
             return sts2, data2
@@ -1657,6 +1709,8 @@ class common:
         params.update({'CFProtection': True})
         start_time = time.time()
         sts, data = self.getPage(baseUrl, params, post_data)
+        if sts and self._gatePageOnSuccess(data, baseUrl):
+            sts = False  # a check page that answers HTTP 200 (HostAdmin.online "Verification...")
 
         impersonated = False
         if not sts and data is not None:
@@ -1666,8 +1720,12 @@ class common:
                 sts, data = retried
                 impersonated = True
 
-        if not impersonated and not sts and data is not None:
-            solveMode = 'CF'
+        gateDomain = _impersonateDomain(baseUrl)
+        solveMode = 'COOKIES' if gateDomain in _cookieGateDomains else 'CF'
+        # a second pass only when the first (CF mode) got past Cloudflare onto a check that needs every cookie
+        for solvePass in range(2):
+            if impersonated or sts or data is None:
+                break
             try:
                 from Plugins.Extensions.IPTVPlayer.libs.botprotection import detect as detectProtection, KIND_BLOCK, KIND_CAPTCHA, KIND_COOKIE_GATE
                 failMeta = getattr(data, 'meta', None) or {}
@@ -1680,12 +1738,20 @@ class common:
                         blockMeta['cf_user'] = cf_user
                         return sts, strwithmeta(data, blockMeta)
                     if found.kind in (KIND_COOKIE_GATE, KIND_CAPTCHA):
+                        if solvePass and solveMode == 'CF' and gateDomain:
+                            _cookieGateDomains.add(gateDomain)
+                            printDBG('PROTECTION: %s needs the cookie mode behind Cloudflare - asking MyE2i again' % gateDomain)
                         solveMode = 'COOKIES'
+                    elif solvePass:
+                        break  # the same check again after a solve - asking once more would not help
+                elif solvePass:
+                    break
             except Exception:
                 printExc()
             from Plugins.Extensions.IPTVPlayer.libs.recaptcha_mye2i import UnCaptchaReCaptcha
             recaptcha = UnCaptchaReCaptcha(lang=GetDefaultLang())
-            token = recaptcha.processCaptcha(start_time, baseUrl, captchaType=solveMode)
+            # the job id must be new for the second browser job
+            token = recaptcha.processCaptcha(start_time if not solvePass else time.time(), baseUrl, captchaType=solveMode)
             if token != '':
                 r = json_loads(base64.b64decode(token))
                 printDBG('>>>>>>>>>>>>>>>>>>>>> CF token >>>>>>>>>>>>>>>>>>>>>>')
@@ -1714,10 +1780,14 @@ class common:
                         except Exception:
                             printDBG('missing cf_clearance value in received token')
                 sts, data = self.getPage(baseUrl, params, post_data)
+                if sts and self._gatePageOnSuccess(data, baseUrl):
+                    sts = False
                 if not sts:
                     printDBG('>>>>>>>>>>>>>>>> not sts returned data >>>>>>>>>>>>>>')
                     printDBG(data)
                     printDBG('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<')
+            if token == '' or solveMode != 'CF':
+                break  # no answer from the browser, or the cookie mode already brought every cookie back
 
         data = strwithmeta(data, {'cf_user': cf_user})
 
@@ -1737,14 +1807,38 @@ class common:
                 img = Image.open(file_path)
                 if not png and img.mode not in ('RGB', 'L'):
                     # JPEG can't hold an alpha channel
-                    img = img.convert('RGB')
-                img.save(output_path, format="png" if png else "jpeg", quality=80)
+                    if img.mode in ('RGBA', 'LA', 'PA') or 'transparency' in img.info:
+                        img = img.convert('RGBA')
+                        if img.split()[-1].getextrema()[0] < 255:
+                            # really transparent (mostly logos, small): PNG keeps it, the covers
+                            # blend it on the skin (alphatest="blend"); ePicLoad goes by the
+                            # first bytes, so the .jpg name of the icon cache does not matter
+                            try:
+                                img.save(output_path, format="png")
+                                png = True
+                            except Exception:
+                                printDBG("PCommon.convertWebp PNG not written, flattened JPEG instead")
+                                if os.path.exists(output_path):
+                                    os.remove(output_path)
+                        if not png:
+                            # flattened on black: a plain convert('RGB') keeps the colour stored under
+                            # the transparent pixels (often white), so a white logo vanished on white
+                            img = Image.alpha_composite(Image.new('RGBA', img.size, (0, 0, 0, 255)), img)
+                    if not png:
+                        img = img.convert('RGB')
+                if not os.path.exists(output_path):
+                    img.save(output_path, format="png" if png else "jpeg", quality=80)
                 os.remove(file_path)
                 move(output_path, file_path)
                 return
             except Exception:
                 # e.g. AVIF, or a PIL without WebP - ffmpeg may still read it
                 printDBG("PCommon.convertWebp Pillow can't read %s, trying ffmpeg" % file_path)
+                try:
+                    if os.path.exists(output_path):
+                        os.remove(output_path)  # half-written by Pillow - without ffmpeg it stayed behind
+                except Exception:
+                    printExc()
 
         if IsExecutable('ffmpeg'):
             fp = "'%s'" % file_path.replace("'", "'\\''")
@@ -2002,8 +2096,8 @@ class common:
         if 'User-Agent' not in headers:
             headers['User-Agent'] = host
 
-        printDBG('pCommon - getURLRequestData() -> params: ' + str(params))
-        printDBG('pCommon - getURLRequestData() -> headers: ' + str(headers))
+        printDBG('pCommon - getURLRequestData() -> params: ' + str(maskSecrets(params)))
+        printDBG('pCommon - getURLRequestData() -> headers: ' + str(maskSecrets(headers)))
 
         customOpeners = []
         #cookie support
@@ -2013,7 +2107,19 @@ class common:
         if params.get('use_cookie', False):
             if params.get('load_cookie', False):
                 try:
-                    cj.load(params['cookiefile'], ignore_discard=True)
+                    # fix 091026: read through _pyCurlLoadCookie - pycurl writes session cookies with expires 0 and
+                    # MozillaCookieJar before Python 3.13 drops those as expired
+                    try:
+                        loaded = self._pyCurlLoadCookie(params['cookiefile'])
+                    except (IOError, OSError):
+                        raise
+                    except Exception:
+                        loaded = None  # e.g. a cookie file that is not UTF-8 text on Python 3 - plain load as before
+                    if loaded is None:
+                        cj.load(params['cookiefile'], ignore_discard=True)
+                    else:
+                        for cookie in loaded:
+                            cj.set_cookie(cookie)
                 except IOError:
                     printDBG('Cookie file [%s] not exists' % params['cookiefile'])
                 except Exception:
@@ -2067,24 +2173,17 @@ class common:
         proxy_gateway = params.get('proxy_gateway', '')
         if proxy_gateway != '':
             pageUrl = proxy_gateway.format(urllib_quote_plus(pageUrl, ''))
-        printDBG("pageUrl: [%s]" % pageUrl)
+        printDBG("pageUrl: [%s]" % maskSecrets(pageUrl))
         #it seems sometimes iconmenager provides incorrectly formatted params dict
         #as a result pageUrl contains a lot of garbage like following
         #pageUrl: [https://yt3.ggpht.com/ytc/AMLnZu8d_ae-Ne1CeYtv1ARy9IngDnVVKh2nUaYg16tgqQ=s88-c-k-c0x00ffffff-no-rj","width":88,"height":88},{"url":"https://yt3.ggpht.com/ytc/AMLnZu8d_ae-Ne1CeYtv1ARy9IngDnVVKh2nUaYg16tgqQ=s176-c-k-c0x00ffffff-no-rj","width":176,"height":176}]},"trackingParams":"CCcQq6cCIhMIi-e74LeW-gIVyACJCh2OnAFM","accessibility":{"accessibilityData":{"label":"Pretending I Can't Sing In Public And Then Surprising Everyone😱 \"give me a kiss\" OUT NOW🌎🎵 Crash Adams 2 tygodnie temu"}}}},"nextItemButton":{"buttonRenderer":{"trackingParams":"CCYQqKQCIhMIi-e74LeW-gIVyACJCh2OnAFM"}},"prevItemButton":{"buttonRenderer":{"trackingParams":"CCUQqaQCIhMIi-e74LeW-gIVyACJCh2OnAFM"}},"style":"REEL_PLAYER_OVERLAY_STYLE_SHORTS","trackingParams":"CCQQsLUEIhMIi-e74LeW-gIVyACJCh2OnAFM"}},"params":"CBYwAg%3D%3D","sequenceProvider":"REEL_WATCH_SEQUENCE_PROVIDER_RPC","sequenceParams":"CgtXUC1oSE16QmxmUSoCGBY%3D"}},"ownerBadges":[{"metadataBadgeRenderer":{"icon":{"iconType":"OFFICIAL_ARTIST_BADGE"},"style":"BADGE_STYLE_TYPE_VERIFIED_ARTIST","tooltip":"Oficjalny kanał wykonawcy","trackingParams":"CCAQnaQHGBoiEwiL57vgt5b6AhXIAIkKHY6cAUw=","accessibilityData":{"label":"Oficjalny kanał wykonawcy"}}}],"ownerText":{"runs":[{"text":"Crash Adams","navigationEndpoint":{"clickTrackingParams":"CCAQnaQHGBoiEwiL57vgt5b6AhXIAIkKHY6cAUw=","commandMetadata":{"webCommandMetadata":{"url":"/channel/UCAxCk_CU0lnz6vJyslY9-Tw","webPageType":"WEB_PAGE_TYPE_CHANNEL","rootVe":3611,"apiUrl":"/youtubei/v1/browse"}},"browseEndpoint":{"browseId":"UCAxCk_CU0lnz6vJyslY9-Tw","canonicalBaseUrl":"/channel/UCAxCk_CU0lnz6vJyslY9-Tw"}}}]},"shortBylineText":{"runs":[{"text":"Crash Adams","navigationEndpoint":{"clickTrackingParams":"CCAQnaQHGBoiEwiL57vgt5b6AhXIAIkKHY6cAUw=","commandMetadata":{"webCommandMetadata":{"url":"/channel/UCAxCk_CU0lnz6vJyslY9-Tw","webPageType":"WEB_PAGE_TYPE_CHANNEL","rootVe":3611,"apiUrl":"/youtubei/v1/browse"}},"browseEndpoint":{"browseId":"UCAxCk_CU0lnz6vJyslY9-Tw","canonicalBaseUrl":"/channel/UCAxCk_CU0lnz6vJyslY9-Tw"}}}]},"trackingParams":"CCAQnaQHGBoiEwiL57vgt5b6AhXIAIkKHY6cAUxA9KuG5syj6P9Y","showActionMenu":false,"shortViewCountText":{"accessibility":{"accessibilityData":{"label":"14 milionów wyświetleń"}},"simpleText":"14 mln wyświetleń"},"menu":{"menuRenderer":{"items":[{"menuServiceItemRenderer":{"text":{"runs":[{"text":"Dodaj do kolejki"}]},"icon":{"iconType":"ADD_TO_QUEUE_TAIL"},"serviceEndpoint":{"clickTrackingParams":"CCMQ_pgEGAciEwiL57vgt5b6AhXIAIkKHY6cAUw=","commandMetadata":{"webCommandMetadata":{"sendPost":true}},"signalServiceEndpoint":{"signal":"CLIENT_SIGNAL","actions":[{"clickTrackingParams":"CCMQ_pgEGAciEwiL57vgt5b6AhXIAIkKHY6cAUw=","addToPlaylistCommand":{"openMiniplayer":true,"videoId":"WP-hHMzBlfQ","listType":"PLAYLIST_EDIT_LIST_TYPE_QUEUE","onCreateListCommand":{"clickTrackingParams":"CCMQ_pgEGAciEwiL57vgt5b6AhXIAIkKHY6cAUw=","commandMetadata":{"webCommandMetadata":{"sendPost":true,"apiUrl":"/youtubei/v1/playlist/create"}},"createPlaylistServiceEndpoint":{"videoIds":["WP-hHMzBlfQ"],"params":"CAQ%3D"}},"videoIds":["WP-hHMzBlfQ"]}}]}},"trackingParams":"CCMQ_pgEGAciEwiL57vgt5b6AhXIAIkKHY6cAUw="}}],"trackingParams":"CCAQnaQHGBoiEwiL57vgt5b6AhXIAIkKHY6cAUw=","accessibility":{"accessibilityData":{"label":"Menu czynności"}}}},"channelThumbnailSupportedRenderers":{"channelThumbnailWithLinkRenderer":{"thumbnail":{"thumbnails":[{"url":"https://yt3.ggpht.com/ytc/AMLnZu8d_ae-Ne1CeYtv1ARy9IngDnVVKh2nUaYg16tgqQ=s88-c-k-c0x00ffffff-no-rj","width":68,"height":68}]},"navigationEndpoint":{"clickTrackingParams":"CCAQnaQHGBoiEwiL57vgt5b6AhXIAIkKHY6cAUw=","commandMetadata":{"webCommandMetadata":{"url":"/channel/UCAxCk_CU0lnz6vJyslY9-Tw","webPageType":"WEB_PAGE_TYPE_CHANNEL","rootVe":3611,"apiUrl":"/youtubei/v1/browse"}},"browseEndpoint":{"browseId":"UCAxCk_CU0lnz6vJyslY9-Tw"}},"accessibility":{"accessibilityData":{"label":"Przejdź na kanał"}}}},"thumbnailOverlays":[{"thumbnailOverlayTimeStatusRenderer":{"text":{"accessibility":{"accessibilityData":{"label":"Shorts"}},"simpleText":"SHORTS"},"style":"SHORTS","icon":{"iconType":"YOUTUBE_SHORTS_FILL_NO_TRIANGLE_RED_16"}}},{"thumbnailOverlayToggleButtonRenderer":{"isToggled":false,"untoggledIcon":{"iconType":"WATCH_LATER"},"toggledIcon":{"iconType":"CHECK"},"untoggledTooltip":"Do obejrzenia","toggledTooltip":"Dodano","untoggledServiceEndpoint":{"clickTrackingParams":"CCIQ-ecDGAIiEwiL57vgt5b6AhXIAIkKHY6cAUw=","commandMetadata":{"webCommandMetadata":{"sendPost":true,"apiUrl":"/youtubei/v1/browse/edit_playlist"}},"playlistEditEndpoint":{"playlistId":"WL","actions":[{"addedVideoId":"WP-hHMzBlfQ","action":"ACTION_ADD_VIDEO"}]}},"toggledServiceEndpoint":{"clickTrackingParams":"CCIQ-ecDGAIiEwiL57vgt5b6AhXIAIkKHY6cAUw=","commandMetadata":{"webCommandMetadata":{"sendPost":true,"apiUrl":"/youtubei/v1/browse/edit_playlist"}},"playlistEditEndpoint":{"playlistId":"WL","actions":[{"action":"ACTION_REMOVE_VIDEO_BY_VIDEO_ID","removedVideoId":"WP-hHMzBlfQ"}]}},"untoggledAccessibility":{"accessibilityData":{"label":"Do obejrzenia"}},"toggledAccessibility":{"accessibilityData":{"label":"Dodano"}},"trackingParams":"CCIQ-ecDGAIiEwiL57vgt5b6AhXIAIkKHY6cAUw="}},{"thumbnailOverlayToggleButtonRenderer":{"untoggledIcon":{"iconType":"ADD_TO_QUEUE_TAIL"},"toggledIcon":{"iconType":"PLAYLIST_ADD_CHECK"},"untoggledTooltip":"Dodaj do kolejki","toggledTooltip":"Dodano","untoggledServiceEndpoint":{"clickTrackingParams":"CCEQx-wEGAMiEwiL57vgt5b6AhXIAIkKHY6cAUw=","commandMetadata":{"webCommandMetadata":{"sendPost":true}},"signalServiceEndpoint":{"signal":"CLIENT_SIGNAL","actions":[{"clickTrackingParams":"CCEQx-wEGAMiEwiL57vgt5b6AhXIAIkKHY6cAUw=","addToPlaylistCommand":{"openMiniplayer":true,"videoId":"WP-hHMzBlfQ","listType":"PLAYLIST_EDIT_LIST_TYPE_QUEUE","onCreateListCommand":{"clickTrackingParams":"CCEQx-wEGAMiEwiL57vgt5b6AhXIAIkKHY6cAUw=","commandMetadata":{"webCommandMetadata":{"sendPost":true,"apiUrl":"/youtubei/v1/playlist/create"}},"createPlaylistServiceEndpoint":{"videoIds":["WP-hHMzBlfQ"],"params":"CAQ%3D"}},"videoIds":["WP-hHMzBlfQ"]}}]}},"untoggledAccessibility":{"accessibilityData":{"label":"Dodaj do kolejki"}},"toggledAccessibility":{"accessibilityData":{"label":"Dodano"}},"trackingParams":"CCEQx-wEGAMiEwiL57vgt5b6AhXIAIkKHY6cAUw="}},{"thumbnailOverlayNowPlayingRenderer":{"text":{"runs":[{"text":"Teraz odtwarzane"}]}}}]}},{"videoRenderer":{"videoId":"1hkdTiMj_M4","thumbnail":{"thumbnails":[{"url":"https://i.ytimg.com/vi/1hkdTiMj_M4/hqdefault.jpg?sqp=-oaymwEbCNIBEHZIVfKriqkDDggBFQAAiEIYAXABwAEG\u0026rs=AOn4CLAP9P5vUJaPX3ebR7b0yV33Hc5KSw","width":210,"height":118},{"url":"https://i.ytimg.com/vi/1hkdTiMj_M4/hqdefault.jpg?sqp=-oaymwEcCPYBEIoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg]
         #IconMenager.processDQ should be analyzed more deeply, now silly workarround
         if '","' in pageUrl: # points incorrectly formatted dict or list
             pageUrl = pageUrl.split('"', 1)[0] #" is incorrect char for url, shouldn't be there so removing it and everything after it
-            printDBG("CORRECTED pageUrl: [%s]" % pageUrl)
+            printDBG("CORRECTED pageUrl: [%s]" % maskSecrets(pageUrl))
 
         if None != post_data:
-            #post_dataTxt = {}
-            #for item in post_data:
-            #    if 'username' in item.lower(): post_dataTxt[item] = 'userName'
-            #    elif 'password' in item.lower(): post_dataTxt[item] = 'userPassword'
-            #    elif 'token' in item.lower(): post_dataTxt[item] = 'userToken'
-            #    else: post_dataTxt[item] = post_data[item]
-            #printDBG('pCommon - getURLRequestData() -> post data: ' + str(post_dataTxt))
-            printDBG('pCommon - getURLRequestData() -> post data: ' + str(post_data))
+            printDBG('pCommon - getURLRequestData() -> post data: ' + str(maskSecrets(post_data)))
             if params.get('raw_post_data', False):
                 dataPost = post_data
             elif params.get('multipart_post_data', False):

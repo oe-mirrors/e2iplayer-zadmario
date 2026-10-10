@@ -1,29 +1,71 @@
 # -*- coding: utf-8 -*-
+# Last Modified: 08.10.2026
+#
+# Revived against Twitch's current web GraphQL API (gql.twitch.tv), used
+# anonymously with the public web Client-ID:
+#   - the old kraken REST API (search) and api.twitch.tv/api/.../access_token
+#     are gone, and the persisted query hashes the old host used change all
+#     the time - plain GraphQL queries are used instead;
+#   - playback: stream/video/clip PlaybackAccessToken -> usher.ttvnw.net
+#     m3u8 (live/VOD), clip mp4 + sig/token;
+#   - any request with an "after" cursor fails Twitch's client integrity
+#     check without a browser, so every list is fetched as one first page
+#     (up to 100, live streams max 30) and paged locally.
+# 08.10.2026 - host standard: watched flag (channel -> videos / clips -> VOD / clip), favourites, INFO from the
+#   API (VOD, clip, live stream, channel, game), sidecar, download marker on the twitch.tv page url of a VOD /
+#   clip, date in the VOD / clip name (naming option, was a "[date]" prefix on clips), First/Next page with
+#   page x/y for the local paging, language names as plain strings (no unicode titles on Python 2), no empty
+#   fields in the VOD / clip descriptions
 ###################################################
 # LOCAL import
 ###################################################
-from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
-from Plugins.Extensions.IPTVPlayer.components.ihost import CHostBase, CBaseHostClass
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, byteify, MergeDicts, GetDefaultLang
+from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, SetIPTVPlayerLastHostError
+from Plugins.Extensions.IPTVPlayer.components.ihost import CHostBase, CBaseHostClass, CDisplayListItem
+from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import IsSidecarEnabled
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, GetDefaultLang
+from Plugins.Extensions.IPTVPlayer.tools.iptvnaming import normalizeMediathekTitle
+from Plugins.Extensions.IPTVPlayer.tools.iptvpaging import addPagingItems
+from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedfoldermixin import GenericFolderWatchedHostMixin, GenericFolderWatchedScraperMixin
+from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedhelper import IPTVWatchedHelper
+from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads, dumps as json_dumps
+from Plugins.Extensions.IPTVPlayer.libs.urlmetahelper import applySidecarToLinks, buildSidecarFromItem
 from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import getDirectM3U8Playlist
 from Plugins.Extensions.IPTVPlayer.libs.urlparser import urlparser
-###################################################
-from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote_plus, urllib_quote
+from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_urlencode
 from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str
+###################################################
+
 ###################################################
 # FOREIGN import
 ###################################################
-try:
-    import json
-except Exception:
-    import simplejson as json
 from datetime import timedelta
 ###################################################
 
+CLIENT_ID = 'kimne78kx3ncx6brgo4mv6wki5h1ko'
+GQL_URL = 'https://gql.twitch.tv/gql'
+PER_PAGE = 30
+MAX_ITEMS = 100
+MAX_STREAMS = 30
+
+PLAYBACK_PARAMS = '{platform: "web", playerBackend: "mediaplayer", playerType: "site"}'
+
+# Twitch "Language" enum values, shown in their own language
+LANGUAGES = [('DE', 'Deutsch'), ('EN', 'English'), ('ES', 'Español'), ('FR', 'Français'), ('IT', 'Italiano'),
+             ('PL', 'Polski'), ('PT', 'Português'), ('RU', 'Русский'), ('TR', 'Türkçe'), ('NL', 'Nederlands'),
+             ('SV', 'Svenska'), ('NO', 'Norsk'), ('DA', 'Dansk'), ('FI', 'Suomi'), ('CS', 'Čeština'),
+             ('HU', 'Magyar'), ('RO', 'Română'), ('SK', 'Slovenčina'), ('EL', 'Ελληνικά'), ('BG', 'Български'),
+             ('UK', 'Українська'), ('AR', 'العربية'), ('JA', '日本語'), ('KO', '한국어'), ('ZH', '中文'),
+             ('ZH_HK', '中文(粵語)'), ('TH', 'ภาษาไทย'), ('VI', 'Tiếng Việt'), ('ASL', 'American Sign Language'),
+             ('OTHER', 'Other')]
+LANG_CODES = frozenset(code for code, _title in LANGUAGES)
+
+STREAM_FIELDS = 'id title type viewersCount previewImageURL(width: 440, height: 248) broadcaster { login displayName } game { name displayName }'
+VIDEO_FIELDS = 'id title lengthSeconds viewCount publishedAt broadcastType previewThumbnailURL(width: 440, height: 248) owner { displayName } game { displayName }'
+CLIP_FIELDS = 'slug title durationSeconds viewCount createdAt language thumbnailURL(width: 480, height: 272) curator { displayName } broadcaster { displayName } game { displayName }'
+
 
 def GetConfigList():
-    optionList = []
-    return optionList
+    return []
 
 
 def gettytul():
@@ -31,635 +73,483 @@ def gettytul():
 
 
 def jstr(item, key, default=''):
-    v = item.get(key, default)
-    if None == v:
+    if not item:
         return default
-    else:
-        return ensure_str(v)
+    v = item.get(key, default)
+    if v is None:
+        return default
+    return ensure_str(v)
 
 
-class Twitch(CBaseHostClass):
+class Twitch(GenericFolderWatchedScraperMixin, CBaseHostClass):
 
     def __init__(self):
         CBaseHostClass.__init__(self, {'history': 'Twitch', 'cookie': 'Twitch.cookie'})
-
-        self.HTTP_HEADER = self.cm.getDefaultHeader(browser='chrome')
-        self.defaultParams = {'header': self.HTTP_HEADER}#, 'use_cookie': True, 'load_cookie': True, 'save_cookie': True, 'cookiefile': self.COOKIE_FILE}
-
-        self.DEFAULT_ICON_URL = 'http://s.jtvnw.net/jtv_user_pictures/hosted_images/GlitchIcon_WhiteonPurple.png'
         self.MAIN_URL = 'https://www.twitch.tv/'
-        self.API1_URL = 'https://api.twitch.tv/'
-        self.API2_URL = 'https://gql.twitch.tv/'
+        self.DEFAULT_ICON_URL = 'https://s.jtvnw.net/jtv_user_pictures/hosted_images/GlitchIcon_WhiteonPurple.png'
+        self.HTTP_HEADER = self.cm.getDefaultHeader(browser='chrome')
+        self.HTTP_HEADER.update({'Client-ID': CLIENT_ID, 'Accept': '*/*', 'Content-Type': 'text/plain;charset=UTF-8'})
+        self.defaultParams = {'header': self.HTTP_HEADER, 'raw_post_data': True}
 
-        self.CHANNEL_TOKEN_URL = self.getFullUrl('/api/channels/%s/access_token')
-        self.LIVE_URL = 'http://usher.justin.tv/api/channel/hls/%s.m3u8?token=%s&sig=%s&allow_source=true'
-        self.CHANNEL_TOKEN_URL = self.API1_URL + 'api/channels/%s/access_token?need_https=false&oauth_token&platform=web&player_backend=mediaplayer&player_type=embed'
-
-        self.VOD_TOKEN_URL = self.API1_URL + 'api/vods/%s/access_token?need_https=true&oauth_token&platform=web&player_backend=mediaplayer&player_type=embed'
-        self.VOD_URL = 'https://usher.ttvnw.net/vod/%s.m3u8?token=%s&sig=%s&allow_source=true'
-
-        self.platformFilters = [{'title': _('All Platforms'), 'platform_type': 'all'}, {'title': _('Xbox One'), 'platform_type': 'xbox'}, {'title': _('PlayStation 4'), 'platform_type': 'ps4'}]
-        self.languagesFilters = [
-                                            # nice of them to change from meaningful identifers to guid
-                                            # screwing things up with the language filtering.  CM
-                                            {'lang': "73cc486a-e56b-41ed-a1df-7afedbc84f6f", 'title': "العربية"},
-                                            {'lang': "21d85c73-701f-4259-8c4e-4321265847b5", 'title': "български"},
-                                            {'lang': "a6cddaba-f0ce-4526-9087-6de2f603a24d", 'title': "Čeština"},
-                                            {'lang': "43e598cc-918b-4247-b02c-b13543a1eac9", 'title': "Dansk"},
-                                            {'lang': "9166ad14-41f1-4b04-a3b8-c8eb838c6be6", 'title': "Deutsch"},
-                                            {'lang': "902f6815-a655-4918-99e7-48c74a71feac", 'title': "Ελληνικά"},
-                                            {'lang': "6ea6bca4-4712-4ab9-a906-e3336a9d8039", 'title': "English"},
-                                            {'lang': "d4bb9c58-2141-4881-bcdc-3fe0505457d1", 'title': "Español"},
-                                            {'lang': "220eb274-ab25-425b-8a9b-826103404997", 'title': "Suomi"},
-                                            {'lang': "6f655045-9989-4ef7-8f85-1edcec42d648", 'title': "Français"},
-                                            {'lang': "a298cca5-d408-47c7-a1e7-0c76ca878bc6", 'title': "Magyar"},
-                                            {'lang': "5b9935eb-1e9a-4217-98ad-62bda5cff0d1", 'title': "Italiano"},
-                                            {'lang': "6ba1d230-e52f-4d81-b1e0-41f25a8a9f5d", 'title': "日本語"},
-                                            {'lang': "ab2975e3-b9ca-4b1a-a93e-fb61a5d5c3a4", 'title': "한국어"},
-                                            {'lang': "e13e6734-37ae-4d85-897b-3015f0168355", 'title': "Nederlands"},
-                                            {'lang': "5647bf35-f99e-49aa-8578-0e07d936188c", 'title': "Norsk"},
-                                            {'lang': "f9d04efa-6e25-49bf-bf0a-da3e2addaf1b", 'title': "Polski"},
-                                            {'lang': "39ee8140-901a-4762-bfca-8260dea1310f", 'title': "Português"},
-                                            {'lang': "75a99c80-0f15-4159-b1fd-3812c25b4aca", 'title': "Română"},
-                                            {'lang': "0569b171-2a2b-476e-a596-5bdfb45a1327", 'title': "Русский"},
-                                            {'lang': "9b773670-05f8-4c06-ac99-e6649f906171", 'title': "Slovenčina"},
-                                            {'lang': "145b073b-cb70-4e91-b170-f5fab2ebba05", 'title': "Svenska"},
-                                            {'lang': "f19c7524-c18d-41af-9f39-034c8d0b0fee", 'title': "ภาษาไทย"},
-                                            {'lang': "f08d5873-f0c7-4912-94ba-a41933b4c141", 'title': "Türkçe"},
-                                            {'lang': "ba3b69fe-899c-4518-ac46-707275e3eba1", 'title': "TiếngViệt"},
-                                            {'lang': "0c8c6543-4019-47d0-9b8a-57a81ee6ace5", 'title': "中文(粵語)"},
-                                            {'lang': "74c92063-a389-4fd2-8460-b1bb82b04ec7", 'title': "中文"},
-                                            {'lang': '5ad4b978-495f-4093-9461-c194f58201ab', 'title': 'American Sign Language'},
-                                            {'lang': 'fd76c790-0505-4c4c-865a-d6bd139c0901', 'title': 'Other'}
-                                    ]
-
-        lang = GetDefaultLang()
-        default = None
-        defaultEn = None
-        self.langItems = []
-        for item in self.languagesFilters:
-            if lang == item['lang']:
-                default = item
-                continue
-            if 'en' == item['lang']:
-                defaultEn = item
-                continue
-            self.langItems.append(item)
-        if defaultEn:
-            self.langItems.insert(0, defaultEn)
-        if default:
-            self.langItems.insert(0, default)
-        self.langItems.insert(0, {'title': _('All')})
+        # the box language first, then the rest
+        lang = GetDefaultLang().upper()
+        self.langItems = [{'title': _('All')}]
+        others = []
+        for code, title in LANGUAGES:
+            item = {'title': title, 'lang': code}
+            if code == lang:
+                self.langItems.append(item)
+            else:
+                others.append(item)
+        self.langItems.extend(others)
 
         self.VIDEOS_TYPES_TAB = [{'title': _('All')},
-                                 {'title': _('Past premieres'), 'videos_type': 'PAST_PREMIERE'},
                                  {'title': _('Archive'), 'videos_type': 'ARCHIVE'},
                                  {'title': _('Highlights'), 'videos_type': 'HIGHLIGHT'},
-                                 {'title': _('Uploads'), 'videos_type': 'UPLOAD'}, ]
+                                 {'title': _('Uploads'), 'videos_type': 'UPLOAD'},
+                                 {'title': _('Past premieres'), 'videos_type': 'PAST_PREMIERE'}]
 
         self.VIDEOS_SORT_TAB = [{'title': _('Popular'), 'sort': 'VIEWS'},
-                                {'title': _('Recent'), 'sort': 'TIME'}, ]
+                                {'title': _('Recent'), 'sort': 'TIME'}]
 
-        self.CLIPS_FILTERS_TAB = [{'title': _('Trending'), 'clips_filter': 'TRENDING'},
-                                  {'title': _('Last day'), 'clips_filter': 'LAST_DAY'},
-                                  {'title': _('Last week'), 'clips_filter': 'LAST_WEEK'},
-                                  {'title': _('Last month'), 'clips_filter': 'LAST_MONTH'},
-                                  {'title': _('All time'), 'clips_filter': 'ALL_TIME'}, ]
+        self.CLIPS_FILTERS_TAB = [{'title': _('Last day'), 'clips_period': 'LAST_DAY'},
+                                  {'title': _('Last week'), 'clips_period': 'LAST_WEEK'},
+                                  {'title': _('Last month'), 'clips_period': 'LAST_MONTH'},
+                                  {'title': _('All time'), 'clips_period': 'ALL_TIME'}]
 
         self.GAME_CAT_TAB = [{'category': 'game_lang', 'next_category': 'game_channels', 'title': _('Channels')},
-                             {'category': 'game_lang', 'next_category': 'game_videos_types', 'title': _('Videos')},
-                             {'category': 'game_lang', 'next_category': 'game_clips_filters', 'title': _('Clips')},
-                            ]
+                             {'category': 'game_videos_types', 'title': _('Videos')},
+                             {'category': 'game_lang', 'next_category': 'game_clips_filters', 'title': _('Clips')}]
+        self.watchedHelper = IPTVWatchedHelper('twitchtv')
+        self.wfInitFolderCache()
 
-    def getPage(self, baseUrl, addParams={}, post_data=None):
-        if addParams == {}:
-            addParams = dict(self.defaultParams)
-        if 'api.twitch.tv' in baseUrl:
-            addParams['header'] = MergeDicts(addParams['header'], {'Accept': 'application/vnd.twitchtv.v5+json', 'Client-ID': 'jzkbprff40iqj646a697cyrvl0zt2m6'})
-        elif 'gql.twitch.tv' in baseUrl:
-            addParams['header'] = MergeDicts(addParams['header'], {'Accept': '*/*', 'Client-ID': 'kimne78kx3ncx6brgo4mv6wki5h1ko'})
-        return self.cm.getPage(baseUrl, addParams, post_data)
-
-    def listMain(self, cItem):
-        printDBG("Twitch.listMain")
-
-        MAIN_CAT_TAB = [{'category': 'browse', 'title': _('Browse')},
-                        {'category': 'search', 'title': _('Search'), 'search_item': True},
-                        {'category': 'search_history', 'title': _('Search history'), }]
-        self.listsTab(MAIN_CAT_TAB, cItem)
-
-    def listDirectories(self, cItem):
-        printDBG("Twitch.listDirectories [%s]" % cItem)
-
-        dirChannels = []
-        for pItem in self.platformFilters:
-            params = MergeDicts(cItem, pItem)
-            subItems = [MergeDicts(params, x, {'category': 'dir_channels'}) for x in self.langItems]
-            params.update({'category': 'sub_items', 'sub_items': subItems})
-            dirChannels.append(params)
-
-        TAB = [{'category': 'dir_games', 'title': _('Games')},
-               #{'category':'dir_communities',   'title': _('Communities') },
-               #{'category':'dir_communities',   'title': _('Creative') },
-               {'category': 'sub_items', 'title': _('Channels'), 'sub_items': dirChannels},
-        ]
-        self.listsTab(TAB, cItem)
-
-    def _listChannels(self, cItem, nextCategory, streamsData):
+    # ---------------------------------------------------------------- watched flag
+    def _getWatchedKeyForItem(self, cItem):
+        # VOD / clip rows by their id; a channel and its videos / clips folders (per type / sort / period)
+        # so a watched VOD propagates up to the channel. Live streams and the game lists have no key.
         try:
-            cursor = ''
-            for item in streamsData['edges']:
-                cursor = jstr(item, 'cursor')
-                item = item['node']
-                descTab = []
-                if item.get('broadcaster'):
-                    title = jstr(item['broadcaster'], 'displayName')
-                    icon = self.getFullIconUrl(jstr(item, 'previewImageURL'), self.cm.meta['url'])
-                    descTab.append('[%s] %s' % (jstr(item, 'type'), jstr(item, 'title')))
-                    descTab.append(jstr(item, '__typename') + ' | ' + _('%s viewers') % item['viewersCount'])
-                    if item.get('broadcaster'):
-                        descTab.append(jstr(item['broadcaster'], '__typename') + ': ' + jstr(item['broadcaster'], 'displayName'))
-                    if item.get('game'):
-                        descTab.append(jstr(item['game'], '__typename') + ': ' + jstr(item['game'], 'name'))
-                    params = {'good_for_fav': True, 'name': 'category', 'type': 'category', 'category': nextCategory, 'title': title, 'user_login': str(item['broadcaster']['login']), 'icon': icon, 'desc': '[/br]'.join(descTab)}
-                    self.addDir(params)
-
-            if cursor != '' and streamsData['pageInfo']['hasNextPage']:
-                self.addDir(MergeDicts(cItem, {'title': _('Next page'), 'cursor': cursor}))
+            if not isinstance(cItem, dict) or cItem.get('search_item') or cItem.get('name') == 'history':
+                return ''
+            if cItem.get('type') == 'video':
+                if cItem.get('video_type') == 'video' and cItem.get('video_id'):
+                    return 'video:%s' % cItem['video_id']
+                if cItem.get('video_type') == 'clip' and cItem.get('clip_slug'):
+                    return 'video:clip:%s' % cItem['clip_slug']
+                return ''
+            login = cItem.get('user_login', '')
+            category = cItem.get('category', '')
+            if not login:
+                return ''
+            if category == 'list_channel':
+                return 'folder:channel:%s' % login
+            if category == 'videos_types':
+                return 'folder:channel:%s:videos' % login
+            if category == 'videos_sort':
+                return 'folder:channel:%s:videos:%s' % (login, cItem.get('videos_type', ''))
+            if category == 'list_videos':
+                return 'folder:channel:%s:videos:%s:%s' % (login, cItem.get('videos_type', ''), cItem.get('sort', ''))
+            if category == 'clips_filters':
+                return 'folder:channel:%s:clips' % login
+            if category == 'list_clips':
+                return 'folder:channel:%s:clips:%s' % (login, cItem.get('clips_period', ''))
         except Exception:
             printExc()
+        return ''
 
-    def listDirChannels(self, cItem, nextCategory):
-        printDBG("Twitch.listDirChannels [%s]" % cItem)
-
-        lang = '"%s"' % cItem['lang'].upper() if 'lang' in cItem else ''
-        cursor = ',"cursor":"%s"' % cItem['cursor'] if 'cursor' in cItem else ''
-        type = cItem.get('platform_type', 'all')
-        #post_data = '[{"operationName":"BrowsePage_Popular","variables":{"limit":30,"platformType":"%s","tags":[%s],"isTagsExperiment":false%s},"extensions":{"persistedQuery":{"version":1,"sha256Hash":"4a3254b9537ad005b6fbc6e7a811a4045312d4a4b5c0541bea86df60383972fd"}}}]' % (type, lang, cursor)
-        post_data = '[{"operationName":"BrowsePage_Popular","variables":{"limit":30,"platformType":"%s","options":{"tags":[%s]},"sortTypeIsRecency":false%s},"extensions":{"persistedQuery":{"version":1,"sha256Hash":"b32fa28ffd43e370b42de7d9e6e3b8a7ca310035fdbb83932150443d6b693e4d"}}}]' % (type, lang, cursor)
-        url = self.getFullUrl('/gql', self.API2_URL)
-        sts, data = self.getPage(url, MergeDicts(self.defaultParams, {'raw_post_data': True}), post_data)
+    # ---------------------------------------------------------------- api
+    def gql(self, query, variables=None):
+        body = json_dumps({'query': query, 'variables': variables or {}})
+        sts, data = self.cm.getPage(GQL_URL, dict(self.defaultParams), body)
         if not sts:
-            return
+            return None
         try:
-            data = json.loads(data)
-            self._listChannels(cItem, nextCategory, data[0]['data']['streams'])
+            data = json_loads(data)
         except Exception:
             printExc()
+            return None
+        if data.get('errors'):
+            printDBG('Twitch.gql errors: %s' % data['errors'])
+        return data.get('data') or None
 
-    def listDirGames(self, cItem, nextCategory):
-        printDBG("Twitch.listDirGames [%s]" % cItem)
+    @staticmethod
+    def _langOption(cItem):
+        lang = cItem.get('lang', '')
+        if lang in LANG_CODES:
+            return ', broadcasterLanguages: [%s]' % lang
+        return ''
 
-        cursor = ',"cursor":"%s"' % cItem['cursor'] if 'cursor' in cItem else ''
-        post_data = '[{"operationName":"BrowsePage_AllDirectories","variables":{"limit":30,"options":{"recommendationsContext":{"platform":"web"},"sort":"VIEWER_COUNT","tags":[]}%s},"extensions":{"persistedQuery":{"version":1,"sha256Hash":"78957de9388098820e222c88ec14e85aaf6cf844adf44c8319c545c75fd63203"}}}]' % cursor
-        url = self.getFullUrl('/gql', self.API2_URL)
-        sts, data = self.getPage(url, MergeDicts(self.defaultParams, {'raw_post_data': True}), post_data)
-        if not sts:
-            return
+    @staticmethod
+    def _edges(node):
         try:
-            cursor = ''
-            data = json.loads(data)
-            for item in data[0]['data']['directoriesWithTags']['edges']:
-                cursor = jstr(item, 'cursor')
-                item = item['node']
-                if item['__typename'] == 'Game':
-                    title = jstr(item, 'displayName')
-                    icon = self.getFullIconUrl(jstr(item, 'avatarURL'), self.cm.meta['url'])
-                    desc = jstr(item, '__typename') + ' | ' + _('%s viewers') % item['viewersCount']
-                    params = {'good_for_fav': True, 'name': 'category', 'category': nextCategory, 'title': title, 'game_id': str(item['id']), 'game_name': jstr(item, 'name'), 'icon': icon, 'desc': desc}
-                    self.addDir(params)
-
-            if cursor != '' and data[0]['data']['directoriesWithTags']['pageInfo']['hasNextPage']:
-                self.addDir(MergeDicts(cItem, {'title': _('Next page'), 'cursor': cursor}))
-
+            return [e['node'] for e in node['edges'] if e.get('node')]
         except Exception:
-            printExc()
+            return []
 
-    def listGameChannels(self, cItem, nextCategory):
-        printDBG("Twitch.listGameChannels [%s]" % cItem)
-        lang = '"%s"' % cItem['lang'].upper() if 'lang' in cItem else ''
-        cursor = ',"cursor":"%s"' % cItem['cursor'] if 'cursor' in cItem else ''
-        # post_data updated as per changes to their api.  CM
-        post_data = '[{"operationName":"DirectoryPage_Game","variables":{"name":"%s","options":{"sort":"VIEWER_COUNT","recommendationsContext":{"platform":"web"},"requestID":"a40436b85daf0810","tags":[%s]},"sortTypeIsRecency":false,"limit":30%s},"extensions":{"persistedQuery":{"version":1,"sha256Hash":"c250a5fa4134a24c3d96abff9450391fd621b1c973c47f3d6adda3be6098c850"}}}]' % (cItem['game_name'], lang, cursor)
-        url = self.getFullUrl('/gql', self.API2_URL)
-        sts, data = self.getPage(url, MergeDicts(self.defaultParams, {'raw_post_data': True}), post_data)
-        if not sts:
-            return
-        printDBG("Twitch.listGameChannels data[%s]" % data)
+    def _addPaged(self, cItem, items, addFunc):
         try:
-            data = json.loads(data)
-            self._listChannels(cItem, nextCategory, data[0]['data']['game']['streams'])
-        except Exception:
-            printExc()
+            page = max(1, int(cItem.get('page', 1) or 1))
+        except (TypeError, ValueError):
+            page = 1
+        for item in items[(page - 1) * PER_PAGE:page * PER_PAGE]:
+            addFunc(cItem, item)
+        lastPage = (len(items) + PER_PAGE - 1) // PER_PAGE
+        addPagingItems(self, cItem, page, len(items) > page * PER_PAGE, lastPage)
 
-    def listChannel(self, cItem):
-        printDBG("Twitch.listChannel %s" % cItem['user_login'])
-
-        login = cItem['user_login']
-        post_data = []
-        post_data.append('{"operationName":"ChannelShell","variables":{"login":"%s"},"extensions":{"persistedQuery":{"version":1,"sha256Hash":"d6b850262351d0a1e01369809ca87ef837c45e148301053a8f6a9dc440d3c806"}}}' % login)
-        post_data.append('{"operationName":"ChannelPage_ChannelHeader","variables":{"login":"%s"},"extensions":{"persistedQuery":{"version":1,"sha256Hash":"32f05e9f36086c6e6930e3f3d0d515eea61cc3263bf7f92870f97c9aae024593"}}}' % login)
-        post_data.append('{"operationName":"ChannelPage_StreamType_User","variables":{"channelLogin":"%s"},"extensions":{"persistedQuery":{"version":1,"sha256Hash":"43b152e4f17090ece0b50a5bc41e4690c7a6992ad3ed876d88bf7292be2d2cba"}}}' % login)
-        post_data.append('{"operationName":"ChannelPage__ChannelViewersCount","variables":{"login":"%s"},"extensions":{"persistedQuery":{"version":1,"sha256Hash":"3b5b233b59cc71f5ab273c74a30c46485fa52901d98d7850d024ad0669270184"}}}' % login)
-        post_data.append('{"operationName":"StreamMetadata","variables":{"channelLogin":"%s"},"extensions":{"persistedQuery":{"version":1,"sha256Hash":"1c719a40e481453e5c48d9bb585d971b8b372f8ebb105b17076722264dfa5b3e"}}}' % login)
-
-        url = self.getFullUrl('/gql', self.API2_URL)
-        sts, data = self.getPage(url, MergeDicts(self.defaultParams, {'raw_post_data': True}), '[%s]' % ','.join(post_data))
-        if not sts:
+    # ---------------------------------------------------------------- item builders
+    def _addStream(self, cItem, item):
+        broadcaster = item.get('broadcaster') or {}
+        if not broadcaster.get('login'):
             return
-        printDBG("Twitch.listChannel %s" % data)
-        icon = ''
-        try:
-            data = json.loads(data)
-            try:
-                if data[2]['data']['user']['stream']['type'] == 'live':
-                    descTab = []
-                    viewers = str(data[3]['data']['user']['stream']['viewersCount'])
-                    descTab.append(_('%s viewers') % viewers)
-                    title = jstr(data[4]['data']['user']['lastBroadcast'], 'title')
-                    item = data[4]['data']['user']['stream']
-                    if item.get('game'):
-                        descTab.append('%s: %s' % (jstr(item['game'], '__typename'), jstr(item['game'], 'name')))
-                        icon = self.getFullIconUrl(jstr(item['game'], 'boxArtURL'), self.cm.meta['url'])
-                    else:
-                        icon = ''
-
-                    params = {'good_for_fav': False, 'title': title, 'game_id': str(item['id']), 'video_type': 'live', 'channel_id': login, 'icon': icon, 'desc': '[/br]'.join(descTab)}
-                    self.addVideo(params)
-            except Exception:
-                printExc()
-
-            item = data[1]['data']['user']
-            icon = self.getFullIconUrl(jstr(item, 'profileImageURL'), self.cm.meta['url'])
-            videosCount = int(item['videos']['totalCount'])
-            if videosCount:
-                params = dict(cItem)
-                params.update({'good_for_fav': False, 'category': 'videos_types', 'title': _('Videos %s') % videosCount, 'icon': icon, 'desc': ''})
-                self.addDir(params)
-        except Exception:
-            printExc()
-
-        params = MergeDicts(cItem, {'good_for_fav': False, 'category': 'clips_filters', 'title': _('Clips'), 'icon': icon, 'desc': ''})
+        descTab = [jstr(item, 'title'), _('%s viewers') % item.get('viewersCount', 0)]
+        if item.get('game'):
+            descTab.append(_('Game: %s') % jstr(item['game'], 'displayName'))
+        params = {'good_for_fav': True, 'name': 'category', 'type': 'category', 'category': 'list_channel',
+                  'title': jstr(broadcaster, 'displayName') or jstr(broadcaster, 'login'), 'user_login': jstr(broadcaster, 'login'),
+                  'icon': jstr(item, 'previewImageURL'), 'desc': '[/br]'.join(descTab)}
         self.addDir(params)
 
-    def _listVideos(self, cItem, videosData):
-        printDBG("Twitch._listVideos [%s]" % cItem)
-        try:
-            cursor = ''
-            for item in videosData['edges']:
-                cursor = jstr(item, 'cursor')
-                item = item['node']
-                descTab = []
-                descTab.append('{0}'.format(timedelta(seconds=item['lengthSeconds'])))
-                descTab.append(_('%s viewers') % item['viewCount'])
-                descTab.append(jstr(item, 'publishedAt'))
-                descTab = [' | '.join(descTab)]
+    def _addGame(self, cItem, item):
+        desc = _('%s viewers') % item.get('viewersCount', 0) if item.get('viewersCount') is not None else ''
+        params = {'good_for_fav': True, 'name': 'category', 'category': 'browse_game',
+                  'title': jstr(item, 'displayName') or jstr(item, 'name'), 'game_name': jstr(item, 'name'),
+                  'icon': jstr(item, 'boxArtURL'), 'desc': desc}
+        self.addDir(params)
 
-                icon = self.getFullIconUrl(jstr(item, 'previewThumbnailURL'), self.cm.meta['url'])
-                title = jstr(item, 'title')
+    def _addVideo(self, cItem, item):
+        descTab = [str(timedelta(seconds=int(item.get('lengthSeconds') or 0))), _('%s views') % item.get('viewCount', 0), jstr(item, 'publishedAt')[:10]]
+        descTab = [' | '.join([x for x in descTab if x])]
+        if item.get('owner'):
+            descTab.append(_('Channel: %s') % jstr(item['owner'], 'displayName'))
+        if item.get('game'):
+            descTab.append(_('Game: %s') % jstr(item['game'], 'displayName'))
+        title = jstr(item, 'title') or jstr(item, 'id')
+        params = {'good_for_fav': True, 'title': normalizeMediathekTitle(title, date=jstr(item, 'publishedAt')[:10]), 'raw_title': title,
+                  'video_type': 'video', 'video_id': jstr(item, 'id'), 'url': 'https://www.twitch.tv/videos/%s' % jstr(item, 'id'),
+                  'icon': jstr(item, 'previewThumbnailURL'), 'desc': '[/br]'.join(descTab)}
+        self.addVideo(params)
 
-                if item.get('owner'):
-                    descTab.append(jstr(item['owner'], '__typename') + ': ' + jstr(item['owner'], 'displayName'))
-                if item.get('game'):
-                    descTab.append(jstr(item['game'], '__typename') + ': ' + jstr(item['game'], 'name'))
+    def _addClip(self, cItem, item):
+        descTab = [str(timedelta(seconds=int(item.get('durationSeconds') or 0))), _('%s views') % item.get('viewCount', 0), jstr(item, 'language'), jstr(item, 'createdAt')[:10]]
+        descTab = [' | '.join([x for x in descTab if x])]
+        if item.get('broadcaster'):
+            descTab.append(_('Channel: %s') % jstr(item['broadcaster'], 'displayName'))
+        if item.get('curator'):
+            descTab.append(_('Clipped by: %s') % jstr(item['curator'], 'displayName'))
+        if item.get('game'):
+            descTab.append(_('Game: %s') % jstr(item['game'], 'displayName'))
+        title = jstr(item, 'title') or jstr(item, 'slug')
+        params = {'good_for_fav': True, 'title': normalizeMediathekTitle(title, date=jstr(item, 'createdAt')[:10]), 'raw_title': title,
+                  'video_type': 'clip', 'clip_slug': jstr(item, 'slug'), 'url': 'https://clips.twitch.tv/%s' % jstr(item, 'slug'),
+                  'icon': jstr(item, 'thumbnailURL'), 'desc': '[/br]'.join(descTab)}
+        self.addVideo(params)
 
-                params = {'good_for_fav': True, 'title': title, 'video_type': 'video', 'video_id': jstr(item, 'id'), 'icon': icon, 'desc': '[/br]'.join(descTab)}
-                self.addVideo(params)
+    def _addChannelUser(self, cItem, item):
+        stream = item.get('stream')
+        descTab = []
+        if stream:
+            descTab.append('%s | %s' % (_('Live'), _('%s viewers') % stream.get('viewersCount', 0)))
+            descTab.append(jstr(stream, 'title'))
+            if stream.get('game'):
+                descTab.append(_('Game: %s') % jstr(stream['game'], 'displayName'))
+        if item.get('followers'):
+            descTab.append(_('%s followers') % item['followers'].get('totalCount', 0))
+        params = {'good_for_fav': True, 'name': 'category', 'type': 'category', 'category': 'list_channel',
+                  'title': jstr(item, 'displayName') or jstr(item, 'login'), 'user_login': jstr(item, 'login'),
+                  'icon': jstr(item, 'profileImageURL'), 'desc': '[/br]'.join(descTab)}
+        self.addDir(params)
 
-            if cursor != '' and videosData['pageInfo']['hasNextPage']:
-                self.addDir(MergeDicts(cItem, {'title': _('Next page'), 'cursor': cursor}))
-        except Exception:
-            printExc()
+    # ---------------------------------------------------------------- listings
+    def listMain(self, cItem):
+        printDBG("Twitch.listMain")
+        MAIN_CAT_TAB = [{'category': 'dir_games', 'title': _('Games')},
+                        {'category': 'streams_lang', 'title': _('Live channels')}] + self.searchItems()
+        self.listsTab(MAIN_CAT_TAB, cItem)
+
+    def listStreams(self, cItem):
+        printDBG("Twitch.listStreams [%s]" % cItem)
+        data = self.gql('{ streams(first: %d, options: {sort: VIEWER_COUNT%s}) { edges { node { %s } } } }' % (MAX_STREAMS, self._langOption(cItem), STREAM_FIELDS))
+        if data:
+            self._addPaged(cItem, self._edges(data.get('streams')), self._addStream)
+
+    def listDirGames(self, cItem):
+        printDBG("Twitch.listDirGames [%s]" % cItem)
+        data = self.gql('{ games(first: %d) { edges { node { name displayName viewersCount boxArtURL(width: 285, height: 380) } } } }' % MAX_ITEMS)
+        if data:
+            self._addPaged(cItem, self._edges(data.get('games')), self._addGame)
+
+    def listGameChannels(self, cItem):
+        printDBG("Twitch.listGameChannels [%s]" % cItem)
+        data = self.gql('query($n: String!) { game(name: $n) { streams(first: %d, options: {sort: VIEWER_COUNT%s}) { edges { node { %s } } } } }' % (MAX_ITEMS, self._langOption(cItem), STREAM_FIELDS), {'n': cItem['game_name']})
+        if data and data.get('game'):
+            self._addPaged(cItem, self._edges(data['game'].get('streams')), self._addStream)
+
+    def listChannel(self, cItem):
+        login = cItem['user_login']
+        printDBG("Twitch.listChannel %s" % login)
+        data = self.gql('query($l: String!) { user(login: $l) { displayName profileImageURL(width: 300) '
+                        'stream { title viewersCount previewImageURL(width: 440, height: 248) game { displayName } } '
+                        'videos { totalCount } } }', {'l': login})
+        user = (data or {}).get('user')
+        if not user:
+            return
+        icon = jstr(user, 'profileImageURL')
+        stream = user.get('stream')
+        if stream:
+            descTab = [_('%s viewers') % stream.get('viewersCount', 0)]
+            if stream.get('game'):
+                descTab.append(_('Game: %s') % jstr(stream['game'], 'displayName'))
+            self.addVideo({'good_for_fav': True, 'title': '[%s] %s' % (_('Live'), jstr(stream, 'title')), 'video_type': 'live',
+                           'user_login': login, 'url': 'https://www.twitch.tv/%s' % login, 'icon': jstr(stream, 'previewImageURL') or icon,
+                           'desc': '[/br]'.join(descTab)})
+        videosCount = (user.get('videos') or {}).get('totalCount') or 0
+        if videosCount:
+            self.addDir(dict(cItem, good_for_fav=False, category='videos_types', title=_('Videos %s') % videosCount, icon=icon, desc=''))
+        self.addDir(dict(cItem, good_for_fav=False, category='clips_filters', title=_('Clips'), icon=icon, desc=''))
 
     def listVideos(self, cItem):
         printDBG("Twitch.listVideos [%s]" % cItem)
-        cursor = ',"cursor":"%s"' % cItem['cursor'] if 'cursor' in cItem else ''
-        broadcastType = '"%s"' % cItem['videos_type'] if 'videos_type' in cItem else 'null'
-        post_data = '[{"operationName":"FilterableVideoTower_Videos","variables":{"limit":30,"channelOwnerLogin":"%s","broadcastType":%s,"videoSort":"%s"%s},"extensions":{"persistedQuery":{"version":1,"sha256Hash":"352ca6e327523f88b08390bf79d1b1d6e5f67b46981c900cf41eca56ef9d3cfc"}}}]' % (cItem['user_login'], broadcastType, cItem['sort'], cursor)
-        url = self.getFullUrl('/gql', self.API2_URL)
-        sts, data = self.getPage(url, MergeDicts(self.defaultParams, {'raw_post_data': True}), post_data)
-        if not sts:
-            return
-
-        try:
-            data = json.loads(data)
-            self._listVideos(cItem, data[0]['data']['user']['videos'])
-        except Exception:
-            printExc()
+        vtype = ', type: %s' % cItem['videos_type'] if cItem.get('videos_type') else ''
+        data = self.gql('query($l: String!) { user(login: $l) { videos(first: %d, sort: %s%s) { edges { node { %s } } } } }' % (MAX_ITEMS, cItem['sort'], vtype, VIDEO_FIELDS), {'l': cItem['user_login']})
+        if data and data.get('user'):
+            self._addPaged(cItem, self._edges(data['user'].get('videos')), self._addVideo)
 
     def listGameVideos(self, cItem):
         printDBG("Twitch.listGameVideos [%s]" % cItem)
-        cursor = ',"followedCursor":"%s"' % cItem['cursor'] if 'cursor' in cItem else ''
-        broadcastType = ',"broadcastTypes":["%s"]' % cItem['videos_type'].lower() if 'videos_type' in cItem else ''
-        post_data = '[{"operationName":"DirectoryVideos_Game","variables":{"gameName":"%s","videoLimit":30,"tags":[%s],"videoSort":"%s"%s},"extensions":{"persistedQuery":{"version":1,"sha256Hash":"643351f6cff5d248aa2b827f912c80bf387b918c01089526b05d628cf04a5706"}}}]' % (cItem['game_name'], broadcastType, cItem['sort'], cursor)
-        url = self.getFullUrl('/gql', self.API2_URL)
-        sts, data = self.getPage(url, MergeDicts(self.defaultParams, {'raw_post_data': True}), post_data)
-        if not sts:
-            return
-
-        try:
-            data = json.loads(data)
-            self._listVideos(cItem, data[0]['data']['game']['videos'])
-        except Exception:
-            printExc()
-
-    def _listClips(self, cItem, clipsData):
-        try:
-            cursor = ''
-            for item in clipsData['edges']:
-                cursor = jstr(item, 'cursor')
-                item = item['node']
-                descTab = []
-
-                descTab.append(jstr(item, 'language'))
-                descTab.append('{0}'.format(timedelta(seconds=item['durationSeconds'])))
-                descTab.append(_('%s viewers') % item['viewCount'])
-                descTab = [' | '.join(descTab)]
-
-                icon = self.getFullIconUrl(jstr(item, 'thumbnailURL'), self.cm.meta['url'])
-                title = '[%s] %s' % (jstr(item, 'createdAt'), jstr(item, 'title'))
-
-                if item.get('curator'):
-                    descTab.append(jstr(item['curator'], '__typename') + ': ' + jstr(item['curator'], 'displayName'))
-                if item.get('broadcaster'):
-                    descTab.append(jstr(item['broadcaster'], '__typename') + ': ' + jstr(item['broadcaster'], 'displayName'))
-                if item.get('game'):
-                    descTab.append(jstr(item['game'], '__typename') + ': ' + jstr(item['game'], 'name'))
-
-                params = {'good_for_fav': True, 'title': title, 'url': jstr(item, 'url'), 'video_type': 'clip', 'clip_slug': jstr(item, 'slug'), 'clip_id': jstr(item, 'id'), 'icon': icon, 'desc': '[/br]'.join(descTab)}
-                self.addVideo(params)
-
-            if cursor != '' and clipsData['pageInfo']['hasNextPage']:
-                self.addDir(MergeDicts(cItem, {'title': _('Next page'), 'cursor': cursor}))
-
-        except Exception:
-            printExc()
+        vtype = ', types: [%s]' % cItem['videos_type'] if cItem.get('videos_type') else ''
+        data = self.gql('query($n: String!) { game(name: $n) { videos(first: %d, sort: %s%s) { edges { node { %s } } } } }' % (MAX_ITEMS, cItem['sort'], vtype, VIDEO_FIELDS), {'n': cItem['game_name']})
+        if data and data.get('game'):
+            self._addPaged(cItem, self._edges(data['game'].get('videos')), self._addVideo)
 
     def listClips(self, cItem):
         printDBG("Twitch.listClips [%s]" % cItem)
-        cursor = ',"cursor":"%s"' % cItem['cursor'] if 'cursor' in cItem else ''
-        post_data = '[{"operationName":"ClipsCards__User","variables":{"login":"%s","limit":20,"criteria":{"filter":"%s"}%s},"extensions":{"persistedQuery":{"version":1,"sha256Hash":"b661fa0b88f774135c200d64b7248ff21263c12db79e0f7d33aeedb0315cdcbb"}}}]' % (cItem['user_login'], cItem['clips_filter'], cursor)
-        url = self.getFullUrl('/gql', self.API2_URL)
-        sts, data = self.getPage(url, MergeDicts(self.defaultParams, {'raw_post_data': True}), post_data)
-        if not sts:
-            return
-
-        try:
-            data = json.loads(data)
-            self._listClips(cItem, data[0]['data']['user']['clips'])
-        except Exception:
-            printExc()
+        data = self.gql('query($l: String!) { user(login: $l) { clips(first: %d, criteria: {period: %s}) { edges { node { %s } } } } }' % (MAX_ITEMS, cItem['clips_period'], CLIP_FIELDS), {'l': cItem['user_login']})
+        if data and data.get('user'):
+            self._addPaged(cItem, self._edges(data['user'].get('clips')), self._addClip)
 
     def listGameClips(self, cItem):
         printDBG("Twitch.listGameClips [%s]" % cItem)
-        lang = '"%s"' % cItem['lang'].upper() if 'lang' in cItem else ''
-        cursor = ',"cursor":"%s"' % cItem['cursor'] if 'cursor' in cItem else ''
-        post_data = '[{"operationName":"ClipsCards__Game","variables":{"gameName":"%s","limit":20,"criteria":{"tags":[%s],"filter":"%s"}%s},"extensions":{"persistedQuery":{"version":1,"sha256Hash":"0d8d0eba9fc7ef77de54a7d933998e21ad7a1274c867ec565ac14ffdce77b1f9"}}}]' % (cItem['game_name'], lang, cItem['clips_filter'], cursor)
-        url = self.getFullUrl('/gql', self.API2_URL)
-        sts, data = self.getPage(url, MergeDicts(self.defaultParams, {'raw_post_data': True}), post_data)
-        if not sts:
-            return
-
-        try:
-            data = json.loads(data)
-            self._listClips(cItem, data[0]['data']['game']['clips'])
-        except Exception:
-            printExc()
-
-    def listSubItems(self, cItem):
-        printDBG("Twitch.listSubItems")
-        self.currList = cItem['sub_items']
-
-    def listV5Channels(self, cItem):
-        printDBG("Twitch.listV5Channels [%s]" % cItem)
-        offset = cItem.get('offset', 0)
-        url = cItem['url'] + str(offset)
-        sts, data = self.getPage(url)
-        if not sts:
-            return
-        try:
-            data = json.loads(data)
-            for item in data['channels']:
-                descTab = [_('Language: %s') % (jstr(item, 'language'))]
-                descTab.append(_('%s views') % item['views'])
-                descTab.append(_('%s followers') % item['followers'])
-                params = {'good_for_fav': True, 'name': 'category', 'type': 'category', 'category': 'list_channel', 'user_login': jstr(item, 'name'), 'title': jstr(item, 'display_name'), 'icon': jstr(item, 'logo'), 'desc': '[/br]'.join(descTab)}
-                self.addDir(params)
-            offset += len(self.currList)
-            if offset < data['_total']:
-                self.addDir(MergeDicts(cItem, {'title': _('Next page'), 'offset': offset}))
-        except Exception:
-            printExc()
-
-    def listV5Channels(self, cItem):
-        printDBG("Twitch.listV5Channels [%s]" % cItem)
-        offset = cItem.get('offset', 0)
-        url = cItem['url'] + str(offset)
-        sts, data = self.getPage(url)
-        if not sts:
-            return
-        try:
-            data = json.loads(data)
-            for item in data['channels']:
-                descTab = [_('Language: %s') % (jstr(item, 'language'))]
-                descTab.append(_('%s views') % item['views'])
-                descTab.append(_('%s followers') % item['followers'])
-                params = {'good_for_fav': True, 'name': 'category', 'type': 'category', 'category': 'list_channel', 'user_login': jstr(item, 'name'), 'title': jstr(item, 'display_name'), 'icon': jstr(item, 'logo'), 'desc': '[/br]'.join(descTab)}
-                self.addDir(params)
-            offset += len(self.currList)
-            if offset < data['_total']:
-                self.addDir(MergeDicts(cItem, {'title': _('Next page'), 'offset': offset}))
-        except Exception:
-            printExc()
-
-    def listV5Games(self, cItem):
-        printDBG("Twitch.listV5Games [%s]" % cItem)
-        offset = cItem.get('offset', 0)
-        url = cItem['url'] + str(offset)
-        sts, data = self.getPage(url)
-        printDBG("Twitch.listV5Games data [%s]" % data)
-        if not sts:
-            return
-        try:
-            data = json.loads(data)
-            for item in data['games']:
-                params = {'good_for_fav': True, 'name': 'category', 'type': 'category', 'category': 'browse_game', 'game_name': jstr(item, 'name'), 'game_id': str(item['_id']), 'title': jstr(item, 'localized_name'), 'icon': jstr(item['box'], 'medium'), 'desc': _('Popularity: ?')}
-                self.addDir(params)
-            offset += len(self.currList)
-            if offset < data.get('_total', 0):
-                self.addDir(MergeDicts(cItem, {'title': _('Next page'), 'offset': offset}))
-        except Exception:
-            printExc()
-
-    def listV5Streams(self, cItem):
-        printDBG("Twitch.listV5Streams [%s]" % cItem)
-        offset = cItem.get('offset', 0)
-        url = cItem['url'] + str(offset)
-        sts, data = self.getPage(url)
-        if not sts:
-            return
-        try:
-            data = json.loads(data)
-            for item in data['streams']:
-                descTab = [_('Language: %s') % (jstr(item['channel'], 'broadcaster_language'))]
-                descTab.append(_('%s viewers') % item['viewers'])
-                descTab.append(_('Broadcaster: %s') % jstr(item['channel'], 'display_name'))
-                descTab.append(_('Game: %s') % jstr(item, 'game'))
-                title = '[%s] %s' % (jstr(item, 'stream_type'), jstr(item['channel'], 'status'))
-                params = {'good_for_fav': False, 'title': title, 'video_type': jstr(item, 'stream_type'), 'channel_id': jstr(item['channel'], 'name'), 'icon': jstr(item['preview'], 'medium'), 'desc': '[/br]'.join(descTab)}
-                self.addVideo(params)
-            offset += len(self.currList)
-            if offset < data['_total']:
-                self.addDir(MergeDicts(cItem, {'title': _('Next page'), 'offset': offset}))
-        except Exception:
-            printExc()
+        lang = ', languages: [%s]' % cItem['lang'] if cItem.get('lang') in LANG_CODES else ''
+        data = self.gql('query($n: String!) { game(name: $n) { clips(first: %d, criteria: {period: %s%s}) { edges { node { %s } } } } }' % (MAX_ITEMS, cItem['clips_period'], lang, CLIP_FIELDS), {'n': cItem['game_name']})
+        if data and data.get('game'):
+            self._addPaged(cItem, self._edges(data['game'].get('clips')), self._addClip)
 
     def listSearchResult(self, cItem, searchPattern, searchType):
-        if searchType == 'channels':
-            url = self.API1_URL + 'kraken/search/channels?query=%s&limit=25&offset=' % (urllib_quote_plus(searchPattern))
-            cItem = MergeDicts(cItem, {'url': url, 'category': 'v5_channels'})
-            self.listV5Channels(cItem)
-        elif searchType == 'games':
-            url = self.API1_URL + 'kraken/search/games?query=%s&limit=25&offset=' % (urllib_quote_plus(searchPattern))
-            cItem = MergeDicts(cItem, {'url': url, 'category': 'v5_games'})
-            self.listV5Games(cItem)
-        elif searchType == 'streams':
-            url = self.API1_URL + 'kraken/search/streams?query=%s&limit=25&offset=' % (urllib_quote_plus(searchPattern))
-            cItem = MergeDicts(cItem, {'url': url, 'category': 'v5_streams'})
-            self.listV5Streams(cItem)
+        printDBG("Twitch.listSearchResult [%s] [%s]" % (searchPattern, searchType))
+        data = self.gql('query($q: String!) { searchFor(userQuery: $q, platform: "web") { '
+                        'channels { edges { item { ... on User { login displayName profileImageURL(width: 150) followers { totalCount } '
+                        'stream { viewersCount title game { displayName } } } } } } '
+                        'games { edges { item { ... on Game { name displayName viewersCount boxArtURL(width: 285, height: 380) } } } } } }', {'q': searchPattern})
+        result = (data or {}).get('searchFor') or {}
+        if searchType == 'games':
+            for edge in (result.get('games') or {}).get('edges', []):
+                if edge.get('item', {}).get('name'):
+                    self._addGame(cItem, edge['item'])
+            return
+        for edge in (result.get('channels') or {}).get('edges', []):
+            item = edge.get('item') or {}
+            if not item.get('login'):
+                continue
+            if searchType == 'streams' and not item.get('stream'):
+                continue
+            self._addChannelUser(cItem, item)
+
+    # ---------------------------------------------------------------- playback
+    def _getToken(self, field, arg, argType, value):
+        data = self.gql('query($v: %s) { %s(%s: $v, params: %s) { value signature } }' % (argType, field, arg, PLAYBACK_PARAMS), {'v': value})
+        token = (data or {}).get(field)
+        if token and token.get('value') and token.get('signature'):
+            return token
+        return None
 
     def getLinksForVideo(self, cItem):
         printDBG("Twitch.getLinksForVideo [%s]" % cItem)
         urlTab = []
+        videoType = cItem.get('video_type', '')
 
-        id = ''
-        if cItem['video_type'] == 'clip':
-            post_data = '[{"operationName":"VideoAccessToken_Clip","variables":{"slug":"%s"},"extensions":{"persistedQuery":{"version":1,"sha256Hash":"9bfcc0177bffc730bd5a5a89005869d2773480cf1738c592143b5173634b7d15"}}}]' % cItem['clip_slug']
-            url = self.getFullUrl('/gql', self.API2_URL)
-            sts, data = self.getPage(url, MergeDicts(self.defaultParams, {'raw_post_data': True}), post_data)
-            if not sts:
-                return urlTab
-            try:
-                data = byteify(json.loads(data))
-                printDBG("Twitch.getLinksForVideo data: %s" % data)
-                for item in data[0]['data']['clip']['videoQualities']:
-                    urlTab.append({'name': '%sp, %sfps' % (item['quality'], item['frameRate']), 'url': item['sourceURL'], 'need_resolve': 0})
-            except Exception:
-                printExc()
-        elif cItem['video_type'] == 'live':
-            id = cItem['channel_id']
-            tokenUrl = self.CHANNEL_TOKEN_URL
-            vidUrl = self.LIVE_URL
+        if videoType == 'clip':
+            data = self.gql('query($s: ID!) { clip(slug: $s) { playbackAccessToken(params: %s) { value signature } videoQualities { quality frameRate sourceURL } } }' % PLAYBACK_PARAMS, {'s': cItem['clip_slug']})
+            clip = (data or {}).get('clip') or {}
+            token = clip.get('playbackAccessToken') or {}
+            if token.get('value'):
+                query = urllib_urlencode({'sig': token['signature'], 'token': token['value']})
+                for item in clip.get('videoQualities') or []:
+                    if item.get('sourceURL'):
+                        name = '%sp' % item.get('quality')
+                        if item.get('frameRate'):
+                            name += ', %dfps' % int(item['frameRate'])
+                        urlTab.append({'name': name, 'url': item['sourceURL'] + '?' + query, 'need_resolve': 0})
+            return self._finishLinks(cItem, urlTab)
+
+        if videoType == 'live':
+            token = self._getToken('streamPlaybackAccessToken', 'channelName', 'String!', cItem['user_login'])
+            url = 'https://usher.ttvnw.net/api/channel/hls/%s.m3u8' % cItem['user_login'].lower()
             liveStream = True
         else:
-            id = cItem.get('video_id', '')
-            tokenUrl = self.VOD_TOKEN_URL
-            vidUrl = self.VOD_URL
+            token = self._getToken('videoPlaybackAccessToken', 'id', 'ID!', cItem['video_id'])
+            url = 'https://usher.ttvnw.net/vod/%s.m3u8' % cItem['video_id']
             liveStream = False
+        if not token:
+            return self._finishLinks(cItem, urlTab)
 
-        if id != '':
-            url = tokenUrl % id
-            sts, data = self.getPage(url)
-            if sts:
-                try:
-                    data = json.loads(data)
-                    url = vidUrl % (id, urllib_quote(jstr(data, 'token')), jstr(data, 'sig'))
-                    data = getDirectM3U8Playlist(url, checkExt=False)
-                    for item in data:
-                        item['url'] = urlparser.decorateUrl(item['url'], {'iptv_proto': 'm3u8', 'iptv_livestream': liveStream})
-                        urlTab.append(item)
-                except Exception:
-                    printExc()
+        url += '?' + urllib_urlencode({'sig': token['signature'], 'token': token['value'], 'allow_source': 'true', 'allow_audio_only': 'true', 'fast_bread': 'true', 'player': 'twitchweb'})
+        try:
+            for item in getDirectM3U8Playlist(url, checkExt=False, sortWithMaxBitrate=99999999):
+                item['url'] = urlparser.decorateUrl(item['url'], {'iptv_proto': 'm3u8', 'iptv_livestream': liveStream})
+                urlTab.append(item)
+        except Exception:
+            printExc()
+        return self._finishLinks(cItem, urlTab)
 
-        return urlTab
+    def _finishLinks(self, cItem, urlTab):
+        if not urlTab:
+            # offline channel, deleted VOD / clip, subscriber-only VOD
+            SetIPTVPlayerLastHostError(_("Content not available"))
+            return urlTab
+        if cItem.get('video_type') == 'live':
+            # no sidecar for a live stream recording
+            return urlTab
+        return applySidecarToLinks(urlTab, buildSidecarFromItem(cItem, IsSidecarEnabled()))
 
+    # ---------------------------------------------------------------- INFO
+    def getArticleContent(self, cItem):
+        printDBG("Twitch.getArticleContent [%s]" % cItem)
+        title = cItem.get('raw_title') or cItem.get('title', '')
+        text = cItem.get('desc', '')
+        icon = cItem.get('icon', '')
+        other = {}
+        videoType = cItem.get('video_type', '')
+        try:
+            if videoType == 'video' and cItem.get('video_id'):
+                data = self.gql('query($v: ID!) { video(id: $v) { title description lengthSeconds viewCount publishedAt broadcastType language '
+                                'owner { displayName } game { displayName } previewThumbnailURL(width: 640, height: 360) } }', {'v': cItem['video_id']})
+                item = (data or {}).get('video') or {}
+                if item:
+                    title = jstr(item, 'title') or title
+                    text = jstr(item, 'description') or text
+                    other.update({'duration': str(timedelta(seconds=int(item.get('lengthSeconds') or 0))), 'views': str(item.get('viewCount', 0)),
+                                  'released': jstr(item, 'publishedAt')[:16].replace('T', ' '), 'type': jstr(item, 'broadcastType').title(),
+                                  'language': jstr(item, 'language')})
+                    if item.get('owner'):
+                        other['station'] = jstr(item['owner'], 'displayName')
+                    if item.get('game'):
+                        other['category'] = jstr(item['game'], 'displayName')
+            elif videoType == 'clip' and cItem.get('clip_slug'):
+                data = self.gql('query($s: ID!) { clip(slug: $s) { title durationSeconds viewCount createdAt language broadcaster { displayName } '
+                                'curator { displayName } game { displayName } thumbnailURL(width: 480, height: 272) } }', {'s': cItem['clip_slug']})
+                item = (data or {}).get('clip') or {}
+                if item:
+                    title = jstr(item, 'title') or title
+                    other.update({'duration': str(timedelta(seconds=int(item.get('durationSeconds') or 0))), 'views': str(item.get('viewCount', 0)),
+                                  'released': jstr(item, 'createdAt')[:16].replace('T', ' '), 'language': jstr(item, 'language')})
+                    if item.get('broadcaster'):
+                        other['station'] = jstr(item['broadcaster'], 'displayName')
+                    if item.get('curator'):
+                        text = _('Clipped by: %s') % jstr(item['curator'], 'displayName')
+                    if item.get('game'):
+                        other['category'] = jstr(item['game'], 'displayName')
+            elif cItem.get('user_login'):
+                # live row and channel folder
+                data = self.gql('query($l: String!) { user(login: $l) { displayName description profileImageURL(width: 300) followers { totalCount } '
+                                'stream { title viewersCount createdAt game { displayName } } } }', {'l': cItem['user_login']})
+                item = (data or {}).get('user') or {}
+                if item:
+                    lines = []
+                    stream = item.get('stream')
+                    if stream:
+                        lines.append('%s: %s' % (_('Live'), jstr(stream, 'title')))
+                        lines.append(_('%s viewers') % stream.get('viewersCount', 0))
+                        other['broadcast'] = jstr(stream, 'createdAt')[:16].replace('T', ' ')
+                        if stream.get('game'):
+                            other['category'] = jstr(stream['game'], 'displayName')
+                    if item.get('followers'):
+                        lines.append(_('%s followers') % item['followers'].get('totalCount', 0))
+                    if jstr(item, 'description'):
+                        lines.append(jstr(item, 'description'))
+                    if videoType != 'live':
+                        title = jstr(item, 'displayName') or title
+                        icon = jstr(item, 'profileImageURL') or icon
+                    text = '[/br]'.join(lines) or text
+            elif cItem.get('game_name'):
+                data = self.gql('query($n: String!) { game(name: $n) { displayName description viewersCount followersCount } }', {'n': cItem['game_name']})
+                item = (data or {}).get('game') or {}
+                if item:
+                    title = jstr(item, 'displayName') or title
+                    lines = [_('%s viewers') % item.get('viewersCount', 0), _('%s followers') % item.get('followersCount', 0), jstr(item, 'description')]
+                    text = '[/br]'.join([x for x in lines if x])
+        except Exception:
+            printExc()
+        other = dict((k, v) for k, v in other.items() if v)
+        return [{'title': self.cleanHtmlStr(title), 'text': text, 'images': [{'title': '', 'url': icon}] if icon else [], 'other_info': other}]
+
+    # ---------------------------------------------------------------- service
     def handleService(self, index, refresh=0, searchPattern='', searchType=''):
         printDBG('handleService start')
-
         CBaseHostClass.handleService(self, index, refresh, searchPattern, searchType)
-
         name = self.currItem.get("name", '')
         category = self.currItem.get("category", '')
         printDBG("handleService: ||| name[%s], category[%s] " % (name, category))
         self.currList = []
 
-    #MAIN MENU
-        if name == None:
+        if name is None:
             self.listMain({'name': 'category', 'type': 'category'})
-
-        elif category == 'browse':
-            self.listDirectories(self.currItem)
-
-        elif category == 'sub_items':
-            self.listSubItems(self.currItem)
-
-        elif category == 'dir_channels':
-            self.listDirChannels(self.currItem, 'list_channel')
-        elif category == 'list_channel':
-            self.listChannel(self.currItem)
-
-        elif category == 'videos_types':
-            self.listsTab(self.VIDEOS_TYPES_TAB, MergeDicts(self.currItem, {'category': 'videos_sort'}))
-        elif category == 'videos_sort':
-            self.listsTab(self.VIDEOS_SORT_TAB, MergeDicts(self.currItem, {'category': 'list_videos'}))
-        elif category == 'list_videos':
-            self.listVideos(self.currItem)
-
-        elif category == 'clips_filters':
-            self.listsTab(self.CLIPS_FILTERS_TAB, MergeDicts(self.currItem, {'category': 'list_clips'}))
-        elif category == 'list_clips':
-            self.listClips(self.currItem)
-
+        elif category == 'streams_lang':
+            self.listsTab(self.langItems, dict(self.currItem, category='list_streams'))
+        elif category == 'list_streams':
+            self.listStreams(self.currItem)
         elif category == 'dir_games':
-            self.listDirGames(self.currItem, 'browse_game')
+            self.listDirGames(self.currItem)
         elif category == 'browse_game':
-           self.listsTab(self.GAME_CAT_TAB, self.currItem)
+            self.listsTab(self.GAME_CAT_TAB, self.currItem)
         elif category == 'game_lang':
-            self.listsTab(self.langItems, MergeDicts(self.currItem, {'category': self.currItem['next_category']}))
+            self.listsTab(self.langItems, dict(self.currItem, category=self.currItem['next_category']))
         elif category == 'game_channels':
-            self.listGameChannels(self.currItem, 'list_channel')
-
+            self.listGameChannels(self.currItem)
         elif category == 'game_videos_types':
-            self.listsTab(self.VIDEOS_TYPES_TAB, MergeDicts(self.currItem, {'category': 'game_videos_sort'}))
+            self.listsTab(self.VIDEOS_TYPES_TAB, dict(self.currItem, category='game_videos_sort'))
         elif category == 'game_videos_sort':
-            self.listsTab(self.VIDEOS_SORT_TAB, MergeDicts(self.currItem, {'category': 'game_list_videos'}))
+            self.listsTab(self.VIDEOS_SORT_TAB, dict(self.currItem, category='game_list_videos'))
         elif category == 'game_list_videos':
             self.listGameVideos(self.currItem)
-
         elif category == 'game_clips_filters':
-            self.listsTab(self.CLIPS_FILTERS_TAB, MergeDicts(self.currItem, {'category': 'game_list_clips'}))
+            self.listsTab(self.CLIPS_FILTERS_TAB, dict(self.currItem, category='game_list_clips'))
         elif category == 'game_list_clips':
             self.listGameClips(self.currItem)
-
-        elif category == 'v5_channels':
-            self.listV5Channels(self.currItem)
-        elif category == 'v5_games':
-            self.listV5Games(self.currItem)
-        elif category == 'v5_streams':
-            self.listV5Streams(self.currItem)
-
-    #SEARCH
+        elif category == 'list_channel':
+            self.listChannel(self.currItem)
+        elif category == 'videos_types':
+            self.listsTab(self.VIDEOS_TYPES_TAB, dict(self.currItem, category='videos_sort'))
+        elif category == 'videos_sort':
+            self.listsTab(self.VIDEOS_SORT_TAB, dict(self.currItem, category='list_videos'))
+        elif category == 'list_videos':
+            self.listVideos(self.currItem)
+        elif category == 'clips_filters':
+            self.listsTab(self.CLIPS_FILTERS_TAB, dict(self.currItem, category='list_clips'))
+        elif category == 'list_clips':
+            self.listClips(self.currItem)
         elif category in ["search", "search_next_page"]:
             cItem = dict(self.currItem)
             cItem.update({'search_item': False, 'name': 'category'})
             self.listSearchResult(cItem, searchPattern, searchType)
-    #HISTORIA SEARCH
         elif category == "search_history":
-            self.listsHistory({'name': 'history', 'category': 'search'}, 'desc', _("Type: "))
+            self.listsHistory({'name': 'history', 'category': 'search'}, 'desc')
         else:
             printExc()
 
         CBaseHostClass.endHandleService(self, index, refresh)
 
 
-class IPTVHost(CHostBase):
+class IPTVHost(GenericFolderWatchedHostMixin, CHostBase):
 
     def __init__(self):
-        CHostBase.__init__(self, Twitch(), True, [])
+        CHostBase.__init__(self, Twitch(), True, [CDisplayListItem.TYPE_VIDEO, CDisplayListItem.TYPE_CATEGORY])
+        self.cachedRet = None
+        self.refreshAfterWatchedFlagChange = False
+        self.watchedHelper = IPTVWatchedHelper('twitchtv')
+
+    def withArticleContent(self, cItem):
+        if cItem.get('type') == 'video':
+            return bool(cItem.get('video_id') or cItem.get('clip_slug') or cItem.get('user_login'))
+        return cItem.get('category') in ('list_channel', 'browse_game')
 
     def getSearchTypes(self):
-        searchTypesOptions = []
-        searchTypesOptions.append((_("Games"), "games"))
-        searchTypesOptions.append((_("Live streams"), "streams"))
-        searchTypesOptions.append((_("Channles"), "channels"))
-        return searchTypesOptions
+        return [(_("Channels"), "channels"), (_("Live streams"), "streams"), (_("Games"), "games")]

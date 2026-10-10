@@ -56,6 +56,7 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvtools import FreeSpace as iptvtools
                                                           GetEnabledHostsList, SaveHostsOrderList, GetUpdateServerUri, GetHostsAliases, formatBytes, getExcMSG, \
                                                           findT9JumpIndex
 from Plugins.Extensions.IPTVPlayer.tools.iptvhostgroups import IPTVHostsGroups
+from Plugins.Extensions.IPTVPlayer.components.iptvhostpin import AskHostPin, ClearUnlockedHosts, HostNeedsPin, IsHostUnlocked
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdh import DMHelper
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvbuffui import E2iPlayerBufferingWidget
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdmapi import IPTVDMApi, DMItem
@@ -503,7 +504,23 @@ class E2iPlayerWidget(Screen):
     def __del__(self):
         printDBG("E2iPlayerWidget.__del__")
 
+    def stopTorrServer(self):
+        # only the TorrServer E2iPlayer started, and not while the download manager still fetches from it
+        if not config.plugins.iptvplayer.torrserver_stop_on_exit.value:
+            return
+        try:
+            from Plugins.Extensions.IPTVPlayer.libs import torrserver
+            baseUrl = torrserver.getBaseUrl()
+            if gDownloadManager is not None and any(str(item.url).startswith(baseUrl) for item in gDownloadManager.queueUD + gDownloadManager.queueDQ):
+                return
+            torrserver.stopOwnServer()
+        except Exception:
+            printExc()
+
     def __onClose(self):
+        # a PIN protected host asks again on the next start
+        ClearUnlockedHosts()
+        self.stopTorrServer()
         self.session.nav.playService(self.currentService)
         self["list"].disconnectSelChanged(self.onSelectionChanged)
         if None is not self.checkUpdateConsole:
@@ -771,10 +788,10 @@ class E2iPlayerWidget(Screen):
             options.append((_('Reverse a playlist'), "ReversePlayableItems"))
 
         self.hostActions = []
+        # every host has settings: at least its PIN protection
+        options.append((_("Configure host"), "HostConfig"))
         try:
-            host = __import__('Plugins.Extensions.IPTVPlayer.hosts.host' + self.hostName, globals(), locals(), ['GetConfigList'], 0) #both p2&p3 accepts absolute imports (level=0)
-            if(len(host.GetConfigList()) > 0):
-                options.append((_("Configure host"), "HostConfig"))
+            host = __import__('Plugins.Extensions.IPTVPlayer.hosts.host' + self.hostName, globals(), locals(), ['GetHostActions'], 0) #both p2&p3 accepts absolute imports (level=0)
             if hasattr(host, 'GetHostActions'):
                 self.hostActions = host.GetHostActions()
                 for idx in range(len(self.hostActions)):
@@ -825,7 +842,7 @@ class E2iPlayerWidget(Screen):
                     self.hideWindow()
 
             while idx < len(self.currList):
-                if self.currList[idx].type in [CDisplayListItem.TYPE_VIDEO, CDisplayListItem.TYPE_AUDIO, CDisplayListItem.TYPE_PICTURE, CDisplayListItem.TYPE_MORE]:
+                if self.currList[idx].type in [CDisplayListItem.TYPE_VIDEO, CDisplayListItem.TYPE_AUDIO, CDisplayListItem.TYPE_PICTURE, CDisplayListItem.TYPE_MORE] and not self._itemNeedsPin(self.currList[idx]):
                     break
                 else:
                     idx += 1
@@ -1299,6 +1316,10 @@ class E2iPlayerWidget(Screen):
                 item = None
             if None is not item:
                 self.stopAutoPlaySequencer()
+                if self._itemNeedsPin(item):
+                    # the article of a favourite comes from its (locked) host
+                    AskHostPin(self.session, item.pinHost, self.info_pressed)
+                    return
                 self.currSelIndex = currSelIndex = self["list"].getCurrentIndex()
                 self.requestListFromHost('ForArticleContent', currSelIndex)
     # end info_pressed(self):
@@ -1515,6 +1536,10 @@ class E2iPlayerWidget(Screen):
                 currSelIndex = self["list"].getCurrentIndex()
                 # remember only prev categories
                 if item.type in [CDisplayListItem.TYPE_VIDEO, CDisplayListItem.TYPE_AUDIO, CDisplayListItem.TYPE_PICTURE, CDisplayListItem.TYPE_DATA]:
+                    if self._itemNeedsPin(item):
+                        # the sequencer skips such items, so only OK/GREEN get here
+                        AskHostPin(self.session, item.pinHost, boundFunction(self.ok_pressed, eventFrom, useAlternativePlayer))
+                        return
                     if CDisplayListItem.TYPE_AUDIO == item.type:
                         self.bufferSize = config.plugins.iptvplayer.requestedAudioBuffSize.value * 1024
                     else:
@@ -1554,7 +1579,12 @@ class E2iPlayerWidget(Screen):
                         except Exception:
                             printExc()
 
-                    if item.pinLocked:
+                    if self._itemNeedsPin(item):
+                        AskHostPin(self.session, item.pinHost, boundFunction(self.requestListFromHost, 'ForItem', currSelIndex, ''))
+                    elif getattr(item, 'pinHost', ''):
+                        # favourite of an unlocked host
+                        self.requestListFromHost('ForItem', currSelIndex, '')
+                    elif item.pinLocked:
                         from Plugins.Extensions.IPTVPlayer.components.iptvpin import IPTVPinWidget
                         self.session.openWithCallback(boundFunction(self.checkDirPin, self.requestListFromHost, 'ForItem', currSelIndex, '', item.pinCode), IPTVPinWidget, title=_("Enter pin"))
                     else:
@@ -1574,6 +1604,12 @@ class E2iPlayerWidget(Screen):
         else:
             self.showWindow()
     #end ok_pressed(self):
+
+    @staticmethod
+    def _itemNeedsPin(item):
+        # a favourite of a PIN protected host that was not unlocked yet in this E2iPlayer session
+        pinHost = getattr(item, 'pinHost', '')
+        return bool(pinHost) and HostNeedsPin(pinHost)
 
     def checkDirPin(self, callbackFun, arg1, arg2, arg3, pinCode, pin=None):
         if pin is not None:
@@ -2017,7 +2053,7 @@ class E2iPlayerWidget(Screen):
 
         if nextFunction and prevFunction:
             if True is protectedByPin:
-                from iptvpin import IPTVPinWidget
+                from Plugins.Extensions.IPTVPlayer.components.iptvpin import IPTVPinWidget
                 self.session.openWithCallback(boundFunction(self.checkPin, nextFunction, prevFunction), IPTVPinWidget, title=_("Enter pin"))
             else:
                 nextFunction()
@@ -2051,7 +2087,7 @@ class E2iPlayerWidget(Screen):
 
     def runConfigHostIfAllowed(self):
         if config.plugins.iptvplayer.configProtectedByPin.value:
-            from iptvpin import IPTVPinWidget
+            from Plugins.Extensions.IPTVPlayer.components.iptvpin import IPTVPinWidget
             self.session.openWithCallback(boundFunction(self.checkPin, self.runConfigHost, None), IPTVPinWidget, title=_("Enter pin"))
         else:
             self.runConfigHost()
@@ -2063,17 +2099,11 @@ class E2iPlayerWidget(Screen):
         if confgiChanged:
             self.loadHost()
 
-    def checkPin(self, callbackFun, failCallBackFun, pin=None, expectedPin=''):
-        # expectedPin lets a host (loadHost() below) check against its own
-        # PIN instead of the global player one - same fallback as
-        # checkDirPin()'s custom pinCode: an invalid (non-4-digit) value
-        # means "use the global player PIN", which is also what every
-        # other caller of checkPin() gets by leaving expectedPin at its
-        # default ''.
+    def checkPin(self, callbackFun, failCallBackFun, pin=None):
+        # the player PIN (plugin / configuration protection); a host's PIN is asked by
+        # iptvhostpin.AskHostPin (loadHost() below)
         if pin is not None:
-            if 4 != len(expectedPin):
-                expectedPin = config.plugins.iptvplayer.pin.value
-            if pin == expectedPin:
+            if pin == config.plugins.iptvplayer.pin.value:
                 callbackFun()
             else:
                 self.session.openWithCallback(self.close, MessageBox, _("Pin incorrect!"), type=MessageBox.TYPE_INFO, timeout=5)
@@ -2101,21 +2131,15 @@ class E2iPlayerWidget(Screen):
             return
 
         try:
-            protectedByPin = self.host.isProtectedByPinCode()
+            protectedByPin = self.host.isProtectedByPinCode() and not IsHostUnlocked(self.hostName)
         except Exception:
-            protected = False # should never happen
+            printExc()
+            protectedByPin = False
 
         if protectedByPin:
-            from Plugins.Extensions.IPTVPlayer.components.iptvpin import IPTVPinWidget
-            try:
-                hostPinCode = self.host.getPinCode()
-            except Exception:
-                hostPinCode = ''
-
-            def _checkHostPin(pin=None):
-                self.checkPin(self.loadHostData, self.selectHost, pin, expectedPin=hostPinCode)
-
-            self.session.openWithCallback(_checkHostPin, IPTVPinWidget, title=_("Enter pin") + " - " + (self.hostTitle or self.hostName))
+            # the right PIN unlocks the host until E2iPlayer is closed (also its favourites); a wrong one shows
+            # "Pin incorrect!" and goes back to the host selection, like leaving the PIN dialog
+            AskHostPin(self.session, self.hostName, self.loadHostData, onWrong=self.selectHost, onCancel=self.selectHost)
         else:
             self.loadHostData()
 

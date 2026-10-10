@@ -15,7 +15,8 @@ from Plugins.Extensions.IPTVPlayer.iptvupdate.updatemainwindow import IPTVUpdate
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, IPTVPlayerNeedInit
 from Plugins.Extensions.IPTVPlayer.components.configbase import ConfigBaseWidget, COLORS_DEFINITONS
 from Plugins.Extensions.IPTVPlayer.components.confighost import ConfigHostsMenu
-from Plugins.Extensions.IPTVPlayer.components.iptvdirbrowser import IPTVDirectorySelectorWidget
+from Plugins.Extensions.IPTVPlayer.components.iptvdirbrowser import IPTVDirectorySelectorWidget, IPTVFileSelectorWidget
+from Plugins.Extensions.IPTVPlayer.components.configsecret import ConfigSecret, ConfigLogin
 from Plugins.Extensions.IPTVPlayer.setup.iptvsetupwidget import IPTVSetupMainWidget
 ###################################################
 
@@ -24,6 +25,9 @@ from Plugins.Extensions.IPTVPlayer.setup.iptvsetupwidget import IPTVSetupMainWid
 ###################################################
 from Screens.MessageBox import MessageBox
 from Screens.Screen import Screen
+from Screens.ChoiceBox import ChoiceBox
+from os import path as os_path
+import re
 
 from Components.ActionMap import ActionMap, HelpableActionMap
 from Components.Label import Label
@@ -52,6 +56,7 @@ config.plugins.iptvplayer.subtConfVisible = NoSave(ConfigNothing())
 config.plugins.iptvplayer.playConfVisible = NoSave(ConfigNothing())
 config.plugins.iptvplayer.otherConfVisible = NoSave(ConfigNothing())
 config.plugins.iptvplayer.metaConfVisible = NoSave(ConfigNothing())
+config.plugins.iptvplayer.torrConfVisible = NoSave(ConfigNothing())
 
 from Plugins.Extensions.IPTVPlayer.components.configextmovieplayer import ConfigExtMoviePlayer
 
@@ -196,6 +201,9 @@ config.plugins.iptvplayer.opensuborg_login = ConfigText(default="", fixed_size=F
 config.plugins.iptvplayer.opensuborg_password = ConfigText(default="", fixed_size=False)
 config.plugins.iptvplayer.napisy24pl_login = ConfigText(default="", fixed_size=False)
 config.plugins.iptvplayer.napisy24pl_password = ConfigText(default="", fixed_size=False)
+config.plugins.iptvplayer.opensubcom_apikey = ConfigSecret(default="", fixed_size=False)
+config.plugins.iptvplayer.opensubcom_login = ConfigLogin(default="", fixed_size=False)
+config.plugins.iptvplayer.opensubcom_password = ConfigSecret(default="", fixed_size=False)
 
 config.plugins.iptvplayer.debugprint = ConfigSelection(default="", choices=[("", _("no")), ("console", _("yes, to console")),
                                                                             ("debugfile", _("yes, to file /hdd/iptv.dbg")),
@@ -218,6 +226,8 @@ config.plugins.iptvplayer.pin = ConfigText(default="0000", fixed_size=False)
 config.plugins.iptvplayer.disable_live = ConfigYesNo(default=False)
 config.plugins.iptvplayer.configProtectedByPin = ConfigYesNo(default=False)
 config.plugins.iptvplayer.pluginProtectedByPin = ConfigYesNo(default=False)
+# a PIN protected host (iptvhostpin.py): its right PIN counts until E2iPlayer is closed, or it is asked every time
+config.plugins.iptvplayer.host_pin_remember = ConfigYesNo(default=True)
 
 config.plugins.iptvplayer.httpssslcertvalidation = ConfigYesNo(default=False)
 
@@ -228,6 +238,34 @@ config.plugins.iptvplayer.russian_proxyurl = ConfigText(default="http://user:pas
 config.plugins.iptvplayer.ukrainian_proxyurl = ConfigText(default="http://user:pass@ip:port", fixed_size=False)
 config.plugins.iptvplayer.alternative_proxy1 = ConfigText(default="http://user:pass@ip:port", fixed_size=False)
 config.plugins.iptvplayer.alternative_proxy2 = ConfigText(default="http://user:pass@ip:port", fixed_size=False)
+config.plugins.iptvplayer.alternative_proxy3 = ConfigText(default="http://user:pass@ip:port", fixed_size=False)
+config.plugins.iptvplayer.alternative_proxy4 = ConfigText(default="http://user:pass@ip:port", fixed_size=False)
+config.plugins.iptvplayer.alternative_proxy5 = ConfigText(default="http://user:pass@ip:port", fixed_size=False)
+
+
+def GetAlternativeProxyList():
+    # (slot id, label, config) of every alternative proxy - the slot id is what a host's
+    # "Use proxy server:" option stores; kept as literals so the labels stay translatable
+    cp = config.plugins.iptvplayer
+    return [("proxy_1", _("Alternative proxy server (1)"), cp.alternative_proxy1),
+            ("proxy_2", _("Alternative proxy server (2)"), cp.alternative_proxy2),
+            ("proxy_3", _("Alternative proxy server (3)"), cp.alternative_proxy3),
+            ("proxy_4", _("Alternative proxy server (4)"), cp.alternative_proxy4),
+            ("proxy_5", _("Alternative proxy server (5)"), cp.alternative_proxy5)]
+
+
+def GetAlternativeProxyChoices():
+    # choices for a host's "Use proxy server:" ConfigSelection
+    return [("None", _("None"))] + [(slot, label) for slot, label, cfg in GetAlternativeProxyList()]
+
+
+def GetAlternativeProxyUrl(slot):
+    # the address of the chosen slot, '' for "None" or an unknown slot
+    for currSlot, label, cfg in GetAlternativeProxyList():
+        if currSlot == slot:
+            return cfg.value
+    return ''
+
 
 config.plugins.iptvplayer.captcha_bypass = ConfigSelection(default="", choices=[("", _("Auto")), ("mye2i", "MyE2i"), ("2captcha.com", "2captcha.com"), ("9kw.eu", "9kw.eu")])
 
@@ -288,6 +326,49 @@ config.plugins.iptvplayer.meta_omdb = ConfigYesNo(default=False)
 config.plugins.iptvplayer.meta_language = ConfigSelection(default="auto", choices=[("auto", _("Auto")), ("ar", _("Arabic")), ("cs", _("Czech")), ("de", _("German")), ("el", _("Greek")), ("en", _("English")), ("es", _("Spanish")), ("fr", _("French")), ("hu", _("Hungarian")), ("it", _("Italian")), ("nl", _("Dutch")), ("pl", _("Polish")), ("pt", _("Portuguese")), ("ru", _("Russian")), ("tr", _("Turkish")), ("uk", _("Ukrainian"))])
 config.plugins.iptvplayer.meta_tmdb_apikey = ConfigText(default="", fixed_size=False)
 config.plugins.iptvplayer.meta_omdb_apikey = ConfigText(default="", fixed_size=False)
+
+# folder of the account files of hosts like hostxtream / hoststalker (<ConfigDir>/IPTVAccounts/), same place as in
+# the python3 branch; no settings row - zadmario keeps its own settings files in GetConfigDir()
+config.plugins.iptvplayer.ConfigDir = ConfigDirectory(default="/etc/enigma2/IPTVPlayer/")
+# live HLS through curl-impersonate (iptvdm/impersonatehlsdownloader.py): buffered playback starts this many seconds
+# behind the live edge; no settings row - zadmario's hlsdl has its own live start
+config.plugins.iptvplayer.hlsdlLiveStartOffset = ConfigSelection(default="default", choices=[("default", _("Default (2 minutes)")), ("60", _("1 minute")), ("30", _("30 seconds")), ("15", _("15 seconds")), ("5", _("5 seconds")), ("0", _("At the live edge"))])
+
+# torrent playback through a local TorrServer (libs/torrserver.py) - the user installs the binary;
+# off by default because a torrent client also sends data to other peers unless upload is disabled
+config.plugins.iptvplayer.torrserver_enabled = ConfigYesNo(default=False)
+# empty = search $PATH and the usual folders; a folder or the full path of the binary (OK in the
+# configuration opens a file browser)
+config.plugins.iptvplayer.torrserver_path = ConfigText(default="", fixed_size=False)
+config.plugins.iptvplayer.torrserver_port = ConfigInteger(8090, (1024, 65535))
+config.plugins.iptvplayer.torrserver_cache = ConfigSelection(default="64", choices=[("32", "32 MB"), ("64", "64 MB"), ("128", "128 MB"), ("256", "256 MB"), ("512", "512 MB")])
+config.plugins.iptvplayer.torrserver_preload = ConfigSelection(default="50", choices=[("0", _("Off")), ("25", "25%"), ("50", "50%"), ("75", "75%"), ("100", "100%")])
+config.plugins.iptvplayer.torrserver_upload = ConfigYesNo(default=False)
+config.plugins.iptvplayer.torrserver_stop_on_exit = ConfigYesNo(default=True)
+# TorrServer's own web interface (http://<receiver>:<port>) from other devices of the home network; off =
+# bound to 127.0.0.1, only E2iPlayer reaches it (TorrServer's web interface has no password by default)
+config.plugins.iptvplayer.torrserver_lan = ConfigYesNo(default=False)
+# cache in RAM (default) or in a folder on HDD/USB - TorrServer then keeps the pieces in <folder>/TorrServer
+config.plugins.iptvplayer.torrserver_cache_location = ConfigSelection(default="ram", choices=[("ram", _("RAM")), ("disk", _("Folder on HDD / USB"))])
+config.plugins.iptvplayer.torrserver_cache_dir = ConfigDirectory(default="/media/hdd/")
+config.plugins.iptvplayer.torrserver_disk_cache = ConfigSelection(default="2048", choices=[("1024", "1 GB"), ("2048", "2 GB"), ("4096", "4 GB"), ("8192", "8 GB"), ("16384", "16 GB"), ("32768", "32 GB")])
+config.plugins.iptvplayer.torrserver_remove_cache = ConfigYesNo(default=True)
+# TorrServer's own settings (BTSets) - values as TorrServer takes them: rates in KB/s, timeout in seconds
+config.plugins.iptvplayer.torrserver_connections = ConfigSelection(default="25", choices=[("10", "10"), ("25", "25"), ("50", "50"), ("100", "100"), ("200", "200")])
+config.plugins.iptvplayer.torrserver_dl_limit = ConfigSelection(default="0", choices=[("0", _("unlimited")), ("512", "512 KB/s"), ("1024", "1 MB/s"), ("2048", "2 MB/s"), ("5120", "5 MB/s"), ("10240", "10 MB/s")])
+config.plugins.iptvplayer.torrserver_ul_limit = ConfigSelection(default="512", choices=[("0", _("unlimited")), ("128", "128 KB/s"), ("256", "256 KB/s"), ("512", "512 KB/s"), ("1024", "1 MB/s"), ("2048", "2 MB/s")])
+config.plugins.iptvplayer.torrserver_readahead = ConfigSelection(default="95", choices=[("50", "50%"), ("75", "75%"), ("95", "95%"), ("100", "100%")])
+config.plugins.iptvplayer.torrserver_timeout = ConfigSelection(default="30", choices=[("30", "30 s"), ("60", "60 s"), ("120", "2 min"), ("300", "5 min")])
+config.plugins.iptvplayer.torrserver_encrypt = ConfigYesNo(default=False)
+config.plugins.iptvplayer.torrserver_dlna = ConfigYesNo(default=False)
+
+
+def GetTorrentWarning():
+    # shown when torrent playback is switched on, as a yes/no question
+    return _("Torrents are peer-to-peer: while a torrent plays, the receiver connects to other users and your IP address is visible to them. "
+             "Depending on your country, downloading or sharing copyrighted content through torrents may be illegal - you alone are "
+             "responsible for what you play. Upload to other peers stays off unless you switch it on.\n\n"
+             "TorrServer itself is not part of E2iPlayer, it has to be installed separately.")
 
 
 def IsExternalResolveAllowed():
@@ -435,6 +516,7 @@ class ConfigMenu(ConfigBaseWidget):
         self.playConfVisible = False #PLAYERS CONFIGURATION
         self.otherConfVisible = False #OTHER SETTINGS
         self.metaConfVisible = False #METADATA PROVIDERS
+        self.torrConfVisible = False #TORRENT CONFIGURATION
         # INFO opens the info screen (BLUE pages down and is part of the
         # hidden-options code here)
         self["infoActions"] = ActionMap(["IPTVPlayerListActions"], {"info": self.keyInfo}, -2)
@@ -460,7 +542,7 @@ class ConfigMenu(ConfigBaseWidget):
     @staticmethod
     def fillConfigList(list, hiddenOptions=False, basicConfVisible=True, prxyConfVisible=False, buffConfVisible=False, downConfVisible=False,
                                                   captConfVisible=False, subtConfVisible=False, playConfVisible=False, otherConfVisible=False, metaConfVisible=False,
-                                                  hiddenConfVisible=True):
+                                                  hiddenConfVisible=True, torrConfVisible=False):
         if hiddenOptions:
             list.append(getConfigListEntry('\\c00289496' + _("----- HIDDEN OPTIONS (OK) -----"), config.plugins.iptvplayer.hiddenConfVisible))
         if hiddenOptions and hiddenConfVisible: #HIDDEN OPTIONS
@@ -515,8 +597,10 @@ class ConfigMenu(ConfigBaseWidget):
             list.append(getConfigListEntry(_("Disable live at plugin start"), config.plugins.iptvplayer.disable_live))
             list.append(getConfigListEntry(_("Pin protection for plugin"), config.plugins.iptvplayer.pluginProtectedByPin))
             list.append(getConfigListEntry(_("Pin protection for configuration"), config.plugins.iptvplayer.configProtectedByPin))
-            if config.plugins.iptvplayer.pluginProtectedByPin.value or config.plugins.iptvplayer.configProtectedByPin.value:
-                list.append(getConfigListEntry(_("Set pin code"), config.plugins.iptvplayer.fakePin))
+            # the player pin: also the pin of every protected host without an own one
+            list.append(getConfigListEntry(_("Set pin code"), config.plugins.iptvplayer.fakePin))
+            # the PIN protection of a host itself is set in that host's settings
+            list.append(getConfigListEntry(_("Remember a host's pin until E2iPlayer is closed"), config.plugins.iptvplayer.host_pin_remember))
 
             list.append(getConfigListEntry(_("Skin"), config.plugins.iptvplayer.skin))
             list.append(getConfigListEntry(_("Use colors"), config.plugins.iptvplayer.use_colors))
@@ -538,8 +622,8 @@ class ConfigMenu(ConfigBaseWidget):
 
         list.append(getConfigListEntry('\\c00289496' + _("----- PROXIES CONFIGURATION (OK) -----"), config.plugins.iptvplayer.prxyConfVisible))
         if prxyConfVisible: #PROXIES CONFIGURATION
-            list.append(getConfigListEntry(_("Alternative proxy server (1)"), config.plugins.iptvplayer.alternative_proxy1))
-            list.append(getConfigListEntry(_("Alternative proxy server (2)"), config.plugins.iptvplayer.alternative_proxy2))
+            for slot, label, cfg in GetAlternativeProxyList():
+                list.append(getConfigListEntry(label, cfg))
             list.append(getConfigListEntry(_("Polish proxy server url"), config.plugins.iptvplayer.proxyurl))
             list.append(getConfigListEntry(_("German proxy server url"), config.plugins.iptvplayer.german_proxyurl))
             list.append(getConfigListEntry(_("Russian proxy server url"), config.plugins.iptvplayer.russian_proxyurl))
@@ -582,6 +666,9 @@ class ConfigMenu(ConfigBaseWidget):
             list.append(getConfigListEntry(_("Use subtitles parser extension if available"), config.plugins.iptvplayer.useSubtitlesParserExtension))
             list.append(getConfigListEntry("http://opensubtitles.org/ " + _("login"), config.plugins.iptvplayer.opensuborg_login))
             list.append(getConfigListEntry("http://opensubtitles.org/ " + _("password"), config.plugins.iptvplayer.opensuborg_password))
+            list.append(getConfigListEntry("https://www.opensubtitles.com/ " + _("API Key"), config.plugins.iptvplayer.opensubcom_apikey))
+            list.append(getConfigListEntry("https://www.opensubtitles.com/ " + _("login"), config.plugins.iptvplayer.opensubcom_login))
+            list.append(getConfigListEntry("https://www.opensubtitles.com/ " + _("password"), config.plugins.iptvplayer.opensubcom_password))
             list.append(getConfigListEntry("http://napisy24.pl/ " + _("login"), config.plugins.iptvplayer.napisy24pl_login))
             list.append(getConfigListEntry("http://napisy24.pl/ " + _("password"), config.plugins.iptvplayer.napisy24pl_password))
 
@@ -670,6 +757,33 @@ class ConfigMenu(ConfigBaseWidget):
             if cp.meta_omdb.value:
                 list.append(getConfigListEntry("    " + _("OMDb API key (free at omdbapi.com)"), cp.meta_omdb_apikey))
 
+        list.append(getConfigListEntry('\\c00289496' + _("----- TORRENT CONFIGURATION (OK) -----"), config.plugins.iptvplayer.torrConfVisible))
+        if torrConfVisible: #TORRENT CONFIGURATION - libs/torrserver.py
+            cp = config.plugins.iptvplayer
+            list.append(getConfigListEntry(_("Play torrents with TorrServer"), cp.torrserver_enabled))
+            if cp.torrserver_enabled.value:
+                list.append(getConfigListEntry("    " + _("TorrServer binary (OK = choose, empty = search automatically)"), cp.torrserver_path))
+                list.append(getConfigListEntry("    " + _("TorrServer port"), cp.torrserver_port))
+                list.append(getConfigListEntry("    " + _("TorrServer web interface in the home network"), cp.torrserver_lan))
+                list.append(getConfigListEntry("    " + _("Cache location"), cp.torrserver_cache_location))
+                if cp.torrserver_cache_location.value == "disk":
+                    list.append(getConfigListEntry("        " + _("Cache folder"), cp.torrserver_cache_dir))
+                    list.append(getConfigListEntry("        " + _("Cache size on disk"), cp.torrserver_disk_cache))
+                    list.append(getConfigListEntry("        " + _("Delete the cache when the torrent is closed"), cp.torrserver_remove_cache))
+                else:
+                    list.append(getConfigListEntry("        " + _("Cache size in RAM"), cp.torrserver_cache))
+                list.append(getConfigListEntry("    " + _("Fill cache before playback"), cp.torrserver_preload))
+                list.append(getConfigListEntry("    " + _("Read ahead (share of the cache)"), cp.torrserver_readahead))
+                list.append(getConfigListEntry("    " + _("Connections per torrent"), cp.torrserver_connections))
+                list.append(getConfigListEntry("    " + _("Download speed limit"), cp.torrserver_dl_limit))
+                list.append(getConfigListEntry("    " + _("Allow upload to other peers (seeding)"), cp.torrserver_upload))
+                if cp.torrserver_upload.value:
+                    list.append(getConfigListEntry("        " + _("Upload speed limit"), cp.torrserver_ul_limit))
+                list.append(getConfigListEntry("    " + _("Encrypted connections only"), cp.torrserver_encrypt))
+                list.append(getConfigListEntry("    " + _("Close an unused torrent after"), cp.torrserver_timeout))
+                list.append(getConfigListEntry("    " + _("DLNA server of TorrServer"), cp.torrserver_dlna))
+                list.append(getConfigListEntry("    " + _("Stop TorrServer when E2iPlayer is closed"), cp.torrserver_stop_on_exit))
+
         list.append(getConfigListEntry('\\c00289496' + _("----- OTHER SETTINGS (OK) -----"), config.plugins.iptvplayer.otherConfVisible))
         if otherConfVisible: #OTHER SETTINGS
             list.append(getConfigListEntry(_("Autoplay start delay"), config.plugins.iptvplayer.autoplay_start_delay))
@@ -690,7 +804,7 @@ class ConfigMenu(ConfigBaseWidget):
         self.list = []
         ConfigMenu.fillConfigList(self.list, self.isHiddenOptionsUnlocked(), self.basicConfVisible, self.prxyConfVisible, self.buffConfVisible, self.downConfVisible,
                                                                              self.captConfVisible, self.subtConfVisible, self.playConfVisible, self.otherConfVisible, self.metaConfVisible,
-                                                                             self.hiddenConfVisible)
+                                                                             self.hiddenConfVisible, self.torrConfVisible)
         ConfigBaseWidget.runSetup(self)
 
     def onSelectionChanged(self):
@@ -727,6 +841,12 @@ class ConfigMenu(ConfigBaseWidget):
            # plugin must be restarted if we wont to this options take effect
         if self.platformOld != config.plugins.iptvplayer.plarform.value:
             IPTVPlayerNeedInit(True)
+        # our TorrServer follows the saved torrent configuration at once (not only with the next torrent link)
+        try:
+            from Plugins.Extensions.IPTVPlayer.libs import torrserver
+            torrserver.applyConfigInBackground()
+        except Exception:
+            printExc()
 
     def getMessageBeforeClose(self, afterSave):
         needPluginUpdate = False
@@ -784,7 +904,9 @@ class ConfigMenu(ConfigBaseWidget):
     def keyOK(self):
         curIndex = self["config"].getCurrentIndex()
         currItem = self["config"].list[curIndex][1]
-        if isinstance(currItem, ConfigDirectory):
+        if currItem is config.plugins.iptvplayer.torrserver_path:
+            self._chooseTorrServerBinary(curIndex, currItem)
+        elif isinstance(currItem, ConfigDirectory):
             def SetDirPathCallBack(curIndex, newPath):
                 if None != newPath:
                     self["config"].list[curIndex][1].value = newPath
@@ -827,16 +949,69 @@ class ConfigMenu(ConfigBaseWidget):
         elif config.plugins.iptvplayer.metaConfVisible == currItem:
             self.metaConfVisible = not self.metaConfVisible
             self.runSetup()
+        elif config.plugins.iptvplayer.torrConfVisible == currItem:
+            self.torrConfVisible = not self.torrConfVisible
+            self.runSetup()
         else:
             ConfigBaseWidget.keyOK(self)
 
-    def keyLeft(self):
-        ConfigBaseWidget.keyLeft(self)
-        self._confirmExternalResolve()
+    def _chooseTorrServerBinary(self, curIndex, currItem):
+        # the binary is picked in a file browser (only TorrServer* files are listed) instead of being typed;
+        # with a path already set, "search automatically" empties it again
+        def setPath(newPath):
+            if newPath is not None:
+                self["config"].list[curIndex][1].value = newPath
 
-    def keyRight(self):
-        ConfigBaseWidget.keyRight(self)
+        def browse():
+            currDir = os_path.dirname(currItem.value.strip())
+            if not os_path.isdir(currDir):
+                currDir = "/usr/bin/"
+            self.session.openWithCallback(setPath, IPTVFileSelectorWidget, currDir, _("Select the TorrServer binary"), re.compile(r"^torrserver", re.IGNORECASE))
+
+        def choice(ret):
+            if ret is not None:
+                if ret[1] == "browse":
+                    browse()
+                else:
+                    setPath("")
+
+        if not currItem.value.strip():
+            browse()
+            return
+        options = [(_("Choose the TorrServer binary"), "browse"), (_("Search automatically"), "auto")]
+        self.session.openWithCallback(choice, ChoiceBox, title=currItem.value, list=options)
+
+    def changeSubOptions(self):
+        # every value change comes here (LEFT/RIGHT and OK on a yes/no row): the two options that need a
+        # confirmation ask for it, otherwise they go back off
+        ConfigBaseWidget.changeSubOptions(self)
         self._confirmExternalResolve()
+        self._confirmTorrentPlayback()
+
+    def _confirmTorrentPlayback(self):
+        # switching torrent playback on needs a "yes" to the warning, otherwise it goes back off
+        try:
+            current = self["config"].getCurrent()
+            cfg = config.plugins.iptvplayer.torrserver_enabled
+            if not current or len(current) < 2 or current[1] is not cfg or not cfg.value:
+                return
+
+            def answer(ret):
+                if not ret:
+                    cfg.value = False
+                    self.runSetup()
+                    return
+                # TorrServer is in no image feed: without the binary the user is told what to install
+                try:
+                    from Plugins.Extensions.IPTVPlayer.libs import torrserver
+                    if not torrserver.findBinary():
+                        self.session.open(MessageBox, torrserver.installHint(), type=MessageBox.TYPE_INFO)
+                except Exception:
+                    printExc()
+
+            self.session.openWithCallback(answer, MessageBox, GetTorrentWarning() + "\n\n" + _("Switch on torrent playback?"), type=MessageBox.TYPE_YESNO, default=False)
+        except Exception:
+            printExc()
 
     def _confirmExternalResolve(self):
         # fires only when the "Allow external link-decryption service" row was
@@ -879,14 +1054,15 @@ class ConfigMenu(ConfigBaseWidget):
               config.plugins.iptvplayer.buforowanie_rtmp,
               config.plugins.iptvplayer.showcover,
               config.plugins.iptvplayer.ListaGraficzna,
-              config.plugins.iptvplayer.pluginProtectedByPin,
-              config.plugins.iptvplayer.configProtectedByPin,
               config.plugins.iptvplayer.plarform,
               config.plugins.iptvplayer.osk_type,
               config.plugins.iptvplayer.preferredupdateserver,
               config.plugins.iptvplayer.favourites_use_watched_flag,
               config.plugins.iptvplayer.meta_tmdb,
               config.plugins.iptvplayer.meta_omdb,
+              config.plugins.iptvplayer.torrserver_enabled,
+              config.plugins.iptvplayer.torrserver_cache_location,
+              config.plugins.iptvplayer.torrserver_upload,
               ]
         players = []
         if 'sh4' == config.plugins.iptvplayer.plarform.value:

@@ -95,13 +95,24 @@ def detect(status=0, headers=None, body='', url=''):
                 return needle
         return ''
 
+    # --- HostAdmin.online WAF (kinoger), often behind Cloudflare ------------
+    # add 101026: its pages run before the Cloudflare checks below - the "Access Denied" page comes as
+    # "server: cloudflare, HTTP 403", which would read as a Cloudflare challenge. "Verification..." = WASM
+    # proof of work + browser data in the page, ends in the ha-waf-* cookies -> MyE2i cookie mode
+    if has('hostadmin.online') and has('runwafengine', '__waf_i18n__', '<title>access denied', 'access is denied'):
+        return Protection('HostAdmin.online WAF', KIND_COOKIE_GATE, has('runwafengine', '__waf_i18n__') or 'access denied page')
+
     # --- Cloudflare -------------------------------------------------------
     marker = has('sorry, you have been blocked', 'cf-error-details', 'error 1020')
     if marker and ('cloudflare' in server or 'cloudflare' in b):
         return Protection('Cloudflare WAF block', KIND_BLOCK, marker)
     if h.get('cf-mitigated') == 'challenge':
         return Protection('Cloudflare', KIND_CLOUDFLARE, 'cf-mitigated: challenge')
-    marker = has('just a moment', 'cf-chl', '/cdn-cgi/challenge-platform', '_cf_chl_opt', 'cf_chl_')
+    marker = has('just a moment', 'cf-chl', '_cf_chl_opt', 'cf_chl_')
+    # fix 091026: Cloudflare puts its passive bot-detection script (/cdn-cgi/challenge-platform/scripts/jsd/main.js)
+    # on ordinary pages too (anime3rb's own 429 page, box log 09.10.) - only other challenge-platform paths count
+    if not marker and '/cdn-cgi/challenge-platform' in b.replace('/cdn-cgi/challenge-platform/scripts/jsd/', ''):
+        marker = '/cdn-cgi/challenge-platform'
     if marker:
         return Protection('Cloudflare', KIND_CLOUDFLARE, marker)
     if 'cloudflare' in server and status in (403, 503):
@@ -130,7 +141,9 @@ def detect(status=0, headers=None, body='', url=''):
         return Protection('PerimeterX / HUMAN', KIND_COOKIE_GATE, 'px-captcha')
 
     # --- interactive captchas without an automatic mode -------------------
-    marker = has('geetest', 'arkoselabs', 'funcaptcha', 'frc-captcha', 'friendlycaptcha', 'smartcaptcha.yandex', 'mcaptcha', 'keycaptcha', 'altcha')
+    # upcaptcha-form: the image captcha of the uprot.net link protector (cb01 MaxStream links)
+    marker = has('geetest', 'arkoselabs', 'funcaptcha', 'frc-captcha', 'friendlycaptcha', 'smartcaptcha.yandex', 'mcaptcha', 'keycaptcha', 'altcha',
+                 'upcaptcha-form')
     if marker:
         return Protection('Captcha (%s)' % marker, KIND_CAPTCHA, marker)
     if 'google.com/sorry' in url or has('/sorry/index', 'unusual traffic from your computer'):
@@ -145,3 +158,14 @@ def detect(status=0, headers=None, body='', url=''):
         if needle in b:
             return Protection(name, KIND_CAPTCHA, needle)
     return None
+
+
+# check pages that can come as an ordinary HTTP 200 answer (a getPage "success"). Only names whose markers
+# never show on the site's real pages - detect() on every normal page would trip over words like "datadome"
+_GATES_ON_SUCCESS = ('HostAdmin.online WAF',)
+
+
+def gate_page_on_success(status=200, headers=None, body='', url=''):
+    """a check page that arrived as a normal answer, else None"""
+    found = detect(status, headers, body, url)
+    return found if found is not None and found.name in _GATES_ON_SUCCESS else None

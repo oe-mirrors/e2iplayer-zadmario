@@ -7,6 +7,7 @@ import threading
 
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import GetLogoDir
 from Plugins.Extensions.IPTVPlayer.components.ihost import IHost, CDisplayListItem, RetHost, CUrlItem, ArticleContent, CFavItem
+from Plugins.Extensions.IPTVPlayer.components.iptvhostpin import IsHostPinProtected
 
 ########################################################
 
@@ -101,9 +102,15 @@ def initActiveHost(hostName):
 	settings.activeHost = {}
 	settings.retObj = None
 	settings.currItem = {}
+	# shown by webParts.useHostPageContent() instead of an empty page
+	settings.pinLockedHost = ''
 
 	if hostName is None:
 		pass
+	elif IsHostPinProtected(hostName):
+		# a PIN protected host stays GUI only: the web interface cannot ask for the PIN
+		settings.pinLockedHost = hostName
+		print("initActiveHost: host %s is protected by a PIN, open it on the receiver" % hostName)
 	else:
 
 		settings.activeHost['Name'] = hostName

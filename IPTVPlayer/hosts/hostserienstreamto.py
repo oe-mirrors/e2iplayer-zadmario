@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-# Last Modified: 06.08.2026 Centralized watched helper integration incl. favourite hash sync, Custom menu action handling (mark/unmark watched) added, sidecar/MKV/OMDb lookups now skipped when both are disabled - Kamikaze24
-# Last Modified: 23.08.2026 - withArticleContent() now checks type for episodes, fixes wrong Info text on episode press, getSuggestionsProvider() added (forces Google search suggestions) - Kamikaze24
+# Last Modified: 02.10.2026
+# 23.08.2026 - withArticleContent() now checks type for episodes, fixes wrong Info text on episode press, getSuggestionsProvider() added (forces Google search suggestions) - Kamikaze24
 import re
 
 from Plugins.Extensions.IPTVPlayer.components.e2ivkselector import GetVirtualKeyboard
@@ -9,7 +9,8 @@ try:
 except ImportError:  # E2iPlayer builds without the numeric keypad - full keyboard instead
     GetNumericKeyboard = None
 from Plugins.Extensions.IPTVPlayer.components.asynccall import MainSessionWrapper
-from Components.config import ConfigSelection, config, getConfigListEntry, ConfigYesNo, ConfigText
+from Components.config import ConfigSelection, config, getConfigListEntry, ConfigYesNo
+from Plugins.Extensions.IPTVPlayer.components.configsecret import ConfigLogin, ConfigSecret
 from Plugins.Extensions.IPTVPlayer.components.ihost import CBaseHostClass, CHostBase, RetHost
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, SetIPTVPlayerLastHostError
 from Plugins.Extensions.IPTVPlayer.libs.moviemeta import getMetaByImdbId
@@ -25,8 +26,8 @@ from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import IsSidecarEna
 
 config.plugins.iptvplayer.serienstreamto_hosts = ConfigSelection(default="http://186.2.175.5/", choices=[("http://186.2.175.5/", "186.2.175.5"), ("https://serienstream.to/", "serienstream.to"), ("https://serienstream.cx/", "serienstream.cx")])  # NOSONAR
 config.plugins.iptvplayer.serienstreamto_uselogin = ConfigYesNo(default=False)
-config.plugins.iptvplayer.serienstreamto_login = ConfigText(default="", fixed_size=False)
-config.plugins.iptvplayer.serienstreamto_password = ConfigText(default="", fixed_size=False)
+config.plugins.iptvplayer.serienstreamto_login = ConfigLogin(default="", fixed_size=False)
+config.plugins.iptvplayer.serienstreamto_password = ConfigSecret(default="", fixed_size=False)
 config.plugins.iptvplayer.serienstreamto_mkv = ConfigYesNo(default=True)
 
 
@@ -79,7 +80,7 @@ class SerienStreamTo(CBaseHostClass):
         return not IsMediaNamingNormalized()
 
     def _getWatchedKeyForItem(self, cItem):
-        #printDBG("SerienStreamTo._getWatchedKeyForItem")
+        # printDBG("SerienStreamTo._getWatchedKeyForItem")
         try:
             if not isinstance(cItem, dict):
                 return ""
@@ -489,18 +490,18 @@ class SerienStreamTo(CBaseHostClass):
             sidecarTxt = sidecarTxt.split("\n", 1)[1] if "\n" in sidecarTxt else ""
         sidecarLines = []
         if imdb_rating and imdb_rating not in ("-", "N/A", ""):
-            sidecarLines.append(u"IMDb: %s/10" % imdb_rating)
+            sidecarLines.append("IMDb: %s/10" % imdb_rating)
         infoLine = []
         if sidecarYear and sidecarYear not in ("N/A", ""):
-            infoLine.append(u"Jahr: %s" % sidecarYear)
+            infoLine.append("Jahr: %s" % sidecarYear)
         if infoLine:
-            sidecarLines.append(u" / ".join(infoLine))
+            sidecarLines.append(" / ".join(infoLine))
         if sidecarGenre and sidecarGenre not in ("N/A", ""):
             sidecarLines.append(sidecarGenre)
         if sidecarLines:
-            prefix = u"\n".join(sidecarLines)
+            prefix = "\n".join(sidecarLines)
             if sidecarTxt:
-                sidecarTxt = prefix + u"\n\n" + sidecarTxt
+                sidecarTxt = prefix + "\n\n" + sidecarTxt
             else:
                 sidecarTxt = prefix
         sidecar = buildSidecar(sidecarEnabled, sidecarTxt, sidecarImg)
@@ -524,6 +525,7 @@ class SerienStreamTo(CBaseHostClass):
         cfgSidecarEnabled = IsSidecarEnabled()
         cfgMkvEnabled = config.plugins.iptvplayer.serienstreamto_mkv.value
         sidecar = sidecarFromUrlMeta(url, cfgSidecarEnabled)
+
         def _addFinalMeta(videoLinks):
             return decorateResolvedLinkItems(videoLinks, sidecar=sidecar, mkvEnabled=cfgMkvEnabled)
         if "youtube" in url:
@@ -643,7 +645,7 @@ class SerienStreamTo(CBaseHostClass):
             cItem.update({"search_item": False, "name": "category"})
             self.listSearchResult(cItem, searchPattern, searchType)
         elif category == "search_history":
-            self.listsHistory({"name": "history", "category": "search"}, "desc", _("Type: "))
+            self.listsHistory({"name": "history", "category": "search"}, "desc")
         elif category == "empty":
             pass
         else:
@@ -672,7 +674,7 @@ class IPTVHost(WatchedFlagHostMixin, CHostBase):
             data = self.host.cm.ph.getAllItemsBeetwenMarkers(data, 'class="episode-row', "</tr>")
             changed = False
             for item in data:
-                url = self.host.getFullUrl(self.host.cm.ph.getSearchGroups(item, "location='([^']+)'") [0])
+                url = self.host.getFullUrl(self.host.cm.ph.getSearchGroups(item, "location='([^']+)'")[0])
                 name = self.host.cleanHtmlStr(self.host.cm.ph.getSearchGroups(item, 'title="([^"]+)">')[0])
                 ep = self.host.cleanHtmlStr(self.host.cm.ph.getSearchGroups(item, r'cell">(\d+)')[0])
                 if "Releases soon" in name:

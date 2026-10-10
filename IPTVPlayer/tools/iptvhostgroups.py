@@ -16,7 +16,7 @@ class IPTVHostsGroups:
 
         # groups
         self.PREDEFINED_GROUPS = ["userdefined", "moviesandseries", "cartoonsandanime", "music", "sport", "live", "documentary", "science",
-                                  "polish", "english", "german", "french", "hungarian", "arabic", "greek", "latino", "italian", "swedish", "balkans", "others"]
+                                  "polish", "english", "german", "french", "russian", "hungarian", "arabic", "greek", "latino", "italian", "swedish", "balkans", "others"]
         self.PREDEFINED_GROUPS_TITLES = {"userdefined": "User defined",
                                          "moviesandseries": "Movies and series",
                                          "cartoonsandanime": "Cartoons and anime",
@@ -29,6 +29,7 @@ class IPTVHostsGroups:
                                          "english": "English",
                                          "german": "German",
                                          "french": "French",
+                                         "russian": "Russian",
                                          "hungarian": "Hungarian",
                                          "arabic": "Arabic",
                                          "greek": "Greek",
@@ -52,7 +53,7 @@ class IPTVHostsGroups:
                                                     'movienightws', 'hdpopcornscom', 'losmovies', 'kinomoc', 'hdseanspl', 'zerioncc',
                                                     'solarmovie', 'thewatchseriesto', 'classiccinemaonline', 'seriesonline', 'vumooch', 'movizlandcom',
                                                     'cinemay', 'librestream', 'streamcomplet', 'skstream', 'filmstreamvkcom',
-                                                    'filmpalast', 'serienstreamto', 'bsto', 'hdfilmetv', 'cineto', 'filmezz', 'rtlmost', 'gamatocom', 'xrysoise', 'mooviecc', 'mrpiracy',
+                                                    'filmpalast', 'serienstreamto', 'hdfilmetv', 'cineto', 'filmezz', 'rtlmost', 'gamatocom', 'xrysoise', 'mooviecc', 'mrpiracy',
                                                     'filmativa', 'filmovizijastudio', 'filma24hdcom', 'serijeonline', 'cartoonhd', 'tantifilmorg', 'forjatn', 'serialeco', 'faselhdcom',
                                                     'planetstreamingcom', 'filmeonlineto', 'tainieskaiseirestv', '3sktv', 'cimaclubcom', 'gledalica',
                                                     'filmaoncom', 'putlockertvto', 'akoam', 'filmehdnet',
@@ -62,7 +63,7 @@ class IPTVHostsGroups:
                                                      'otakufr']
         self.PREDEFINED_HOSTS['sport'] = ['webstream', 'meczykipl', 'ekstraklasatv', 'laola1tv', 'bbcsport', 'ourmatchnet', 'hoofootcom', 'okgoals', 'ngolos', 'watchwrestlinguno', 'watchwrestling', 'fighttube', 'fightvideo',
                                           'twitchtv', 'pinkbike', 'sportdeutschland', 'eurosportplayer', 'del', 'redbull', 'fullmatchtvcom']
-        self.PREDEFINED_HOSTS['live'] = ['webstream', 'streamliveto', 'ustreamtv', 'youtube', 'dailymotion', 'eskago', 'eurosportplayer', 'ustvgo']
+        self.PREDEFINED_HOSTS['live'] = ['webstream', 'streamliveto', 'ustreamtv', 'youtube', 'dailymotion', 'eskago', 'eurosportplayer', 'ustvgo', 'twitchtv', 'vavooto']
         self.PREDEFINED_HOSTS['documentary'] = ['fokustv', 'dokumentalnenet', 'greekdocumentaries3', 'dailymotion', 'orthobulletscom', 'vumedicom']
         self.PREDEFINED_HOSTS['science'] = ['questtvcouk', 'dailymotion', 'ustreamtv', 'dokumentalnenet', 'orthobulletscom', 'vumedicom']
 
@@ -76,12 +77,14 @@ class IPTVHostsGroups:
                                             'hdpopcornscom', 'losmovies', 'solarmovie', 'putlockertvto', 'vumooch', 'cineto', 'cartoonhd', 'kisscartoonme', 'watchcartoononline', 'dailymotion',
                                             'ourmatchnet', 'watchwrestlinguno', 'watchwrestling', 'laola1tv', 'hoofootcom', 'fightvideo', 'twitchtv', 'ted', 'ororotv', 'pinkbike', 'dancetrippin',
                                             'ustreamtv', 'rteieplayer', '3player', 'questtvcouk', 'filmeonlineto', 'playrtsiw', '123movieshd', 'orthobulletscom', 'vumedicom', 'ddl']
-        self.PREDEFINED_HOSTS['german'] = ['youtube', 'webstream', 'ardmediathek', 'zdfmediathek', 'orfon', 'artetv', 'playrtsiw', 'aniworld', 'serienstreamto', 'hdfilmetv', 'cineto', 'kinoking', 'moviedream', 'filmpalast',
-                                            'kinox', 'megafilme', 'dailymotion', 'kkiste', 'gaskrank', 'kinoger', 'einschalten', 'megakino', 'moflixstream', 'movie4k', 'streamcloud',
-                                            'topstreamfilm', 'hdfilme', 'movie2kch', 'watchbase', 'movie2kcx']
+        self.PREDEFINED_HOSTS['german'] = ['youtube', 'twitchtv', 'webstream', 'ardmediathek', 'zdfmediathek', 'orfon', 'artetv', 'netzkino', 'aniworld', 'serienstreamto',
+                                           'hdfilmetv', 'cineto', 'kinoking', 'filmpalast', 'dailymotion', 'playrtsiw', 'kkiste', 'kinoger', 'gaskrank', 'einschalten',
+                                           'megakino', 'streamkinos', 'streamcloud', 'moflixstream', 'topstreamfilm', 'hdfilme', 'movie2kcx', 'sportdeutschland', 'vavooto']
 
         self.PREDEFINED_HOSTS['french'] = ['youtube', 'skstream', 'filmstreamvkcom', 'streamcomplet', 'librestream', 'cinemay', 'otakufr', 'rtbfbe', 'artetv', 'dailymotion',
                                            'vimeo', 'twitchtv', 'planetstreamingcom', 'playrtsiw']
+        # python3's Russian group, as far as zadmario has its hosts (ritsatv, uaserials, eneyida are python3 only)
+        self.PREDEFINED_HOSTS['russian'] = ['youtube', 'dailymotion']
         self.PREDEFINED_HOSTS['hungarian'] = ['youtube', 'mooviecc', 'filmezz', 'rtlmost', 'dailymotion', 'vimeo', 'twitchtv']
         self.PREDEFINED_HOSTS['arabic'] = ['youtube', 'webstream', 'akoam', 'movizlandcom', 'shahiidanimenet', 'dailymotion', 'vimeo', 'twitchtv', 'faselhdcom', '3sktv', 'cimaclubcom', 'hdsto']
         self.PREDEFINED_HOSTS['greek'] = ['youtube', 'xrysoise', 'tainieskaiseirestv', 'gamatocom', 'greekdocumentaries3', 'dailymotion', 'vimeo', 'twitchtv']

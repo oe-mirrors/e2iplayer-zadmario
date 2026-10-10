@@ -102,6 +102,38 @@ class DMHelper:
     def GET_HLSDL_PATH():
         return config.plugins.iptvplayer.hlsdlpath.value
 
+    _hlsdlHelpText = None
+
+    @staticmethod
+    def hlsdlVersionInHelp(helpText):
+        # (major, minor) from the "hlsdl vX.Y" line of the usage text, (0, 0) when missing
+        match = re.search(r'hlsdl v(\d+)\.(\d+)', helpText or '')
+        return (int(match.group(1)), int(match.group(2))) if match else (0, 0)
+
+    @staticmethod
+    def hlsdlHelpText():
+        # Probed once per run: hlsdl without arguments only prints its usage text and exits. Nothing is
+        # remembered while hlsdl is missing (the path is set by the setup, hlsdl may be installed later).
+        if not DMHelper._hlsdlHelpText:
+            text = ''
+            try:
+                path = DMHelper.GET_HLSDL_PATH()
+                if os.path.isfile(path):
+                    pipe = os.popen("'%s' 2>&1 </dev/null" % path.replace("'", "'\\''"))
+                    try:
+                        text = pipe.read()
+                    finally:
+                        pipe.close()
+            except Exception:
+                printExc()
+            DMHelper._hlsdlHelpText = text or None
+        return DMHelper._hlsdlHelpText or ''
+
+    @staticmethod
+    def hlsdlCutsImageHeads():
+        # hlsdl 0.34+ cuts an image head (PNG/JPEG/GIF/WEBP) off disguised MPEG-TS segments itself
+        return DMHelper.hlsdlVersionInHelp(DMHelper.hlsdlHelpText()) >= (0, 34)
+
     @staticmethod
     def GET_FFMPEG_PATH():
         altFFMPEGPath = '/iptvplayer_rootfs/usr/bin/ffmpeg'
