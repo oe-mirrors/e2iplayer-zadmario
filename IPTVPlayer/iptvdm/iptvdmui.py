@@ -47,7 +47,8 @@ gIPTVDM_listChanged = False
 
 class IPTVDMWidget(Screen):
 
-    VIDEO_FILE_EXTENSIONS = ('.flv', '.mp4', '.mkv', '.avi', '.mov', '.ts', '.m2ts', '.wmv', '.mpeg', '.mpg', '.m4v', '.webm')
+    # also the audio downloads: .mp3 (the download manager's default for audio items), .aac (radio HLS)
+    VIDEO_FILE_EXTENSIONS = ('.flv', '.mp4', '.mkv', '.avi', '.mov', '.ts', '.m2ts', '.wmv', '.mpeg', '.mpg', '.m4v', '.webm', '.mp3', '.aac')
 
     sz_w = getDesktop(0).size().width() - 190
     sz_h = getDesktop(0).size().height() - 195
@@ -276,7 +277,7 @@ class IPTVDMWidget(Screen):
         removed = False
         baseName = os_path.splitext(fileName)[0]
         candidates = [fileName]
-        for ext in ['.mp4', '.mkv', '.flv', '.avi', '.ts', '.mov', '.wmv', '.txt', '.jpg', '.jpeg']:
+        for ext in ['.mp4', '.mkv', '.flv', '.avi', '.ts', '.mov', '.wmv', '.aac', '.txt', '.jpg', '.jpeg']:
             candidate = baseName + ext
             if candidate not in candidates:
                 candidates.append(candidate)
@@ -447,7 +448,10 @@ class IPTVDMWidget(Screen):
                 options.extend(retry)
             elif DMHelper.STS.INTERRUPTED == item.status:
                 options.extend(play)
-                #options.extend(cont)
+                # hlsdl can continue when the interrupted run left its resume sidecar and the installed
+                # hlsdl knows -R. The other downloaders start over.
+                if self._canContinueHlsdl(item):
+                    options.extend(cont)
                 options.extend(retry)
                 options.extend(remove)
             elif DMHelper.STS.DOWNLOADING == item.status:
@@ -463,6 +467,15 @@ class IPTVDMWidget(Screen):
             self.session.openWithCallback(self.makeActionOnDownloadItem, ChoiceBox, title=_("Select action"), list=options)
 
         return
+
+    def _canContinueHlsdl(self, item):
+        # an interrupted hlsdl download can be continued when its run left the resume sidecar and
+        # the installed hlsdl still supports -R (otherwise "Download again" is the only way)
+        try:
+            return getattr(item, 'downloaderName', '') == 'hlsdl m3u8' and DMHelper.hlsdlSupportsResume() and DMHelper.hasHlsdlResumeFile(item.fileName)
+        except Exception:
+            printExc()
+            return False
 
     def makeActionOnDownloadItem(self, ret):
         item = self.getSelItem()

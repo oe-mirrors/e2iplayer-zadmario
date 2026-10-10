@@ -5633,3 +5633,12 @@ msgid ""
 "weeb.tv streams need a weeb.tv account - enter the login in the host "
 "configuration (Web streams, WeebTV)"
 msgstr ""
+
+msgid "File format of HLS (M3U8) downloads"
+msgstr ""
+
+msgid "File format of single video files (FFmpeg)"
+msgstr ""
+
+msgid "File format of DASH (MPD) downloads"
+msgstr ""

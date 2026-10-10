@@ -2991,12 +2991,13 @@ class E2iPlayerWidget(Screen):
                 item = self.currList[idx]
                 if not isinstance(item, CDisplayListItem):
                     continue
-                item.isFavourite = False
+                # a host with favourites of its own (hostxxx: favourite sites) sets hostFavourite on the row
+                item.isFavourite = bool(getattr(item, 'hostFavourite', False))
                 item.downloadState = ''
                 if favKeys and (item.isGoodForFavourites or item.type in self.hostFavTypes):
                     data = self.host.getFavouriteDataOfRow(idx)
                     if data is not None:
-                        item.isFavourite = IPTVFavourites.getItemIdentityKey(self.hostName, self.hostName, data) in favKeys
+                        item.isFavourite = item.isFavourite or IPTVFavourites.getItemIdentityKey(self.hostName, self.hostName, data) in favKeys
                 if self.isDownloadableType(item.type):
                     hostName, url = self._getRowSource(idx, item)
                     item.downloadState = iptvdownloaded.getState(iptvdownloaded.getItemKey(hostName, url, item.name), activeKeys)

@@ -137,6 +137,29 @@ def DownloaderCreator(url, forDownload=False):
     printDBG("DownloaderCreator downloaderParams[%s]" % downloaderParams)
 
     #################################################
+    # merge:// with HLS/DASH components (separate
+    # audio+video renditions, e.g. Arte CMAF, Apple
+    # bipbop) must be muxed with ffmpeg regardless of
+    # caller. HLSDownloader's "-a" alt-audio path only
+    # naively interleaves TS packets and yields an
+    # unplayable file for fMP4, and MergeDownloader wgets
+    # each component whole (fine for progressive URLs,
+    # wrong for .m3u8/.mpd playlists).
+    #################################################
+    mergeNeedsFFmpeg = False
+    try:
+        if isinstance(url, basestring) and url.startswith('merge://'):
+            compUrls = []
+            try:
+                for key in url.split('merge://', 1)[1].split('|'):
+                    compUrls.append(str(urlMeta.get(key, key)))
+            except Exception:
+                printExc()
+            mergeNeedsFFmpeg = any((IsHlsLikeUrl(u) or '.mpd' in u.lower()) for u in compUrls)
+    except Exception:
+        printExc()
+
+    #################################################
     # Ein echter Download-Manager-Download eines YouTube
     # merge:// (progressiv, Audio+Video getrennt; erkennbar
     # am youtube_id-Meta-Key, den youtubeparser.py/
@@ -155,7 +178,7 @@ def DownloaderCreator(url, forDownload=False):
     # für Wiedergabe UND Download wirklich brauchen)
     # unberührt bleiben.
     #################################################
-    if forDownload and proto == 'merge' and urlMeta.get('youtube_id'):
+    if forDownload and proto == 'merge' and urlMeta.get('youtube_id') and not mergeNeedsFFmpeg:
         printDBG("DownloaderCreator: echter Download von YouTube merge:// -> MergeDownloader")
         try:
             return MergeDownloader()
@@ -218,6 +241,13 @@ def DownloaderCreator(url, forDownload=False):
 
         if downloader != None:
             return downloader
+
+    if mergeNeedsFFmpeg:
+        printDBG("DownloaderCreator: merge:// with HLS/DASH components -> FFMPEGDownloader")
+        try:
+            return FFMPEGDownloader()
+        except Exception:
+            printExc()
 
     #################################################
     # Standard-Zuordnung nach Protokoll

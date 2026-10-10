@@ -1,20 +1,20 @@
 # -*- coding: utf-8 -*-
 # IPTV download manager API
-# Last Modified: 07.08.2026 - Extracted shared helpers (ensureText/fsPath/shellQuote/writeUtf8TextFile) and sidecar logic into downloaderhelpers.SidecarMixin, shared with wgetdownloader.py and mergedownloader.py, instead of duplicating them here - Kamikaze24
+# Last Modified: 11.10.2026 - file format setting (hls_out_container): Automatic renames the file to the container hlsdl wrote (.ts/.mp4/.aac), MKV/MP4/TS remux when needed. Earlier: 10.10.2026 - isWorkingCorrectly() checks only hlsdl (cached usage text, no ffmpeg/process start), remux maps 0:v? (audio-only streams). Earlier: 07.08.2026 - Extracted shared helpers (ensureText/fsPath/shellQuote/writeUtf8TextFile) and sidecar logic into downloaderhelpers.SidecarMixin, shared with wgetdownloader.py and mergedownloader.py, instead of duplicating them here - Kamikaze24
 ###################################################
 # LOCAL import
 ###################################################
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, iptv_system, eConnectCallback, GetNice, rm, E2PrioFix
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, eConnectCallback, rm
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import enum, strwithmeta
 from Plugins.Extensions.IPTVPlayer.iptvdm.basedownloader import BaseDownloader
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdh import DMHelper
-from Plugins.Extensions.IPTVPlayer.iptvdm.downloaderhelpers import ensureText, fsPath, shellQuote, SidecarMixin
+from Plugins.Extensions.IPTVPlayer.iptvdm.downloaderhelpers import ensureText, fsPath, shellQuote, executeConsoleCmd, terminateToolsOfFile, SidecarMixin
 ###################################################
 
 ###################################################
 # FOREIGN import
 ###################################################
-from Tools.BoundFunction import boundFunction
+from Components.config import config
 from enigma import eConsoleAppContainer
 from time import sleep
 import re
@@ -38,6 +38,12 @@ except Exception:
 
 class HLSDownloader(BaseDownloader, SidecarMixin):
 
+    # remux container (setting / host meta) -> (ffmpeg -f, file extension)
+    REMUX_FORMATS = {'mkv': ('matroska', '.mkv'), 'matroska': ('matroska', '.mkv'), 'mp4': ('mp4', '.mp4'),
+                     'mpegts': ('mpegts', '.ts'), 'ts': ('mpegts', '.ts')}
+    # container hlsdl wrote (_detectContainer) -> file extension
+    CONTAINER_EXT = {'mpegts': '.ts', 'mp4': '.mp4', 'adts': '.aac'}
+
     def __init__(self):
         printDBG('HLSDownloader.__init__ ----------------------------------')
         BaseDownloader.__init__(self)
@@ -55,6 +61,11 @@ class HLSDownloader(BaseDownloader, SidecarMixin):
         self.downloadDuration = 0
         self.liveStream = False
         self.lastErrorCode = 0  # last non-zero "error_code" reported by hlsdl (e.g. expired/blocked CDN token)
+
+        # both are set by the download manager (allowFinalRename: a real download, not buffered
+        # playback; resumeExisting: "Continue downloading" on an interrupted item)
+        self.allowFinalRename = False
+        self.resumeExisting = False
 
         # ffmpeg postprocess support
         self.ffmpegPostEnabled = False
@@ -92,30 +103,14 @@ class HLSDownloader(BaseDownloader, SidecarMixin):
         return "hlsdl m3u8"
 
     def isWorkingCorrectly(self, callBackFun):
-        self.iptv_sys = iptv_system(DMHelper.GET_FFMPEG_PATH() + ' -version ' + " 2>&1 ", boundFunction(self._checkWorkingCallBack, callBackFun))
-
-    def _checkWorkingCallBack(self, callBackFun, code, data):
-        reason = ''
-        sts = True
-        if code != 0:
-            sts = False
-            reason = data
-            self.iptv_sys = None
-            callBackFun(sts, reason)
+        # only hlsdl is needed (ffmpeg is just the optional remux after a download, which falls back to the
+        # original file): its usage text is read once per run, so a buffered playback starts without two
+        # process spawns
+        helpText = DMHelper.hlsdlHelpText()
+        if 'hlsdl' in helpText.lower() or 'usage' in helpText.lower():
+            callBackFun(True, '')
         else:
-            self._isHlsDlWorkingCorrectly(callBackFun)
-
-    def _isHlsDlWorkingCorrectly(self, callBackFun):
-        self.iptv_sys = iptv_system(DMHelper.GET_HLSDL_PATH() + " 2>&1 ", boundFunction(self._checkHlsDlWorkingCallBack, callBackFun))
-
-    def _checkHlsDlWorkingCallBack(self, callBackFun, code, data):
-        reason = ''
-        sts = True
-        if code != 0:
-            sts = False
-            reason = data
-        self.iptv_sys = None
-        callBackFun(sts, reason)
+            callBackFun(False, helpText or (DMHelper.GET_HLSDL_PATH() + ': ' + 'not found'))
 
     def _clearPostData(self):
         self.ffmpegPostEnabled = False
@@ -139,8 +134,54 @@ class HLSDownloader(BaseDownloader, SidecarMixin):
     def _getBasePath(self, filePath):
         return ensureText(filePath).rsplit('.', 1)[0]
 
-    def _getMkvPath(self):
-        return self._getBasePath(self.filePath) + '.mkv'
+    def _getRemuxFormat(self):
+        return self.REMUX_FORMATS.get(self.ffmpegContainer, self.REMUX_FORMATS['mkv'])
+
+    def _getTargetPath(self, ext):
+        # the file with the new extension; a number added when another file has that name already
+        path = self._getBasePath(self.filePath) + ext
+        if fsPath(path) != fsPath(self.filePath) and os.path.exists(fsPath(path)):
+            path = DMHelper.makeUnikalFileName(path, False, False)
+        return ensureText(path)
+
+    def _detectContainer(self):
+        # what hlsdl wrote, from the first bytes: MPEG-TS (sync byte every 188 bytes), MP4 (fMP4 segments),
+        # ADTS AAC (packed audio); '' when unknown (e.g. audio behind an ID3 tag)
+        try:
+            with open(fsPath(self.filePath), 'rb') as f:
+                head = f.read(1024)
+        except Exception:
+            printExc()
+            return ''
+        if len(head) > 376 and head[0:1] == b'\x47' and head[188:189] == b'\x47' and head[376:377] == b'\x47':
+            return 'mpegts'
+        if head[4:8] in (b'ftyp', b'styp', b'moof', b'moov'):
+            return 'mp4'
+        if head[:2] in (b'\xff\xf1', b'\xff\xf9'):
+            return 'adts'
+        return ''
+
+    def _applyFormatSetting(self):
+        # setting "File format of HLS (M3U8) downloads": hlsdl writes the segments as they come under the
+        # name the download manager asked for (mostly .mp4, also for MPEG-TS). Automatic only gives the file the
+        # extension of what it holds; MKV / MP4 / TS remux it with ffmpeg when it holds something else
+        try:
+            choice = str(config.plugins.iptvplayer.hls_out_container.value).lower()
+        except Exception:
+            printExc()
+            choice = 'auto'
+        found = self._detectContainer()
+        printDBG("HLSDownloader file format setting[%s] found[%s]" % (choice, found))
+        if choice != 'auto' and self.REMUX_FORMATS.get(choice, ('',))[0] != found:
+            self.ffmpegPostEnabled = True
+            self.ffmpegContainer = choice
+            return
+        ext = self.CONTAINER_EXT.get(found)
+        if ext and not self.filePath.lower().endswith(ext):
+            target = self._getTargetPath(ext)
+            if self._moveFile(self.filePath, target):
+                printDBG("HLSDownloader renamed output to match container -> %s" % target)
+                self.filePath = target
 
     def _moveFile(self, src, dst):
         try:
@@ -158,21 +199,24 @@ class HLSDownloader(BaseDownloader, SidecarMixin):
 
     def doStartPostProcess(self):
         self.postProcessMode = 'remux'
-        self.tempRemuxPath = self._getBasePath(self.filePath) + '.iptv.remux.tmp.mkv'
+        fmt, ext = self._getRemuxFormat()
+        self.tempRemuxPath = self._getBasePath(self.filePath) + '.iptv.remux.tmp' + ext
 
-        cmd = DMHelper.GET_FFMPEG_PATH() + ' '
+        # -y: a leftover temp file from an aborted run must not make ffmpeg wait for an overwrite answer
+        cmd = DMHelper.GET_FFMPEG_PATH() + ' -y '
         cmd += ' -i "%s" ' % shellQuote(self.filePath)
-        cmd += ' -map 0:v -map 0:a? -vcodec copy -acodec copy "%s" >/dev/null 2>&1 ' % shellQuote(self.tempRemuxPath)
+        # 0:v? too: an audio-only stream (radio) has no video, "-map 0:v" would abort the remux
+        cmd += ' -map 0:v? -map 0:a? -vcodec copy -acodec copy '
+        if fmt == 'mp4':
+            # index at the start of the finished file, so players can seek in it right away
+            cmd += ' -movflags +faststart '
+        cmd += ' -f %s "%s" >/dev/null 2>&1 ' % (fmt, shellQuote(self.tempRemuxPath))
 
         printDBG("HLSDownloader doStartPostProcess cmd[%s]" % cmd)
 
         self.console = eConsoleAppContainer()
         self.console_appClosed_conn = eConnectCallback(self.console.appClosed, self._cmdFinished)
-        if hasattr(self.console, "setNice"):
-            self.console.setNice(GetNice() + 2)
-            self.console.execute(cmd)
-        else:
-            self.console.execute(E2PrioFix(cmd))
+        executeConsoleCmd(self.console, cmd)
 
     def _finalizeSuccess(self, finalPath):
         self.filePath = ensureText(finalPath)
@@ -209,6 +253,33 @@ class HLSDownloader(BaseDownloader, SidecarMixin):
         self._finishDownloadFlow()
         return True
 
+    def _getResumeParams(self):
+        # Download manager downloads only. -R makes hlsdl keep a resume sidecar while it runs;
+        # without it an interrupted run would have nothing to continue from.
+        if not DMHelper.hlsdlSupportsResume():
+            self.resumeExisting = False
+            return ''
+        if self.resumeExisting and DMHelper.hasHlsdlResumeFile(self.filePath) and os.path.isfile(fsPath(self.filePath)):
+            printDBG("HLSDownloader resume existing file[%s]" % self.filePath)
+        else:
+            # a fresh start, also "Download again": a sidecar left by an earlier run must not
+            # turn it into a resume
+            self.resumeExisting = False
+            DMHelper.removeHlsdlResumeFiles(self.filePath)
+        return ' -R '
+
+    def _getLiveStartParams(self):
+        # Buffered playback: start a live stream this many seconds behind the live edge (hlsdl -s).
+        # "default" leaves hlsdl's own value (2 minutes); it has no effect on a VOD. Download
+        # manager recordings keep the default, the earlier part is wanted there.
+        try:
+            offset = str(config.plugins.iptvplayer.hlsdlLiveStartOffset.value)
+            if offset.isdigit():
+                return ' -s %s ' % offset
+        except Exception:
+            printExc()
+        return ''
+
     def start(self, url, filePath, params={}):
         """
         Owervrite start from BaseDownloader
@@ -240,6 +311,11 @@ class HLSDownloader(BaseDownloader, SidecarMixin):
         if 'iptv_m3u8_seg_download_retry' in meta:
             addParams += ' -w %s ' % shellQuote(meta['iptv_m3u8_seg_download_retry'])
 
+        if self.allowFinalRename:
+            addParams += self._getResumeParams()
+        else:
+            addParams += self._getLiveStartParams()
+
         if self.url.startswith("merge://"):
             try:
                 urlsKeys = self.url.split('merge://', 1)[1].split('|')
@@ -257,11 +333,7 @@ class HLSDownloader(BaseDownloader, SidecarMixin):
         self.console = eConsoleAppContainer()
         self.console_appClosed_conn = eConnectCallback(self.console.appClosed, self._cmdFinished)
         self.console_stderrAvail_conn = eConnectCallback(self.console.stderrAvail, self._dataAvail)
-        if hasattr(self.console, "setNice"):
-            self.console.setNice(GetNice() + 2)
-            self.console.execute(cmd)
-        else:
-            self.console.execute(E2PrioFix(cmd))
+        executeConsoleCmd(self.console, cmd)
 
         self.status = DMHelper.STS.DOWNLOADING
 
@@ -327,6 +399,8 @@ class HLSDownloader(BaseDownloader, SidecarMixin):
                     self.console.sendCtrlC()  # kill # produce zombies
                 elif hasattr(self.console, "kill"):
                     self.console.kill()  # kill produce zombies
+            # the signal above only reaches the shell around hlsdl / ffmpeg
+            terminateToolsOfFile(self.filePath)
             self._cmdFinished(-1, True)
             return BaseDownloader.CODE_OK
         return BaseDownloader.CODE_NOT_DOWNLOADING
@@ -342,15 +416,20 @@ class HLSDownloader(BaseDownloader, SidecarMixin):
 
         if terminated:
             self.status = DMHelper.STS.INTERRUPTED
+            # an aborted remux leaves its half written temp file behind otherwise
+            self._cleanUp()
         elif self.status == DMHelper.STS.POSTPROCESSING:
-            mkvPath = self._getMkvPath()
-            mkvSize = DMHelper.getFileSize(fsPath(self.tempRemuxPath))
-            printDBG("POSTPROCESSING remux finished mkvPath[%s] localFileSize[%r] code[%r]" % (self.tempRemuxPath, mkvSize, code))
+            targetPath = self._getTargetPath(self._getRemuxFormat()[1])
+            remuxSize = DMHelper.getFileSize(fsPath(self.tempRemuxPath))
+            printDBG("POSTPROCESSING remux finished tempPath[%s] localFileSize[%r] code[%r]" % (self.tempRemuxPath, remuxSize, code))
 
-            if mkvSize > 0 and code == 0:
-                if self._moveFile(self.tempRemuxPath, mkvPath):
-                    self._removeSourceFile()
-                    self._finalizeSuccess(mkvPath)
+            if remuxSize > 0 and code == 0:
+                # the remuxed file may keep the name of the downloaded one (TS remuxed to a file asked for as .mp4)
+                sameName = fsPath(targetPath) == fsPath(self.filePath)
+                if self._moveFile(self.tempRemuxPath, targetPath):
+                    if not sameName:
+                        self._removeSourceFile()
+                    self._finalizeSuccess(targetPath)
                     return
 
             printDBG("HLSDownloader remux failed -> fallback to original target")
@@ -367,6 +446,9 @@ class HLSDownloader(BaseDownloader, SidecarMixin):
         elif self.remoteFileSize > 0 and self.remoteFileSize > self.localFileSize:
             self.status = DMHelper.STS.INTERRUPTED
         else:
+            if not self.ffmpegPostEnabled and self.allowFinalRename:
+                # a download in the download manager (a host's own remux container above wins)
+                self._applyFormatSetting()
             if self.ffmpegPostEnabled:
                 self.status = DMHelper.STS.POSTPROCESSING
                 self.doStartPostProcess()
