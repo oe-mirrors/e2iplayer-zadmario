@@ -6043,3 +6043,9 @@ msgstr "Dateiformat für einzelne Videodateien (FFmpeg)"
 
 msgid "File format of DASH (MPD) downloads"
 msgstr "Dateiformat für DASH-Downloads (MPD)"
+
+msgid "Open the page and get the link"
+msgstr "Seite öffnen und Link holen"
+
+msgid "MyE2i: open the page in the browser"
+msgstr "MyE2i: Seite im Browser öffnen"

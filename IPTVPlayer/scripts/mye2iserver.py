@@ -94,6 +94,9 @@ def updateStatus(pType, pData, pCode=None):
 # working - see _authorized() below. Newer features need newer extensions.)
 MIN_EXTENSION_VERSION = (1, 17)
 MIN_EXTENSION_VERSION_STR = '.'.join(str(part) for part in MIN_EXTENSION_VERSION)
+# the NAV job (follow a tab across a site's redirects to a link, "#e2itnv") needs 1.21: an older extension would
+# take the unknown fragment for a captcha page and show an empty solver
+MIN_NAV_EXTENSION_VERSION = (1, 21)
 # Fixed download link: the release named "mye2i-extension" keeps its asset name
 # and gets the asset replaced on every new extension version (see
 # mye2i-extension/README.md), so this URL never has to change.
@@ -118,6 +121,7 @@ DEFAULT_TEXTS = {
     'job_cloudflare': 'Get Cloudflare job',
     'job_cookies': 'Get cookies job',
     'job_captcha': 'Get captcha job',
+    'job_nav': 'Open the page and get the link',
     'status_waiting': 'Waiting for the result ...',
     'debug_pill': 'debug',
     'debug_title': 'Debug snapshot (for site development)',
@@ -271,12 +275,17 @@ class ThreadedServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
 def redirect_handler_factory(url, token='', pin=''):
 
+    minVersion = MIN_EXTENSION_VERSION
     if 'e2itcf' in url:
         job_type = 'cloudflare'
     elif 'e2itck' in url:
         job_type = 'cookies'
+    elif 'e2itnv' in url:
+        job_type = 'nav'
+        minVersion = MIN_NAV_EXTENSION_VERSION
     else:
         job_type = 'captcha'
+    minVersionStr = '.'.join(str(part) for part in minVersion)
     to_write = '''
 <!doctype html>
 <html>
@@ -294,8 +303,8 @@ def redirect_handler_factory(url, token='', pin=''):
         %s
     </body>
 </html>
-''' % (html_escape(token, quote=True), _json_for_html({k: T(k) for k in DEFAULT_TEXTS if k.startswith('x_')}), MIN_EXTENSION_VERSION_STR,
-           html_escape(T('extension_outdated', MIN_EXTENSION_VERSION_STR)), UPDATE_URL, H('extension_download'),
+''' % (html_escape(token, quote=True), _json_for_html({k: T(k) for k in DEFAULT_TEXTS if k.startswith('x_')}), minVersionStr,
+           html_escape(T('extension_outdated', minVersionStr)), UPDATE_URL, H('extension_download'),
            html_escape(url, quote=True), H('job_' + job_type), _build_debug_block(url))
 
     relay_page = to_write.encode('utf-8')
@@ -474,11 +483,11 @@ def redirect_handler_factory(url, token='', pin=''):
                 ext_version = self._query().get('v', [''])[0]
                 if not ext_version:
                     _log('[MyE2i-Browser] Extension version check: no version reported (old extension?)')
-                elif _parse_version_tuple(ext_version) < MIN_EXTENSION_VERSION:
-                    _log('[MyE2i-Browser] Extension version check: v%s is OUTDATED (min v%s)' % (ext_version, MIN_EXTENSION_VERSION_STR))
+                elif _parse_version_tuple(ext_version) < minVersion:
+                    _log('[MyE2i-Browser] Extension version check: v%s is OUTDATED (min v%s)' % (ext_version, minVersionStr))
                     updateStatus('status', 'MyE2i extension is outdated - please update it.')
                 else:
-                    _log('[MyE2i-Browser] Extension version check: v%s OK (min v%s)' % (ext_version, MIN_EXTENSION_VERSION_STR))
+                    _log('[MyE2i-Browser] Extension version check: v%s OK (min v%s)' % (ext_version, minVersionStr))
                 sys.stdout.flush()
                 return
             SimpleHTTPRequestHandler.do_GET(self)
@@ -549,6 +558,18 @@ if __name__ == "__main__":
         elif captchaType == 'COOKIES':
             # generic browser check (DDoS-Guard, Sucuri, Imperva, Anubis, ...): every cookie comes back
             httpd = ThreadedServer((IP, PORT), redirect_handler_factory('%s#e2itck_sep_c=%s' % (siteUrl, siteKey), sessionToken, sessionPin))
+        elif captchaType == 'NAV':
+            # follow the tab across the site's own redirects until a link matching the pattern shows up (an ad
+            # gateway's countdown page and the like); captchaData: JSON {"selector", "attr", "pattern"}
+            try:
+                navJob = json.loads(captchaData) if captchaData else {}
+            except ValueError:
+                navJob = {}
+
+            def b64param(value):
+                return _quote(base64.b64encode(_to_bytes(value or '')).decode('ascii'))
+            fragment = '%s#e2itnv_sep_c=%s&s=%s&a=%s&r=%s' % (siteUrl, siteKey, b64param(navJob.get('selector')), _quote(navJob.get('attr') or 'href'), b64param(navJob.get('pattern')))
+            httpd = ThreadedServer((IP, PORT), redirect_handler_factory(fragment, sessionToken, sessionPin))
         else:
             fragment = '%s/#e2it?k=%s&st=%s' % (siteUrl, siteKey, captchaType)
             if captchaAction:
