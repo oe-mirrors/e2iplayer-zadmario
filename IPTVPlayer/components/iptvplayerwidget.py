@@ -305,6 +305,8 @@ class E2iPlayerWidget(Screen):
             "menu": self.menu_pressed,
             "tools": self.blue_pressed,
             "record": self.green_pressed,
+            "pageUp": self.pageup_pressed,
+            "pageDown": self.pagedown_pressed,
         }, -1)
 
         self["headertext"] = Label()
@@ -1604,6 +1606,71 @@ class E2iPlayerWidget(Screen):
         else:
             self.showWindow()
     #end ok_pressed(self):
+
+    def _pagerIndex(self, kind):
+        # index of the list's pager entry of this kind (-1 when there is none) - the generic hosts use the
+        # item type, hostxxx a TYPE_CATEGORY entry with the imageType (PagerKind); "Next page" is the last one
+        indexes = [idx for idx, item in enumerate(self.currList) if PagerKind(item) == kind]
+        if not indexes:
+            return -1
+        return indexes[-1] if kind == CDisplayListItem.TYPE_NEXT else indexes[0]
+
+    def _canPage(self):
+        # the list is shown - not while a list is loading (spinner) or the window is hidden
+        if not self.visible or self.isInWorkThread():
+            return False
+        try:
+            return not (self.currList and not self["list"].getVisible())
+        except Exception:
+            printExc()
+            return False
+
+    def _previousPageStep(self):
+        # how CH- goes one page back: ('history', -1) back to the page this one was paged to with "Next page",
+        # ('item', idx) the list's own "Previous page" entry, ('history', -1) back over any other pager step
+        # (jump, first page ...), (None, -1) when the list was not paged at all - EXIT goes a level up
+        kind = getattr(self.categoryList[-1], 'pagerKind', '') if self.categoryList and self.prevSelList else ''
+        if kind == CDisplayListItem.TYPE_NEXT:
+            return 'history', -1
+        idx = self._pagerIndex(CDisplayListItem.TYPE_PREVIOUS)
+        if -1 < idx:
+            return 'item', idx
+        if kind:
+            return 'history', -1
+        return None, -1
+
+    def _openPagerItem(self, idx):
+        # opens a pager entry like OK on its row
+        item = self.currList[idx]
+        self.currItem = item
+        self.currSelIndex = idx
+        if self._itemNeedsPin(item):
+            AskHostPin(self.session, item.pinHost, boundFunction(self.requestListFromHost, 'ForItem', idx, ''))
+        else:
+            self.requestListFromHost('ForItem', idx, '')
+
+    def pageup_pressed(self):
+        # CH+: next page
+        self.stopAutoPlaySequencer()
+        if self._canPage():
+            idx = self._pagerIndex(CDisplayListItem.TYPE_NEXT)
+            if -1 < idx:
+                self._openPagerItem(idx)
+
+    def pagedown_pressed(self):
+        # CH-: one page back
+        self.stopAutoPlaySequencer()
+        if not self._canPage():
+            return
+        step, idx = self._previousPageStep()
+        if step == 'history':
+            self.prevSelList.pop()
+            self.categoryList.pop()
+            self.nextSelIndex = 0
+            printDBG("pagedown_pressed -> previous page")
+            self.requestListFromHost('Previous')
+        elif step == 'item':
+            self._openPagerItem(idx)
 
     @staticmethod
     def _itemNeedsPin(item):

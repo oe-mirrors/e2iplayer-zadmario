@@ -5642,3 +5642,9 @@ msgstr ""
 
 msgid "File format of DASH (MPD) downloads"
 msgstr ""
+
+msgid "Open the page and get the link"
+msgstr ""
+
+msgid "MyE2i: open the page in the browser"
+msgstr ""

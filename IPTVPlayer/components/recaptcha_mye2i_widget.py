@@ -201,6 +201,7 @@ class UnCaptchaReCaptchaMyE2iWidget(Screen):
             'job_cloudflare': _("Get Cloudflare job"),
             'job_cookies': _("Get cookies job"),
             'job_captcha': _("Get captcha job"),
+            'job_nav': _("Open the page and get the link"),
             'status_waiting': _("Waiting for the result ..."),
             'debug_pill': _("debug"),
             'debug_title': _("Debug snapshot (for site development)"),

@@ -478,7 +478,18 @@ class CHostBase(IHost):
 
         if not self.withArticleContent(cItem):
             return RetHost(retCode, value=retlist)
-        hList = self.host.getArticleContent(cItem)
+        # libs/moviemeta notes the lookup that answers on this INFO - the item's download sidecar asks the same
+        setInfoItem = None
+        try:
+            from Plugins.Extensions.IPTVPlayer.libs.moviemeta import setInfoItem
+            setInfoItem(cItem)
+        except Exception:
+            printExc()
+        try:
+            hList = self.host.getArticleContent(cItem)
+        finally:
+            if setInfoItem is not None:
+                setInfoItem(None)
         if None is hList:
             return RetHost(retCode, value=retlist)
         for item in hList:
@@ -826,6 +837,9 @@ class CHostBase(IHost):
 
         if 'image_type' in cItem:
             imageType = cItem['image_type']
+        elif (cItem.get('live') or cItem.get('is_live')) and type in (CDisplayListItem.TYPE_VIDEO, CDisplayListItem.TYPE_AUDIO):
+            # a live stream / live radio ('live' / 'is_live' of the host's item): its own list icon (components/iptvlist.py)
+            imageType = 'LIVE' if type == CDisplayListItem.TYPE_VIDEO else 'LIVE_AUDIO'
         else:
             imageType = type
 

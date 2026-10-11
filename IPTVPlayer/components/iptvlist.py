@@ -98,7 +98,11 @@ class IPTVMainNavigatorList(IPTVListComponentBase):
         CDisplayListItem.TYPE_CATEGORY: 'CategoryItem.png',
         CDisplayListItem.TYPE_MORE: 'MoreItem.png',
         CDisplayListItem.TYPE_VIDEO: 'VideoItem.png',
+        'SHORT': 'ShortItem.png',  # a YouTube Short: TYPE_VIDEO with image_type 'SHORT'
+        'CHANNEL': 'ChannelItem.png',  # a YouTube channel: TYPE_CATEGORY with image_type 'CHANNEL'
+        'LIVE': 'LiveItem.png',  # a live stream: TYPE_VIDEO marked 'live' / 'is_live' by its host (ihost.converItem)
         CDisplayListItem.TYPE_AUDIO: 'AudioItem.png',
+        'LIVE_AUDIO': 'LiveAudioItem.png',  # a live radio: TYPE_AUDIO marked 'live' / 'is_live' by its host
         CDisplayListItem.TYPE_SEARCH: 'SearchItem.png',
         CDisplayListItem.TYPE_ARTICLE: 'ArticleItem.png',
         CDisplayListItem.TYPE_PICTURE: 'PictureItem.png',
