@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-# Last Modified: 05.09.2026 - cmdFinished() now runs the downloader's reported
+# Last Modified: 12.10.2026 - a download without a percentage (no size / duration, a stopped live recording) counts
+#   as finished when its downloader says so (as python3).
+# Earlier: 05.09.2026 - cmdFinished() now runs the downloader's reported
 # fileName through downloaderhelpers.ensureText() (the same helper HLSDownloader/
 # WgetDownloader/MergeDownloader already use internally), falls back to
 # DMItem.originalFileName if the downloader ever hands back an empty/invalid
@@ -451,7 +453,10 @@ class IPTVDMApi():
             return
 
         status = _('UNKNOWN')
-        if dItem.downloadedProcent > 99:
+        # a download without a known size or duration (no Content-Length, a stopped live recording without video
+        # progress) has no percentage at all - there the downloader's own verdict counts
+        finishedWithoutSize = dItem.downloadedProcent < 0 and dItem.downloadedSize > 0 and dItem.downloader.getStatus() == DMHelper.STS.DOWNLOADED
+        if dItem.downloadedProcent > 99 or finishedWithoutSize:
             self.queueUD[listUDIdx].status = DMHelper.STS.DOWNLOADED
             status = _('DOWNLOADED')
         else:
