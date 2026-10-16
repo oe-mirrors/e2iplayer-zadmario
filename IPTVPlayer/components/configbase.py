@@ -18,7 +18,7 @@ if not isPY2():
 # FOREIGN import
 ###################################################
 import re
-from enigma import getDesktop
+from enigma import getDesktop, eListbox
 
 from Screens.MessageBox import MessageBox
 from Screens.Screen import Screen
@@ -64,9 +64,14 @@ class ConfigBaseWidget(Screen, ConfigListScreen):
     # own font/itemHeight for the list: without them the image skin's
     # SetupList values apply, and on some skins (OpenATV FHD) the row is
     # lower than the font, which cuts off g, p, y...
+    # DreamOS: eListbox has no setFont, a font attribute crashes the skin
+    if hasattr(eListbox, 'setFont'):
+        listAttrs = 'itemHeight="%d" font="Regular;%d"' % (itemHeight, listFont)
+    else:
+        listAttrs = ''
     skin = """
         <screen position="center,center" size="%d,%d" title="" >
-            <widget name="config"    position="10,50" size="%d,%s" itemHeight="%d" font="Regular;%d" zPosition="1" transparent="1" scrollbarMode="showOnDemand" enableWrapAround="1" />
+            <widget name="config"    position="10,50" size="%d,%s" %s zPosition="1" transparent="1" scrollbarMode="showOnDemand" enableWrapAround="1" />
             <widget name="key_red"   position="10,10" zPosition="2" size="%d,35" valign="center" halign="left"   font="Regular;%d" transparent="1" foregroundColor="red" />
             <widget name="key_ok"    position="10,10" zPosition="2" size="%d,35" valign="center" halign="center" font="Regular;%d" transparent="1" foregroundColor="white" />
             <widget name="key_green" position="10,10" zPosition="2" size="%d,35" valign="center" halign="right"  font="Regular;%d" transparent="1" foregroundColor="green" />
@@ -74,7 +79,7 @@ class ConfigBaseWidget(Screen, ConfigListScreen):
             <widget name="key_blue"    position="0,0" zPosition="2" size="%d,35" valign="center" halign="right"  font="Regular;%d" transparent="1" foregroundColor="green" />
             <widget name="key_yellow"  position="0,0" zPosition="2" size="%d,35" valign="center" halign="right"  font="Regular;%d" transparent="1" foregroundColor="green" />
         </screen>""" % (width, height,
-                        width - 20, height - 80, itemHeight, listFont,
+                        width - 20, height - 80, listAttrs,
                         width - 20, font,
                         width - 20, font,
                         width - 20, font,
