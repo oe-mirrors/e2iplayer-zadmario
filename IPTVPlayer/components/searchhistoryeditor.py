@@ -8,7 +8,7 @@ from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, getReorderOnReuseEnabled, setReorderOnReuseEnabled, findT9JumpIndex
 from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str
 
-from enigma import gRGB
+from enigma import gRGB, eListbox
 
 from Screens.Screen import Screen
 from Screens.MessageBox import MessageBox
@@ -145,7 +145,7 @@ class SearchHistoryEditor(Screen):
     skin = """
     <screen name="SearchHistoryEditor" position="center,center" size="1200,700" title="Search History">
         <widget name="status" position="20,18" size="1160,30" font="Regular;24" halign="left" valign="center" transparent="1" />
-        <widget name="list" position="20,58" size="1160,587" font="Regular;32" itemHeight="44" scrollbarMode="showOnDemand" transparent="1" />
+        <widget name="list" position="20,58" size="1160,587" %s scrollbarMode="showOnDemand" transparent="1" />
 
         <eLabel position="20,662" size="18,18" backgroundColor="#00f23d21" />
         <widget name="key_red" position="45,655" size="210,30" font="Regular;24" halign="left" valign="center" transparent="1" />
@@ -161,7 +161,7 @@ class SearchHistoryEditor(Screen):
 
         <widget name="key_menu" position="948,655" size="235,30" font="Regular;24" halign="left" valign="center" transparent="1" />
     </screen>
-    """
+    """ % ('font="Regular;32" itemHeight="44"' if hasattr(eListbox, 'setFont') else '')  # DreamOS: eListbox has no setFont
 
     def __init__(self, session, historyFile, reverseForDisplay=True, reverseForWrite=True):
         Screen.__init__(self, session)
