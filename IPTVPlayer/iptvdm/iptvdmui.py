@@ -643,7 +643,8 @@ class IPTVDMNotification():
             self.dialog.hide()
 
     def showNotify(self, text):
-        if self.dialog:
+        # "Show download notification" off: no "downloaded" / "error" message box
+        if self.dialog and config.plugins.iptvplayer.IPTVDMShowNotification.value:
             printDBG("> IPTVDMNotification.showNotify[%s]" % text)
             self.dialog.setText(text)
             self.dialog.show()
