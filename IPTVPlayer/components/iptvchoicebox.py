@@ -21,6 +21,7 @@ from Screens.MessageBox import MessageBox
 from Screens.ChoiceBox import ChoiceBox
 from Components.Label import Label
 from Components.ActionMap import ActionMap
+from xml.sax.saxutils import quoteattr
 ###################################################
 
 
@@ -48,11 +49,11 @@ class IPTVChoiceBoxWidget(Screen):
         height = self.params.get('height', 300)
 
         skin = """
-            <screen name="IPTVChoiceBoxWidget" position="center,center" title="%s" size="%d,%d">
+            <screen name="IPTVChoiceBoxWidget" position="center,center" title=%s size="%d,%d">
                 <widget name="title" position="5,10"  zPosition="1" size="%d,30" font="Regular;20"            transparent="1"  backgroundColor="#00000000"/>
                 <widget name="list"  position="5,50"  zPosition="2" size="%d,%d" scrollbarMode="showOnDemand" transparent="1"  backgroundColor="#00000000" enableWrapAround="1" />
             </screen>""" % (
-                self.params.get('title', _("Select option")),
+                quoteattr(self.params.get('title', _("Select option"))),  # title="..." with " & < > escaped
                 width, height, # size
                 width - 10, # title width
                 width - 10, height - 50

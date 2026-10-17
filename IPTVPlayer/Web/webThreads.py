@@ -310,6 +310,9 @@ class doUseHostAction(threading.Thread):
         elif self.key == 'ListForItem' and self.arg.isdigit() and getattr(settings.retObj.value[int(self.arg)], 'pinLocked', False):
             # e.g. a favourite of a PIN protected host - the web interface cannot ask for the PIN
             print("ListForItem: entry is protected by a PIN, open it on the receiver")
+        elif self.key == 'ListForItem' and self.arg.isdigit() and getattr(settings.retObj.value[int(self.arg)], 'imageType', '') == 'MENU':
+            # the "Main menu" pager row (tools/iptvpaging.py MENU_IMAGE_TYPE) is not listed, an old page may still send it
+            print("ListForItem: Main menu row ignored")
         elif self.key == 'ListForItem' and self.arg.isdigit():
             myID = int(self.arg)
             settings.activeHost['selectedItemType'] = settings.retObj.value[myID].type

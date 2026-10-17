@@ -5,6 +5,7 @@ import settings
 
 from webTools import *
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdh import DMHelper
+from Plugins.Extensions.IPTVPlayer.tools.iptvpaging import MENU_IMAGE_TYPE
 from Plugins.Extensions.IPTVPlayer.version import IPTV_VERSION
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import GetHostsList, IsHostEnabled, SaveHostsOrderList, SortHostsList, GetLogoDir, GetHostsOrderList, getDebugMode, formatBytes
 #### e2 imports
@@ -473,7 +474,8 @@ class Body():
                     for item in settings.retObj.value:
                         if isCurrentItemSelected():
                             tempText += self.buildUrlsTable(item, index)
-                        else:
+                        elif getattr(item, 'imageType', '') != MENU_IMAGE_TYPE:
+                            # the "Main menu" pager row is the receiver's EXIT key - the page has its own Back
                             tempText += self.buildItemsListTable(item, index)
                         index += 1
             except Exception as e:

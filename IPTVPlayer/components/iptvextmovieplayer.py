@@ -1229,7 +1229,9 @@ class IPTVExtMoviePlayer(Screen):
                     self['bufferingBar'].value = self.playback['BufferFill']
                     if self.playback['Length'] is not None and self.playback['Length'] < totalDuration:
                         self.setPlaybackLength(totalDuration)
-                        self.clipLength = totalDuration
+                    # the watched mark compares the stop position with this; every update, the player's length
+                    # messages (the file written so far) must not shrink it again
+                    self.clipLength = totalDuration
                 return
 
             remoteFileSize = self.downloader.getRemoteFileSize() - self.totalDataSizeCorrection
@@ -1315,7 +1317,11 @@ class IPTVExtMoviePlayer(Screen):
                             tmpLength = self.playback['CurrentTime']
                         if val > tmpLength:
                             tmpLength = val
-                            self.clipLength = val
+                            # buffering: the player plays the file written so far, its length is no clip length while
+                            # the download runs (an episode stopped after 3 of 53 minutes counted as watched) -
+                            # updateBufferFill() sets the known total then; once the file is complete it is
+                            if None is self.downloader or not self.downloader.isDownloading():
+                                self.clipLength = val
                         if self.playback['Length'] is not None and self.playback['Length'] < tmpLength:
                             if None == self.downloader or not self.downloader.hasDurationInfo():
                                 self.setPlaybackLength(tmpLength)
@@ -1474,17 +1480,35 @@ class IPTVExtMoviePlayer(Screen):
 
     def key_down_repeat(self): self.goSubKey(1, 'repeat')
 
+    def bufferedEnd(self):
+        # buffering: the last second of the part downloaded so far (like the seek pointer's limit), None without buffering
+        # or when the downloaded part is not known
+        if None is self.downloader or self.playback['BufferFill'] <= 0 or not self.playback['Length']:
+            return None
+        end = min(self.playback['Length'] * self.playback['BufferFill'] // 100000, self.playback['Length'])
+        end = max(end, self.playback['BufferCTime'])
+        # a few seconds before the end: a jump right onto it would stop again at once
+        return max(0, end - 5) if end < self.playback['Length'] else end
+
     def doSeek(self, val):
-        if None != self.downloader and self.downloader.hasDurationInfo() \
-           and self.playback['CurrentTime'] >= 0 and self.playback['Length'] > 10:
-            val += self.playback['CurrentTime']
-            if val < 0:
-                val = 0
-            elif val > self.playback['Length'] - 10:
-                val = self.playback['Length'] - 10
-            self.extPlayerCmddDispatcher.doGoToSeek(str(val))
+        # the skip keys: with buffering never beyond the part downloaded so far - exteplayer3 stopped at the end of the
+        # file still being written and the picture froze. An absolute jump sets the position at once: the player reports
+        # it only every second, a second key press before that adds to the first one
+        bufferedEnd = self.bufferedEnd()
+        current = self.playback['CurrentTime']
+        if None is not self.downloader and self.downloader.hasDurationInfo() and current >= 0 and self.playback['Length'] > 10:
+            target = min(max(current + val, 0), self.playback['Length'] - 10)
+            if bufferedEnd is not None:
+                target = min(target, max(bufferedEnd, current))
+        elif bufferedEnd is not None and val > 0 and current >= 0:
+            # (inside the last seconds of the buffered part a forward key must not jump back)
+            target = min(current + val, max(bufferedEnd, current))
+        else:
+            self.extPlayerCmddDispatcher.doSeek(val)
             return
-        self.extPlayerCmddDispatcher.doSeek(val)
+        if int(target) != int(current):
+            self.playback['CurrentTime'] = int(target)
+            self.extPlayerCmddDispatcher.doGoToSeek(str(int(target)))
 
     def key_ok(self):
         if 'Pause' == self.playback['Status']:

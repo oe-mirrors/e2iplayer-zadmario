@@ -93,6 +93,7 @@ config.plugins.iptvplayer.requestedAudioBuffSize = ConfigInteger(256, (1, 10240)
 
 config.plugins.iptvplayer.IPTVDMRunAtStart = ConfigYesNo(default=False)
 config.plugins.iptvplayer.IPTVDMShowAfterAdd = ConfigYesNo(default=True)
+config.plugins.iptvplayer.IPTVDMShowNotification = ConfigYesNo(default=True)
 config.plugins.iptvplayer.IPTVDMMaxDownloadItem = ConfigSelection(default="1", choices=[("1", "1"), ("2", "2"), ("3", "3"), ("4", "4"), ("5", "5"), ("10", "10"), ("20", "20"), ("30", "30"), ("40", "40"), ("50", "50")])
 # container of HLS (M3U8) downloads, hlsdl or ffmpeg, and of single files ffmpeg downloads (iptv_use_ffmpeg);
 # auto = the one the site delivers
@@ -654,6 +655,7 @@ class ConfigMenu(ConfigBaseWidget):
             list.append(getConfigListEntry(_("Downloads location"), config.plugins.iptvplayer.NaszaSciezka))
             list.append(getConfigListEntry(_("Start download manager per default"), config.plugins.iptvplayer.IPTVDMRunAtStart))
             list.append(getConfigListEntry(_("Show download manager after adding new item"), config.plugins.iptvplayer.IPTVDMShowAfterAdd))
+            list.append(getConfigListEntry(_("Show download notification"), config.plugins.iptvplayer.IPTVDMShowNotification))
             list.append(getConfigListEntry(_("Number of downloaded files simultaneously"), config.plugins.iptvplayer.IPTVDMMaxDownloadItem))
             list.append(getConfigListEntry(_("File format of HLS (M3U8) downloads"), config.plugins.iptvplayer.hls_out_container))
             list.append(getConfigListEntry(_("File format of single video files (FFmpeg)"), config.plugins.iptvplayer.file_out_container))

@@ -319,7 +319,7 @@ class IPTVDMApi():
         printDBG("runCMD for downloadIdx[%d]" % item.downloadIdx)
 
         if DMHelper.DOWNLOAD_TYPE.INITIAL == item.tries:
-           item.fileName = DMHelper.makeUnikalFileName(item.fileName, False, False)
+           item.fileName = DMHelper.makeUnikalFileName(item.fileName, False, False, videoSiblings=True)
 
         printDBG("Downloading started downloadIdx[%s] File[%s] URL[%s]" % (item.downloadIdx, item.fileName, item.url))
 

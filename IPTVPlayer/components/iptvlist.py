@@ -119,6 +119,7 @@ class IPTVMainNavigatorList(IPTVListComponentBase):
         CDisplayListItem.TYPE_FIRST: 'FirstItem.png',
         CDisplayListItem.TYPE_PREVIOUS: 'PreviousItem.png',
         CDisplayListItem.TYPE_LAST: 'LastItem.png',
+        'MENU': 'MenuItem.png',  # "Main menu" row of a paged list (tools/iptvpaging.py MENU_IMAGE_TYPE)
         'INFO': 'InfoItem.png',  # an info / changelog row: image_type 'INFO'
         'CUSTOM': 'CustomItem.png',  # a tool row of a host (hostxxx site self-test): image_type 'CUSTOM'
     }

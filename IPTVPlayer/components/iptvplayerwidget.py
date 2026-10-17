@@ -1326,7 +1326,7 @@ class E2iPlayerWidget(Screen):
             except Exception:
                 printExc()
                 item = None
-            if None is not item:
+            if None is not item and getattr(item, 'imageType', '') != iptvpaging.MENU_IMAGE_TYPE:
                 self.stopAutoPlaySequencer()
                 if self._itemNeedsPin(item):
                     # the article of a favourite comes from its (locked) host
@@ -1543,6 +1543,12 @@ class E2iPlayerWidget(Screen):
 
                 item = self.getSelItem()
                 self.currItem = item
+                if getattr(item, 'imageType', '') == iptvpaging.MENU_IMAGE_TYPE:
+                    # "Main menu" row of a paged list: OK does what EXIT does, back to the list its first page was opened
+                    # from - not on the host's first list (EXIT would leave the host) and not for the other OK keys
+                    if 'remote' == eventFrom and self.prevSelList:
+                        self.back_pressed()
+                    return
 
                 # Get current selection
                 currSelIndex = self["list"].getCurrentIndex()
@@ -2394,14 +2400,8 @@ class E2iPlayerWidget(Screen):
         # check flag forcing of the using/not using buffering
         if 'iptv_buffering' in url.meta:
             if "required" == url.meta['iptv_buffering']:
-                # iptv_buffering was set as required, this is done probably due to
-                # extra http headers needs, at now extgstplayer and exteplayer can handle this headers,
-                # so we skip forcing buffering for such links. at now this is temporary
-                # solution we need to add separate filed iptv_extraheaders_need!
-                if url.startswith("http") and self.getMoviePlayer(False, False).value in ['extgstplayer', 'exteplayer']:
-                    pass  # skip forcing buffering
-                else:
-                    return True
+                # the stream only plays through a downloader, e.g. HLS segments the players' demuxer refuses
+                return True
             elif "forbidden" == url.meta['iptv_buffering']:
                 return False
         if "|" in url:
@@ -2491,7 +2491,8 @@ class E2iPlayerWidget(Screen):
             else:
                 recorderMode = self.recorderMode
             url = urlparser.decorateUrl(url)
-            titleOfMovie = self.currItem.name.replace('/', '-').replace(':', '-').replace('*', '-').replace('?', '-').replace('"', '-').replace('<', '-').replace('>', '-').replace('|', '-')
+            # a host may name the downloaded file differently from the row (hostxxx HQPORNER: "<performers> - <title>")
+            titleOfMovie = ensure_str((url.meta.get('iptv_download_title', '') if recorderMode else '') or self.currItem.name).replace('/', '-').replace(':', '-').replace('*', '-').replace('?', '-').replace('"', '-').replace('<', '-').replace('>', '-').replace('|', '-')
             fileExtension = self.getFileExt(url, self.currItem.type)
 
             blocked, reaseon = self.isUrlBlocked(url, self.currItem.type)
@@ -2499,7 +2500,13 @@ class E2iPlayerWidget(Screen):
                 self.session.open(MessageBox, reaseon, type=MessageBox.TYPE_INFO, timeout=10)
                 return
 
-            isBufferingMode = False if url.startswith('file://') else self.activePlayer.get('buffering', self.checkBuffering(url))
+            if url.startswith('file://'):
+                isBufferingMode = False
+            elif url.meta.get('iptv_buffering', '') in ('required', 'forbidden'):
+                # the stream itself demands it, this overrides the player chosen for the host
+                isBufferingMode = self.checkBuffering(url)
+            else:
+                isBufferingMode = self.activePlayer.get('buffering', self.checkBuffering(url))
             bufferingPath = config.plugins.iptvplayer.bufferingPath.value
             downloadingPath = config.plugins.iptvplayer.NaszaSciezka.value
             destinationPath = downloadingPath if recorderMode else bufferingPath
