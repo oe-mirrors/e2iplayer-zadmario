@@ -3,13 +3,15 @@
 #e2iplayer install script - Pike_Bishop from oATV
 
 ## Variables ##
-SCRIPTVERSION=16.0.3_git-zadmario_fork
+SCRIPTVERSION=16.0.4_git-zadmario_fork
 STARTDATE="$(date +%a.%d.%b.%Y-%H:%M:%S)"
 BOXIP="http://127.0.0.1"
 WGET=/usr/bin/wget
 EXTRACT="tar -xvzf"
-NICE=/bin/nice
+# Not every Image has nice in /bin (DreamOS: /usr/bin), without nice the commands simply run without it.
+NICE="$(command -v nice)"
 NICE_ARGS="-n 19"
+[ -z "$NICE" ] && NICE_ARGS=""
 TARGET_PATH=/usr/lib/enigma2/python/Plugins/Extensions
 TMP=/var/volatile/tmp
 WORKDIR=/home/root/_workdir # Can be changed as desired, e.g. on HDD to /media/hdd/_workdir or just /media/hdd/dirname_as_desired.
@@ -23,6 +25,27 @@ E2IPLAYER_BACKUP_DIR=$WORKDIR/e2iplayer_backups
 
 # If it does not exist create the Working Directory (this is where the Log file are stored).
 mkdir -p $WORKDIR
+
+
+# $TMP (/var/volatile/tmp) is a RAM Disk. On Boxes with little RAM (e.g. DM800SE) the Source Package
+# does not fit there ("No space left on device"), then use a tmp Directory in the Working Directory.
+TMP_NEEDED_KB=100000
+TMP_FREE_KB="$(df -Pk $TMP 2> /dev/null | tail -n 1 | awk '{print $4}')"
+if [ -z "$TMP_FREE_KB" ] || [ "$TMP_FREE_KB" -lt "$TMP_NEEDED_KB" ] ; then
+	TMP=$WORKDIR/tmp
+	mkdir -p $TMP
+fi
+
+
+# Enigma2 GUI restart, if OpenWebif is off or needs a login restart it directly (DreamOS uses systemd).
+restart_gui() {
+	$WGET -q -O - $BOXIP/web/powerstate?newstate=3 && return
+	if [ -d /run/systemd/system ] ; then
+		systemctl restart enigma2
+	else
+		init 4 ; sleep 3 ; init 3
+	fi
+}
 
 
 {
@@ -110,6 +133,8 @@ FILE_ADRESS=https://github.com/oe-mirrors/e2iplayer-zadmario/archive/refs/heads/
 # Download the E2iPlayer Source Package into the Directory (Variable TMP).
 echo -e "\n\nDownload E2iPlayer Source Package (*.tar.gz) to;\n$TMP ...\n"
 if ! $WGET -P $TMP $FILE_ADRESS ; then
+	# Remove a partial Download, otherwise wget saves the second try as master.tar.gz.1
+	rm -f $TMP/master.tar.gz
 	if ! $WGET "--no-check-certificate" $FILE_ADRESS -P $TMP ; then
 		echo -e "\n... ERROR ...\nDownload E2iPlayer Source Package failed ! \nCheck your Internet Connection\nand restart e2iplayer_install.sh.\n\n" >&2
 		exit 1
@@ -119,16 +144,27 @@ fi
 # Unpack the E2iPlayer Source Package in the Directory (Variable TMP).
 echo -e "\nUnpack E2iPlayer Source Package to;\n$TMP ..."
 if [ -e $TMP/master.tar.gz ] ; then
-	$EXTRACT $TMP/master.tar.gz -C $TMP > /dev/null
+	# Only the IPTVPlayer Directory is needed, the rest of the Repository is not unpacked.
+	$EXTRACT $TMP/master.tar.gz -C $TMP e2iplayer-zadmario-master/IPTVPlayer > /dev/null
 
 	if [ "$?" != "0" ] ; then
 		echo -e "\n... ERROR ...\nUnpack E2iPlayer Source Package failed ! \nrestart e2iplayer_install.sh.\n\n" >&2
 		exit 1
 	fi
+	rm -f $TMP/master.tar.gz
+else
+	echo -e "\n... ERROR ...\n$TMP/master.tar.gz not found ! \nrestart e2iplayer_install.sh.\n\n" >&2
+	exit 1
 fi
 
-# Read the Path to the unpacked E2iPlayer Source Package and assign it to a Variable.
-EXTRACTED_SOURCE_PATH="$($NICE $NICE_ARGS find $TMP -maxdepth 2 -name IPTVPlayer)"
+# Path to the unpacked E2iPlayer Source Package.
+EXTRACTED_SOURCE_PATH=$TMP/e2iplayer-zadmario-master/IPTVPlayer
+
+# Check it before the installed E2iPlayer gets deleted, otherwise the Box ends up without E2iPlayer.
+if [ ! -f $EXTRACTED_SOURCE_PATH/plugin.py ] ; then
+	echo -e "\n... ERROR ...\n$EXTRACTED_SOURCE_PATH is missing or incomplete ! \nThe installed E2iPlayer was not touched.\nrestart e2iplayer_install.sh.\n\n" >&2
+	exit 1
+fi
 
 # Delete an already installed E2iPlayer, If BACKUP=yes is set in line 19, a Backup (*.tar.gz) of the
 # already installed E2iPlayer is first created and stored in the Directory (Variable E2IPLAYER_BACKUP_DIR).
@@ -170,8 +206,11 @@ fi
 # XXX Install.
 XXX_TARGETDIR=$TARGET_PATH/IPTVPlayer/hosts
 # Reading out the python version, and depending on that, set the download address for the xxx stuff.
-PYTHON_VERSION=$(python -c "import sys; print(sys.version_info.major)")
-if [ $PYTHON_VERSION -eq 2 ] ; then
+# Not every python3 Image has a "python" Link, then use python3.
+PYTHON=python
+command -v python > /dev/null 2>&1 || PYTHON=python3
+PYTHON_VERSION=$($PYTHON -c "import sys; print(sys.version_info.major)")
+if [ "$PYTHON_VERSION" = "2" ] ; then
 	echo -e "\nFound system using python2."
 	XXX_FILE=http://www.krapulax2023.nhely.hu/Python2/hosts/hostXXX.py
 	# For python2, rename the existing icon files to XXX*.png (i.e., to XXX in capital letters).
@@ -180,7 +219,7 @@ if [ $PYTHON_VERSION -eq 2 ] ; then
 	mv $ICON_PATH/PlayerSelector/xxx100.png $ICON_PATH/PlayerSelector/XXX100.png ; echo "rename xxx100.png = $?"
 	mv $ICON_PATH/PlayerSelector/xxx120.png $ICON_PATH/PlayerSelector/XXX120.png ; echo "rename xxx120.png = $?"
 	mv $ICON_PATH/PlayerSelector/xxx135.png $ICON_PATH/PlayerSelector/XXX135.png ; echo -e "rename xxx135.png = $?\n"
-elif [ $PYTHON_VERSION -eq 3 ] ; then
+elif [ "$PYTHON_VERSION" = "3" ] ; then
 	echo -e "\nFound system using python3.\n"
 	XXX_FILE=http://www.krapulax2023.nhely.hu/Python3/hostxxx.py
 fi
@@ -201,6 +240,7 @@ echo -e "\nE2iPlayer installed/updated successfully. -> $ENDDATE\n"
 # Delete the remains.
 echo -e "\nDelete remains (*.tar.gz and Directory e2iplayer-* and more) ...\n"
 $NICE $NICE_ARGS rm -rf $TMP/e2iplayer-* $TMP/python*.gz $TMP/master.* $TMP/iptv-host-xxx* $TMP/opkg-*
+rmdir $WORKDIR/tmp 2> /dev/null
 
 
 # Enigma2 GUI restart, yes or no ?, it's your decision (if there are currently no timer recordings running the answer would be yes).
@@ -208,12 +248,12 @@ while true; do
 	read -p "$(echo -e "\nWould you like to restart the Enigma2 GUI? y/n (Default = yes) ?")" -n 1 yn < /dev/tty
 	case $yn in
 		[yY]* )	echo -e "\n\nEnigma2 GUI restart is executed ...\n"
-				$WGET -q -O - $BOXIP/web/powerstate?newstate=3
+				restart_gui
 				echo -e "\n" && break ;;
 		[nN]* ) echo -e "\n" && break ;;
 			* ) if [ -z "$yn" ] ; then
 					echo -e "\n\nEnigma2 GUI restart is executed ...\n"
-					$WGET -q -O - $BOXIP/web/powerstate?newstate=3
+					restart_gui
 					echo -e "\n" && break
 				fi
 				echo -e "\n\nPlease answer with y for (yes) or n for (no).\n" ;;
