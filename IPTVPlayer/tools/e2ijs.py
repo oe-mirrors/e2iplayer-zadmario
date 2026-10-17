@@ -3,11 +3,11 @@
 ########################################################
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, GetIPTVNotify
 from Plugins.Extensions.IPTVPlayer.components.asynccall import iptv_execute
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, GetDukPath, CreateTmpFile, rm, getDebugMode, GetJSCacheDir, \
-                                                          ReadTextFile, WriteTextFile
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, GetDukPath, GetQjsPath, CreateTmpFile, rm, getDebugMode, \
+                                                          GetJSCacheDir, ReadTextFile, WriteTextFile, Which
 
 ########################################################
-from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_binary
+from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_binary, ensure_str
 from Plugins.Extensions.IPTVPlayer.p2p3.pVer import isPY2
 if isPY2():
     import thread
@@ -18,9 +18,38 @@ from Tools.Directories import fileExists
 
 from binascii import hexlify
 from hashlib import md5
-import time
 
+# QuickJS-ng (package "quickjs", hidden option "qjspath"): ES2023, much faster than duktape,
+# but no bytecode files and no built-in time limit - busybox "timeout" does that part
+QJS_MEMORY_LIMIT = '64m'
+
+# fallback cache key when the installed duktape version can't be read
 DUKTAPE_VER = '226'
+_dukVersion = None
+_timeoutPrefix = None
+
+
+def duktape_version():
+    # key for the bytecode cache: duktape bytecode only loads in the version
+    # that compiled it, so an updated duk must not reuse old .byte files
+    global _dukVersion
+    if _dukVersion is None:
+        _dukVersion = DUKTAPE_VER
+        dukPath = GetDukPath()
+        sts, tmpPath = CreateTmpFile('.iptv_dukver.js', 'print(Duktape.version);')
+        if sts and dukPath:
+            ret = iptv_execute()('%s "%s" 2> /dev/null' % (dukPath, tmpPath))
+            data = ret.get('data', '').strip() if ret.get('sts') and ret.get('code') == 0 else ''
+            if data.isdigit():
+                _dukVersion = data
+        if sts:
+            rm(tmpPath)
+        printDBG('duktape_version [%s]' % _dukVersion)
+    return _dukVersion
+
+
+def quickjs_available():
+    return GetQjsPath() != ''
 
 
 def duktape_execute(cmd_params):
@@ -47,11 +76,32 @@ def duktape_execute(cmd_params):
     return ret
 
 
+def quickjs_execute(fileList, timeoutSec):
+    # the files run one after another in one global context, like "duk a.js b.js";
+    # -C: classic script, never auto-detected as ES module
+    global _timeoutPrefix
+    if not fileList:
+        return {'sts': False, 'code': -12, 'data': ''}
+    if _timeoutPrefix is None:
+        _timeoutPrefix = 'timeout %d ' if Which('timeout') else ''
+    cmd = _timeoutPrefix % timeoutSec if _timeoutPrefix else ''
+    cmd += '%s -C --memory-limit %s ' % (GetQjsPath(), QJS_MEMORY_LIMIT)
+    cmd += ' '.join(['-I "%s"' % file for file in fileList[:-1]] + ['"%s"' % fileList[-1]])
+    cmd += ' 2> /dev/null'
+    printDBG("quickjs_execute cmd[%s]" % cmd)
+    ret = iptv_execute()(cmd)
+    printDBG('quickjs_execute cmd ret[%s]' % ret)
+    return ret
+
+
 def js_execute(jscode, params={}):
     ret = {'sts': False, 'code': -12, 'data': ''}
     sts, tmpPath = CreateTmpFile('.iptv_js.js', jscode)
     if sts:
-        ret = duktape_execute('-t %s ' % params.get('timeout_sec', 20) + ' ' + tmpPath)
+        if quickjs_available():
+            ret = quickjs_execute([tmpPath], params.get('timeout_sec', 20))
+        else:
+            ret = duktape_execute('-t %s ' % params.get('timeout_sec', 20) + ' ' + tmpPath)
 
     # leave last script for debug purpose
     if getDebugMode() == '':
@@ -61,9 +111,20 @@ def js_execute(jscode, params={}):
     return ret
 
 
+def _cacheFiles(name, useQuickJS):
+    # quickjs caches the extracted source, duktape the compiled bytecode
+    if useQuickJS:
+        return GetJSCacheDir(name + '.js'), GetJSCacheDir(name + '.qjs.meta'), 'qjs'
+    return GetJSCacheDir(name + '.byte'), GetJSCacheDir(name + '.meta'), duktape_version()
+
+
 def js_execute_ext(items, params={}):
     fileList = []
     tmpFiles = []
+
+    # precompiled duktape bytecode (jsscripts/*.byte) only runs in duktape
+    useQuickJS = quickjs_available() and not any(item.get('path', '').endswith('.byte') for item in items)
+    printDBG('js_execute_ext engine[%s]' % ('quickjs' if useQuickJS else 'duktape'))
 
     tid = thread.get_ident()
     uniqueId = 0
@@ -73,6 +134,7 @@ def js_execute_ext(items, params={}):
             # we can have source file or source code
             path = item.get('path', '')
             code = item.get('code', '')
+            codeFromPath = False
 
             name = item.get('name', '')
             if name: # cache enabled
@@ -83,42 +145,56 @@ def js_execute_ext(items, params={}):
                         sts, code = ReadTextFile(path)
                         if not sts:
                             raise Exception('Faile to read file "%s"!' % path)
-                    hash = hexlify(md5(ensure_binary(code)).digest())
-                byteFileName = GetJSCacheDir(name + '.byte')
-                metaFileName = GetJSCacheDir(name + '.meta')
-                if fileExists(byteFileName):
+                        codeFromPath = True
+                    hash = ensure_str(hexlify(md5(ensure_binary(code)).digest()))
+                cacheFileName, metaFileName, cacheVer = _cacheFiles(name, useQuickJS)
+                if fileExists(cacheFileName):
                     sts, tmp = ReadTextFile(metaFileName)
                     if sts:
-                        tmp = tmp.split('|') # DUKTAPE_VER|hash
-                        if DUKTAPE_VER != tmp[0] or hash != tmp[-1].strip():
+                        tmp = tmp.split('|') # engine version|hash
+                        if cacheVer != tmp[0] or hash != tmp[-1].strip():
                             sts = False
                     if not sts:
-                        rm(byteFileName)
+                        rm(cacheFileName)
                         rm(metaFileName)
                 else:
                     sts = False
 
                 if not sts:
-                    # we need compile here
-                    if not path:
-                        path = '.%s.js' % name
-                        sts, path = CreateTmpFile(path, code)
-                        if not sts:
-                            raise Exception('Faile to create file "%s" "%s"' % (path, code))
-                        tmpFiles.append(path)
-
                     # remove old meta
                     rm(metaFileName)
 
-                    # compile
-                    if 0 != duktape_execute('-c "%s" "%s" ' % (byteFileName, path))['code']:
-                        raise Exception('Compile to bytecode file "%s" > "%s" failed!' % (path, byteFileName))
+                    if useQuickJS:
+                        if path and not codeFromPath:
+                            sts, code = ReadTextFile(path)
+                            if not sts:
+                                raise Exception('Faile to read file "%s"!' % path)
+                        if not code:
+                            # cache vanished after is_js_cached() and the caller sent no code
+                            raise Exception('No code to cache for "%s"!' % name)
+                        if not WriteTextFile(cacheFileName, code):
+                            raise Exception('Faile to write "%s" file!' % cacheFileName)
+                    else:
+                        # we need compile here
+                        if not path:
+                            if not code:
+                                # cache vanished after is_js_cached() and the caller sent no code
+                                raise Exception('No code to cache for "%s"!' % name)
+                            path = '.%s.js' % name
+                            sts, path = CreateTmpFile(path, code)
+                            if not sts:
+                                raise Exception('Faile to create file "%s" "%s"' % (path, code))
+                            tmpFiles.append(path)
+
+                        # compile
+                        if 0 != duktape_execute('-c "%s" "%s" ' % (cacheFileName, path))['code']:
+                            raise Exception('Compile to bytecode file "%s" > "%s" failed!' % (path, cacheFileName))
 
                     # update meta
-                    if not WriteTextFile(metaFileName, '%s|%s' % (DUKTAPE_VER, hash)):
+                    if not WriteTextFile(metaFileName, '%s|%s' % (cacheVer, hash)):
                         raise Exception('Faile to write "%s" file!' % metaFileName)
 
-                fileList.append(byteFileName)
+                fileList.append(cacheFileName)
             else:
                 if path:
                     fileList.append(path)
@@ -130,8 +206,10 @@ def js_execute_ext(items, params={}):
                         raise Exception('Faile to create file "%s"' % path)
                     tmpFiles.append(path)
                     fileList.append(path)
-        #ret = duktape_execute('-t %s ' % params.get('timeout_sec', 20) + ' '.join([ '"%s"' % file for file in fileList ]) )
-        ret = duktape_execute(' '.join(['"%s"' % file for file in fileList]))
+        if useQuickJS:
+            ret = quickjs_execute(fileList, params.get('timeout_sec', 20))
+        else:
+            ret = duktape_execute(' '.join(['"%s"' % file for file in fileList]))
     except Exception:
         printExc()
 
@@ -144,12 +222,11 @@ def js_execute_ext(items, params={}):
 
 def is_js_cached(name, hash):
     ret = False
-    byteFileName = GetJSCacheDir(name + '.byte')
-    metaFileName = GetJSCacheDir(name + '.meta')
-    if fileExists(byteFileName):
+    cacheFileName, metaFileName, cacheVer = _cacheFiles(name, quickjs_available())
+    if fileExists(cacheFileName):
         sts, tmp = ReadTextFile(metaFileName)
         if sts:
             tmp = tmp.split('|')
-            if DUKTAPE_VER == tmp[0] and hash == tmp[-1].strip():
+            if cacheVer == tmp[0] and hash == tmp[-1].strip():
                 ret = True
     return ret

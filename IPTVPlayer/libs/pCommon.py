@@ -6,7 +6,7 @@
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, GetIPTVNotify, GetIPTVSleep
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, IsHttpsCertValidationEnabled, byteify, GetDefaultLang, rm, UsePyCurl, GetJSScriptFile, \
-                                                        IsExecutable, iptv_system, GetTmpDir
+                                                        IsExecutable, iptv_system, GetTmpDir, GetFFmpegPath
 from Plugins.Extensions.IPTVPlayer.components.asynccall import IsMainThread, IsThreadTerminated, SetThreadKillable, iptv_execute
 from Plugins.Extensions.IPTVPlayer.tools.e2ijs import js_execute_ext
 from Plugins.Extensions.IPTVPlayer.libs import curlimpersonate, ph
@@ -144,7 +144,7 @@ def ConvertibleImageFirstBytes():
     # first bytes of the image types convertWebp can turn into JPEG on this box (WebP: Pillow or ffmpeg,
     # AVIF: ffmpeg with an AV1 decoder) - nothing when there is no converter, the picture loader can't show them
     ret = []
-    hasFFmpeg = IsExecutable('ffmpeg')
+    hasFFmpeg = IsExecutable(GetFFmpegPath())
     if hasPIL or hasFFmpeg:
         ret.append(b'RI')
     if hasFFmpeg:
@@ -1840,10 +1840,11 @@ class common:
                 except Exception:
                     printExc()
 
-        if IsExecutable('ffmpeg'):
+        ffmpegPath = GetFFmpegPath()
+        if IsExecutable(ffmpegPath):
             fp = "'%s'" % file_path.replace("'", "'\\''")
             op = "'%s'" % output_path.replace("'", "'\\''")
-            command = "ffmpeg -y -i %s -frames:v 1 -update 1 %s && test -e %s && rm %s && mv %s %s " % (fp, op, op, fp, op, fp)
+            command = ffmpegPath + " -y -i %s -frames:v 1 -update 1 %s && test -e %s && rm %s && mv %s %s " % (fp, op, op, fp, op, fp)
             printDBG("Send command %s" % command)
             if IsMainThread():
                 self.cmd = iptv_system(command)

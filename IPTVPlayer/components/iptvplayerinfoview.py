@@ -42,7 +42,7 @@ from Plugins.Extensions.IPTVPlayer.components.e2ivk import GetVKTier, _s, toNati
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import (
     printDBG, printExc, iptv_system, eConnectCallback, formatBytes, GetImageName,
     GetIPTVPlayerVersion, GetIPTVPlayerComitStamp, GetShortPythonVersion,
-    GetConfigDir, GetTmpDir, GetDebugLogPath,
+    GetConfigDir, GetTmpDir, GetDebugLogPath, GetFFmpegPath, GetQjsPath, GetDukPath, GetCurlImpersonatePath,
 )
 ###################################################
 
@@ -83,10 +83,10 @@ _PROBE_SCRIPT = (
     'echo "@@cmdwrap";     ($T cmdwrap %s          || true) | head -n 1; '
     'echo "@@lsdir";       ($T lsdir --version %s  || true) | head -n 1; w lsdir; '
     'echo "@@f4mdump";     ($T f4mdump %s          || true) | head -n 1; '
-    'echo "@@ffmpeg";      ($T ffmpeg -version %s   || true) | head -n 1; '
+    'echo "@@ffmpeg";      ($T "$FF" -version %s   || true) | head -n 1; '
     'echo "@@wget";        ($T wget --version %s    || true) | head -n 1; '
     'echo "@@curl";        ($T curl --version %s    || true) | head -n 1; '
-    'echo "@@curlimp";     C=$(w curl-impersonate); [ "$C" = "-" ] && [ -x /usr/local/bin/curl-impersonate ] && C=/usr/local/bin/curl-impersonate; '
+    'echo "@@curlimp";     C=$(w "${CI:-curl-impersonate}"); [ "$C" = "-" ] && [ -x /usr/local/bin/curl-impersonate ] && C=/usr/local/bin/curl-impersonate; '
     '  [ "$C" != "-" ] && ($T "$C" --version %s || true) | head -n 1; echo "$C"; '
     'echo "@@rtmpdump";    ($T rtmpdump --help %s   || true) | grep -i rtmpdump | head -n 1; '
     'echo "@@exteplayer3"; ($T exteplayer3 %s       || true) | head -n 2; '
@@ -94,11 +94,20 @@ _PROBE_SCRIPT = (
     'echo "@@gstplayer2";  ($T gstplayer2 %s        || true) | head -n 2; '
     'echo "@@duktape";     D=/tmp/.e2i_dukver.js; '
     '  printf "%%s" \'try{var v=Duktape.version;print(Math.floor(v/10000)+"."+(Math.floor(v/100)%%100)+"."+(v%%100))}catch(e){print("?")}\' > $D; '
-    '  ($T duk $D %s || true) | head -n 1; rm -f $D; '
-    'echo "@@quickjs";     ($T qjs --version %s     || true) | head -n 1; '
+    '  ($T "$DK" $D %s || true) | head -n 1; rm -f $D; '
+    'echo "@@quickjs";     ($T "$QJ" --version %s   || true) | head -n 1; '
     'echo "@@deps";        (opkg list-installed 2>/dev/null | grep -i e2iplayer-deps || true); '
     'echo "@@end"\n'
 ) % ((_P,) * 14)
+
+
+def _probeToolPaths():
+    # first line of the probe script: the ffmpeg / qjs / duk / curl-impersonate the plugin really uses
+    # (hidden options "ffmpegpath", "qjspath", "dukpath", "curlimpersonatepath"), not only the ones in PATH
+    def q(value):
+        return "'%s'" % value.replace("'", "'\\''")
+    return 'FF=%s; QJ=%s; DK=%s; CI=%s\n' % (q(GetFFmpegPath()), q(GetQjsPath() or 'qjs'), q(GetDukPath() or 'duk'),
+                                             q(GetCurlImpersonatePath()))
 
 _PROBE_CACHE = None       # parsed binary block, reused for the whole session
 _PROBE_KEEPALIVE = None   # holds the iptv_system object until its callback fires
@@ -472,7 +481,7 @@ class _SystemInfo(object):
 
         try:
             with open(_PROBE_SCRIPT_PATH, "w") as f:
-                f.write(_PROBE_SCRIPT)
+                f.write(_probeToolPaths() + _PROBE_SCRIPT)
             self._probe = iptv_system("sh %s; rm -f %s" % (_PROBE_SCRIPT_PATH, _PROBE_SCRIPT_PATH), _cb)
             _PROBE_KEEPALIVE = self._probe
         except Exception:

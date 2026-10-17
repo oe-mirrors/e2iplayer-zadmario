@@ -6049,3 +6049,6 @@ msgstr "Seite öffnen und Link holen"
 
 msgid "MyE2i: open the page in the browser"
 msgstr "MyE2i: Seite im Browser öffnen"
+
+msgid "Show download notification"
+msgstr "Download-Benachrichtigung anzeigen"

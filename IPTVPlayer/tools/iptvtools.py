@@ -411,6 +411,37 @@ def GetDukPath():
     return config.plugins.iptvplayer.dukpath.value
 
 
+def _configuredToolPath(option):
+    # path from the hidden options when it is set and executable, else ''
+    try:
+        path = getattr(config.plugins.iptvplayer, option).value.strip()
+        if path and IsExecutable(path):
+            return path
+    except Exception:
+        printExc()
+    return ''
+
+
+def GetFFmpegPath():
+    path = _configuredToolPath('ffmpegpath')
+    if path:
+        return path
+    altFFMPEGPath = '/iptvplayer_rootfs/usr/bin/ffmpeg'
+    if IsExecutable(altFFMPEGPath):
+        return altFFMPEGPath
+    return 'ffmpeg'
+
+
+def GetQjsPath():
+    # QuickJS-ng "qjs" or '' when there is none (duktape is used then)
+    return _configuredToolPath('qjspath') or Which('qjs')
+
+
+def GetCurlImpersonatePath():
+    # only the configured one, libs/curlimpersonate.py looks for it on its own otherwise
+    return _configuredToolPath('curlimpersonatepath')
+
+
 gE2iPlayerTempCookieDir = None
 
 

@@ -67,11 +67,24 @@ def _isExecutable(path):
     return os.path.isfile(path) and os.access(path, os.X_OK)
 
 
+def _configuredBinary():
+    # the path from the hidden options (curlimpersonatepath); imported here so this module
+    # still loads without enigma2 (tests, scripts/impersonatehls.py gets it with --binary)
+    try:
+        from Plugins.Extensions.IPTVPlayer.tools.iptvtools import GetCurlImpersonatePath
+        return GetCurlImpersonatePath()
+    except Exception:
+        return ''
+
+
 def getImpersonateBinary(candidates=None):
     """path of the curl-impersonate binary or '' (cached for the session)"""
-    if _state['binary'] is None:
+    configured = '' if candidates else _configuredBinary()
+    if _state['binary'] is None or configured != _state.get('configured', ''):
+        # a path changed in the hidden options counts at once, also after markBinaryUnusable()
+        _state['configured'] = configured
         found = ''
-        paths = list(candidates or BINARY_CANDIDATES)
+        paths = ([configured] if configured else []) + list(candidates or BINARY_CANDIDATES)
         for directory in os.environ.get('PATH', '').split(os.pathsep):
             directory = directory.strip('"')
             if directory:
