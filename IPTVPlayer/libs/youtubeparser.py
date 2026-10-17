@@ -3,7 +3,7 @@
 # LOCAL import
 from Plugins.Extensions.IPTVPlayer.libs.youtube_dl.extractor.youtube import YoutubeIE
 from Plugins.Extensions.IPTVPlayer.libs.youtube_oauth import YouTubeOAuth
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, IsExecutable
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, IsExecutable, GetFFmpegPath
 from Plugins.Extensions.IPTVPlayer.libs.pCommon import common
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
 from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import decorateUrl
@@ -108,9 +108,9 @@ class YouTubeParser:
     def isDashAllowed():
         value = config.plugins.iptvplayer.ytShowDash.value
         printDBG("ALLOW DASH: >> %s" % value)
-        if value == "true" and IsExecutable("ffmpeg"):
+        if value == "true" and IsExecutable(GetFFmpegPath()):
             return True
-        elif value == "auto" and IsExecutable("ffmpeg") and IsExecutable(config.plugins.iptvplayer.exteplayer3path.value):
+        elif value == "auto" and IsExecutable(GetFFmpegPath()) and IsExecutable(config.plugins.iptvplayer.exteplayer3path.value):
             return True
         else:
             return False

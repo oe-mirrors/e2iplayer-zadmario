@@ -72,6 +72,11 @@ config.plugins.iptvplayer.dukpath = ConfigText(default="", fixed_size=False)
 config.plugins.iptvplayer.rtmpdumppath = ConfigText(default="", fixed_size=False)
 config.plugins.iptvplayer.f4mdumppath = ConfigText(default="", fixed_size=False)
 config.plugins.iptvplayer.uchardetpath = ConfigText(default="", fixed_size=False)
+# empty = found on its own (ffmpeg: /iptvplayer_rootfs, then PATH; qjs: PATH; curl-impersonate:
+# /usr/bin, /usr/local/bin, then PATH); a set path that is not executable is ignored as well
+config.plugins.iptvplayer.ffmpegpath = ConfigText(default="", fixed_size=False)
+config.plugins.iptvplayer.qjspath = ConfigText(default="", fixed_size=False)
+config.plugins.iptvplayer.curlimpersonatepath = ConfigText(default="", fixed_size=False)
 config.plugins.iptvplayer.set_curr_title = ConfigYesNo(default=False)
 config.plugins.iptvplayer.curr_title_file = ConfigText(default="", fixed_size=False)
 
@@ -568,6 +573,9 @@ class ConfigMenu(ConfigBaseWidget):
             list.append(getConfigListEntry("dukpath", config.plugins.iptvplayer.dukpath))
             list.append(getConfigListEntry("f4mdumppath", config.plugins.iptvplayer.f4mdumppath))
             list.append(getConfigListEntry("uchardetpath", config.plugins.iptvplayer.uchardetpath))
+            list.append(getConfigListEntry("ffmpegpath", config.plugins.iptvplayer.ffmpegpath))
+            list.append(getConfigListEntry("qjspath", config.plugins.iptvplayer.qjspath))
+            list.append(getConfigListEntry("curlimpersonatepath", config.plugins.iptvplayer.curlimpersonatepath))
             list.append(getConfigListEntry("MIPS Floating Point Architecture", config.plugins.iptvplayer.plarformfpuabi))
             list.append(getConfigListEntry("E2iPlayer auto start at Enigma2 start", config.plugins.iptvplayer.plugin_autostart))
             list.append(getConfigListEntry("Auto start method", config.plugins.iptvplayer.plugin_autostart_method))

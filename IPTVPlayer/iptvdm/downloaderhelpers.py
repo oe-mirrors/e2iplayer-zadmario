@@ -9,6 +9,7 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, eC
 # FOREIGN import
 ###################################################
 from Tools.BoundFunction import boundFunction
+from Components.config import config
 from enigma import eConsoleAppContainer
 import os
 import signal
@@ -340,7 +341,7 @@ class SidecarMixin(object):
             tmpPath = jpgPath + '.new'
             self.sidecarImgTmpPath = tmpPath
 
-            cmd = 'wget --header "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.103 Safari/537.36" --no-check-certificate "%s" -O "%s" > /dev/null 2>&1' % (shellQuote(self.sidecarImg), shellQuote(tmpPath))
+            cmd = (config.plugins.iptvplayer.wgetpath.value or 'wget') + ' --header "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.103 Safari/537.36" --no-check-certificate "%s" -O "%s" > /dev/null 2>&1' % (shellQuote(self.sidecarImg), shellQuote(tmpPath))
             printDBG("%s sidecar JPG cmd[%s]" % (self.__class__.__name__, cmd))
 
             self.waitingForSidecar = True

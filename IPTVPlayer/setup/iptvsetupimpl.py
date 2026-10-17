@@ -502,7 +502,12 @@ class IPTVSetupImpl:
                 return True, False
             else:
                 return False, True
-        self.workingObj = CCmdValidator(self.getFFmpegVerFinished, _verValidator, ['/iptvplayer_rootfs/usr/bin/ffmpeg -version', 'ffmpeg -version'])
+        cmdTab = ['/iptvplayer_rootfs/usr/bin/ffmpeg -version', 'ffmpeg -version']
+        ffmpegPath = config.plugins.iptvplayer.ffmpegpath.value.strip()
+        if ffmpegPath:
+            # the path set in the hidden options is the one the downloaders use
+            cmdTab.insert(0, '%s -version' % ffmpegPath)
+        self.workingObj = CCmdValidator(self.getFFmpegVerFinished, _verValidator, cmdTab)
         self.workingObj.start()
 
     def getFFmpegVerFinished(self, stsTab, dataTab):
