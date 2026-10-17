@@ -347,30 +347,26 @@ def unpackJSPlayerParams(code, decryptionFun, type=1, r1=False, r2=False):
     printDBG('unpackJSPlayerParams')
     code = getParamsTouple(code, type, r1, r2)
     data = unpackJS(code, decryptionFun)
-    if data == '' and data.endswith('))'):
+    if data == '' and code.endswith('))'):
         data = unpackJS(code[:-1], decryptionFun)
     return data
 
 
 def unpackJS(data, decryptionFun, addCode=''):
-    paramsCode = addCode
-    paramsCode += 'paramsTouple = (' + data + ')'
-    try:
-        paramsAlgoObj = compile(paramsCode, '', 'exec')
-    except Exception:
-        printExc('unpackJS compile algo code EXCEPTION')
+    # the parameter list of a packed player script ('p',36,12,'k|e|y'.split('|'),0,{}) - parsed,
+    # never executed: it comes straight from the web page
+    if addCode:
+        printDBG('unpackJS: addCode is not supported')
         return ''
-    vGlobals = {"__builtins__": None, 'string': string, 'decodeURIComponent': urllib_unquote, 'unescape': urllib_unquote}
-    vLocals = {'paramsTouple': None}
-
     try:
-        exec(paramsAlgoObj, vGlobals, vLocals)
+        paramsTouple = safeEvalExpression('(' + data + ')', {'decodeURIComponent': urllib_unquote, 'unescape': urllib_unquote})
+        if not isinstance(paramsTouple, tuple):
+            paramsTouple = (paramsTouple,)
     except Exception:
-        printExc('unpackJS exec code EXCEPTION')
+        printExc('unpackJS parse EXCEPTION')
         return ''
-    # decrypt JS Player params
     try:
-        return decryptionFun(*vLocals['paramsTouple'])
+        return decryptionFun(*paramsTouple)
     except Exception:
         printExc('decryptPlayerParams EXCEPTION')
     return ''
