@@ -3,15 +3,35 @@
 #e2iplayer install script - modified by Pike_Bishop from oATV
 
 ## Variables ##
-scriptversion=16.0.3_git-zadmario_fork_for_other_images
+scriptversion=16.0.4_git-zadmario_fork_for_other_images
 startdate="$(date +%a.%d.%b.%Y-%H:%M:%S)"
 workdir=/home/root/_workdir
 target_path=/usr/lib/enigma2/python/Plugins/Extensions
 e2iplayer_downl_package=https://github.com/oe-mirrors/e2iplayer-zadmario/archive/refs/heads/master.tar.gz
 logfile=$workdir/_e2iplayer_install.log
+tmp=/tmp
 
 # If it does not exist create the Working Directory (this is where the Log file are stored).
 mkdir -p $workdir
+
+# /tmp is a RAM Disk on many Images. On Boxes with little RAM the Source Package does not fit there
+# ("No space left on device"), then use a tmp Directory in the Working Directory.
+tmp_needed_kb=100000
+tmp_free_kb="$(df -Pk $tmp 2> /dev/null | tail -n 1 | awk '{print $4}')"
+if [ -z "$tmp_free_kb" ] || [ "$tmp_free_kb" -lt "$tmp_needed_kb" ] ; then
+	tmp=$workdir/tmp
+	mkdir -p $tmp
+fi
+
+# Enigma2 GUI restart, if OpenWebif is off or needs a login restart it directly (DreamOS uses systemd).
+restart_gui() {
+	wget -q -O - http://127.0.0.1/web/powerstate?newstate=3 && return
+	if [ -d /run/systemd/system ] ; then
+		systemctl restart enigma2
+	else
+		init 4 ; sleep 3 ; init 3
+	fi
+}
 
 {
 # script Name + script Version Output + E2iPlayer Installation Start Message.
@@ -19,24 +39,30 @@ echo -e "\nScript-Name/Version -> e2iplayer-install.sh\t  Version_$scriptversion
 echo -e "\nInstall/Update E2iPlayer ... -> $startdate\n\n"
 
 # Delete any remains of previous installations.
-rm -rf /tmp/e2iplayer-* /tmp/iptv-host-xxx* /tmp/xxx.tar.gz
+rm -rf $tmp/e2iplayer-* $tmp/iptv-host-xxx* $tmp/xxx.tar.gz
 
-# Download E2iPlayer package. 
-if ! wget -q $e2iplayer_downl_package -O /tmp/e2iplayer-master.tar.gz ; then
-	if ! wget -q "--no-check-certificate" $e2iplayer_downl_package -O /tmp/e2iplayer-master.tar.gz ; then
+# Download E2iPlayer package.
+if ! wget -q $e2iplayer_downl_package -O $tmp/e2iplayer-master.tar.gz ; then
+	if ! wget -q "--no-check-certificate" $e2iplayer_downl_package -O $tmp/e2iplayer-master.tar.gz ; then
 		echo -e "\nError ! downloading archive failed, end."
 		exit 1
 	fi
 fi
 echo -e "\narchive successfully downloaded.\n"
 
-# Extract the E2iPlayer package.
-if ! tar -xzf /tmp/e2iplayer-master.tar.gz -C /tmp ; then
+# Extract the E2iPlayer package, only the IPTVPlayer Directory is needed.
+if ! tar -xzf $tmp/e2iplayer-master.tar.gz -C $tmp e2iplayer-zadmario-master/IPTVPlayer ; then
 	echo "Error ! extracting archive failed, end."
 	exit 1
 else
 	echo "archive successfully extracted."
-	rm -f /tmp/e2iplayer-master.tar.gz
+	rm -f $tmp/e2iplayer-master.tar.gz
+fi
+
+# Check it before the installed E2iPlayer gets deleted, otherwise the Box ends up without E2iPlayer.
+if [ ! -f $tmp/e2iplayer-zadmario-master/IPTVPlayer/plugin.py ] ; then
+	echo -e "\nError ! extracted E2iPlayer is missing or incomplete, the installed E2iPlayer was not touched, end."
+	exit 1
 fi
 
 # Delete any existing E2iPlayer.
@@ -46,12 +72,12 @@ if [ -e $target_path/IPTVPlayer ] ; then
 fi
 
 # Move newly downloaded E2iPlayer to /usr/lib/enigma2/python/Plugins/Extensions (target_path).
-if ! mv -f /tmp/e2iplayer-zadmario-master/IPTVPlayer $target_path/ ; then
+if ! mv -f $tmp/e2iplayer-zadmario-master/IPTVPlayer $target_path/ ; then
 	echo -e "\nError ! installing E2iPlayer, end."
 	exit 1
 else
 	echo -e "\nE2iPlayer successfully installed ! ! ! \n"
-	rm -rf /tmp/e2iplayer-zadmario-master
+	rm -rf $tmp/e2iplayer-zadmario-master
 fi
 
 # Try to reinstall dependent packages from the feed, otherwise the missing packages will be installed when you start E2iPlayer for the first time.
@@ -75,8 +101,11 @@ fi
 # xxx Install.
 xxx_targetdir=$target_path/IPTVPlayer/hosts
 # Reading out the python version, and depending on that, set the download address for the xxx stuff.
-python_version=$(python -c "import sys; print(sys.version_info.major)")
-if [ $python_version -eq 2 ] ; then
+# Not every python3 Image has a "python" Link, then use python3.
+python_bin=python
+command -v python > /dev/null 2>&1 || python_bin=python3
+python_version=$($python_bin -c "import sys; print(sys.version_info.major)")
+if [ "$python_version" = "2" ] ; then
 	echo -e "\nfound system using python2."
 	xxx_file=http://www.krapulax2023.nhely.hu/Python2/hosts/hostXXX.py
 	# For python2, rename the existing icon files to XXX*.png (i.e., to XXX in capital letters).
@@ -85,7 +114,7 @@ if [ $python_version -eq 2 ] ; then
 	mv $icon_path/PlayerSelector/xxx100.png $icon_path/PlayerSelector/XXX100.png ; echo "rename xxx100.png = $?"
 	mv $icon_path/PlayerSelector/xxx120.png $icon_path/PlayerSelector/XXX120.png ; echo "rename xxx120.png = $?"
 	mv $icon_path/PlayerSelector/xxx135.png $icon_path/PlayerSelector/XXX135.png ; echo -e "rename xxx135.png = $?\n"
-elif [ $python_version -eq 3 ] ; then
+elif [ "$python_version" = "3" ] ; then
 	echo -e "\nfound system using python3."
 	xxx_file=http://www.krapulax2023.nhely.hu/Python3/hostxxx.py
 fi
@@ -100,7 +129,8 @@ fi
 # E2iPlayer Installation/Update success Message, and delete remains.
 enddate="$(date +%a.%d.%b.%Y-%H:%M:%S)"
 echo -e "\n\nE2iPlayer installed/updated successfully. -> $enddate\n"
-rm -rf /tmp/e2iplayer-* /tmp/iptv-host-xxx* /tmp/xxx.tar.gz
+rm -rf $tmp/e2iplayer-* $tmp/iptv-host-xxx* $tmp/xxx.tar.gz
+rmdir $workdir/tmp 2> /dev/null
 echo -e "\n\n! ! ! END -> Enigma2 GUI restart needed, either immediately or later ! ! !\n\n"
 sync
 
@@ -109,12 +139,12 @@ while true; do
 	read -p "$(echo -e "\nWould you like to restart the Enigma2 GUI? y/n (Default = yes) ?")" -n 1 yn < /dev/tty
 	case $yn in
 		[yY]* )	echo -e "\n\nEnigma2 GUI restart is executed ...\n"
-				wget -q -O - http://127.0.0.1/web/powerstate?newstate=3
+				restart_gui
 				echo -e "\n" && break ;;
 		[nN]* ) echo -e "\n" && break ;;
 			* ) if [ -z "$yn" ] ; then
 					echo -e "\n\nEnigma2 GUI restart is executed ...\n"
-					wget -q -O - http://127.0.0.1/web/powerstate?newstate=3
+					restart_gui
 					echo -e "\n" && break
 				fi
 				echo -e "\n\nPlease answer with y for (yes) or n for (no).\n" ;;
