@@ -6,7 +6,7 @@
 from Plugins.Extensions.IPTVPlayer.components.asynccall import AsyncMethod
 from Plugins.Extensions.IPTVPlayer.libs.crypto.hash.md5Hash import MD5
 from Plugins.Extensions.IPTVPlayer.libs.pCommon import common, ConvertibleImageFirstBytes, ImageFileNeedsPreparing, PrepareImageFile, \
-    DescribeImageFile
+    DescribeImageFile, MatchFirstBytes
 from Plugins.Extensions.IPTVPlayer.libs.urlparser import urlparser
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import mkdirs, \
                       FreeSpace as iptvtools_FreeSpace, \
@@ -21,6 +21,8 @@ from Plugins.Extensions.IPTVPlayer.p2p3.pVer import isPY2
 ###################################################
 # FOREIGN import
 ###################################################
+import base64
+import re
 import threading
 import time
 from binascii import hexlify
@@ -34,6 +36,47 @@ from Components.config import config
 
 # failure times of icons: a clock that does not jump at the NTP sync after boot (time.monotonic is py3 only)
 _monotonic = getattr(time, 'monotonic', time.time)
+
+
+def IconLogName(url):
+    # an inline picture (data:image/...;base64,...) is the whole picture, often 10 KB and more: the log gets its start
+    try:
+        if url.startswith('data:'):
+            return '%s... (inline picture, %d characters)' % (url[:40], len(url))
+    except Exception:
+        pass
+    return url
+
+
+def PictureFirstBytes():
+    # what a downloaded picture may start with: JPEG, PNG, GIF, WebP ("RI"), AVIF when this box can convert it
+    return [b'\xFF\xD8', b'\xFF\xD9', b'\x89\x50\x4E\x47', b'GIF87a', b'GIF89a', b'RI'] + [x for x in ConvertibleImageFirstBytes() if x != b'RI']
+
+
+def SaveInlinePicture(img_url, file_path, prepare=True, firstBytes=None):
+    # an inline picture (data:[type];base64,data - sites without a picture address put it into the page) written
+    # to file_path like a download; '' or why not. The type it names is not trusted (showcamrips.com calls WebP
+    # image/png): the first bytes decide (firstBytes, PictureFirstBytes() without). prepare: WebP/AVIF/gzip
+    # converted here - only in a worker thread (convertWebp may wait for ffmpeg), the GUI thread leaves it to
+    # Cover.decodePreparedCover. hostxxx looks for this function: without it the framework shows no inline pictures
+    try:
+        header, payload = img_url.split(',', 1)
+        if not header.lower().endswith(';base64'):
+            return 'inline picture without base64 (%s)' % header[:40]
+        data = base64.b64decode(re.sub(r'\s+', '', payload))
+    except Exception as e:
+        return 'inline picture can not be decoded %r' % (e,)
+    if not MatchFirstBytes(data, PictureFirstBytes() if firstBytes is None else firstBytes):
+        return 'inline picture is not a picture, first bytes %r' % data[:16]
+    try:
+        with open(file_path, 'wb') as f:
+            f.write(data)
+        if prepare and ImageFileNeedsPreparing(file_path):
+            PrepareImageFile(file_path)
+    except Exception as e:
+        printExc()
+        return 'inline picture not written %r' % (e,)
+    return ''
 
 
 class IconMenager:
@@ -184,7 +227,7 @@ class IconMenager:
     def markIconFailed(self, url, reason, removeFile_=False):
         # removeFile_: a downloaded file the picture loader can't show - without it the next try would find
         # the broken file in the cache again
-        printDBG("IconMenager icon failed url[%s] reason[%s]" % (url, reason))
+        printDBG("IconMenager icon failed url[%s] reason[%s]" % (IconLogName(url), reason))
         filename = self._hashedName(url)
         self.lockAA.acquire()
         self.queueFailed[url] = _monotonic()
@@ -215,7 +258,7 @@ class IconMenager:
         self.lockAA.release()
 
     def getIconPathFromAAueue(self, item):
-        printDBG("getIconPathFromAAueue item[%s]" % item)
+        printDBG("getIconPathFromAAueue item[%s]" % IconLogName(item))
         if item.startswith('file://'):
             if not ImageFileNeedsPreparing(item[7:]):
                 return item[7:]
@@ -268,7 +311,7 @@ class IconMenager:
             if die:
                 return
 
-            printDBG("IconMenager.processDQ url: [%s]" % url)
+            printDBG("IconMenager.processDQ url: [%s]" % IconLogName(url))
             if url != '':
                 isLocal = url.startswith('file://')
                 file = self._localIconFileName(url) if isLocal else self._hashedName(url)
@@ -370,6 +413,11 @@ class IconMenager:
         else:
             params['check_first_bytes'] = [b'\xFF\xD8', b'\xFF\xD9', b'\x89\x50\x4E\x47', 'GIF87a', 'GIF89a', 'RI']
             params['check_first_bytes'].extend([x for x in ConvertibleImageFirstBytes() if x != b'RI'])
+
+        if img_url.startswith('data:'):
+            # an inline picture: written to the cache, nothing to download
+            self.lastError = SaveInlinePicture(img_url, file_path, firstBytes=params['check_first_bytes']) or None
+            return self.lastError is None
 
         if img_url.endswith('|cf'):
             img_url = img_url[:-3]
