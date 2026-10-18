@@ -17,6 +17,7 @@ from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdh import DMHelper
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdownloadercreator import DownloaderCreator
 from Plugins.Extensions.IPTVPlayer.components.cover import Cover, Cover3
 from Plugins.Extensions.IPTVPlayer.libs.pCommon import DescribeImageFile
+from Plugins.Extensions.IPTVPlayer.components.iconmenager import SaveInlinePicture, IconLogName
 ###################################################
 
 ###################################################
@@ -202,6 +203,9 @@ class IPTVArticleRichVisualizer(Screen):
         if 0 == len(self.artItem.images):
             return
         self.cover['src'] = self.artItem.images[0].get('url', '')
+        if self.cover['src'].startswith('data:image/'):
+            self.loadInlineCover()
+            return
         if not self.cover['src'].startswith('http'):
             return
 
@@ -210,6 +214,18 @@ class IPTVArticleRichVisualizer(Screen):
             self.cover['downloader'].isWorkingCorrectly(self.startDownloader)
         else:
             self.session.openWithCallback(self.close, MessageBox, _("Downloading cannot be started.\n Invalid URI[%s].") % self.cover['src'], type=MessageBox.TYPE_ERROR, timeout=10)
+
+    def loadInlineCover(self):
+        # an inline picture (data:image/...;base64,..., hostxxx SHOWCAMRIPS): written to a file, nothing to download;
+        # WebP/AVIF is converted by decodePreparedCover in its worker thread, not here in the GUI thread
+        if not self.cover['image_path']:
+            return
+        filePath = self._getDownloadFilePath()
+        reason = SaveInlinePicture(self.cover['src'], filePath, prepare=False)
+        if reason:
+            self.showCoverError(reason)
+        elif -1 == self["cover"].decodePreparedCover(filePath, self.decodePictureEnd, ' '):
+            self.showCoverError("decoding can not be started, %s" % DescribeImageFile(filePath))
 
     def startDownloader(self, sts, reason):
         if sts:
@@ -261,7 +277,7 @@ class IPTVArticleRichVisualizer(Screen):
     def showCoverError(self, reason):
         # the item has a cover but it failed (dead link, broken file, a format this box can't show): a red X in
         # the cover area instead of an error box that closed the whole INFO view. No cover at all stays empty.
-        printDBG("IPTVArticleRichVisualizer cover %s - url[%s]" % (reason, self.cover['src']))
+        printDBG("IPTVArticleRichVisualizer cover %s - url[%s]" % (reason, IconLogName(self.cover['src'])))
         if self.coverError:
             return
         self.coverError = True

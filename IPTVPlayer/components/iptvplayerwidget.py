@@ -74,7 +74,7 @@ from Plugins.Extensions.IPTVPlayer.components.iptvlist import IPTVMainNavigatorL
 from Plugins.Extensions.IPTVPlayer.components.articleview import ArticleView
 from Plugins.Extensions.IPTVPlayer.components.iptvarticlerichvisualizer import IPTVArticleRichVisualizer
 from Plugins.Extensions.IPTVPlayer.components.ihost import IHost, CDisplayListItem, RetHost, CUrlItem, ArticleContent, CFavItem
-from Plugins.Extensions.IPTVPlayer.components.iconmenager import IconMenager
+from Plugins.Extensions.IPTVPlayer.components.iconmenager import IconMenager, IconLogName
 from Plugins.Extensions.IPTVPlayer.components.cover import Cover, Cover3
 from Plugins.Extensions.IPTVPlayer.components.iptvchoicebox import IPTVChoiceBoxWidget, IPTVChoiceBoxItem
 import Plugins.Extensions.IPTVPlayer.components.asynccall as asynccall
@@ -1191,7 +1191,7 @@ class E2iPlayerWidget(Screen):
         if selItem and '' != selItem.iconimage and self.iconMenager:
             # check if we have this icon and get the path to this icon on disk
             iconPath = self.getCoverPath(selItem)
-            printDBG('displayIcon -> getCoverPath: ' + selItem.iconimage)
+            printDBG('displayIcon -> getCoverPath: %s' % IconLogName(selItem.iconimage))
             if '' != iconPath and not self["cover"].checkDecodeNeeded(iconPath):
                 self["cover"].show()
                 return
