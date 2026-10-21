@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Last Modified: 08.10.2026
+LAST_MODIFIED = "18.10.2026"
 # ORF ON (on.orf.at, ehemals ORF TVthek)
 # API: https://api-tvthek.orf.at/api/v4.3/  (HTTP-Basic-Auth, oeffentliche Credentials)
 # 07.10.2026 - INFO (episode/profile details, moviemeta for films),
@@ -23,6 +23,7 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import getDirectM3U8Playlist
 from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote_plus
+from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str
 ###################################################
 # FOREIGN import
 ###################################################
@@ -32,6 +33,9 @@ import re
 ###################################################
 
 config.plugins.iptvplayer.orfon_bestonly = ConfigYesNo(default=True)
+
+# json values are unicode on Python 2
+STR_TYPES = (str, type(u''))
 
 
 def GetConfigList():
@@ -120,9 +124,9 @@ class ORFON(GenericFolderWatchedScraperMixin, CBaseHostClass):
         try:
             lk = (item.get('_links') or {}).get(name)
             if isinstance(lk, dict):
-                return lk.get('href') or ''
-            if isinstance(lk, str):
-                return lk
+                return ensure_str(lk.get('href') or '')
+            if isinstance(lk, STR_TYPES):
+                return ensure_str(lk)
         except Exception:
             pass
         return ''
@@ -149,12 +153,12 @@ class ORFON(GenericFolderWatchedScraperMixin, CBaseHostClass):
         except Exception:
             pass
         d = item.get('date') or item.get('episode_date') or ''
-        if isinstance(d, str) and len(d) >= 10:
-            parts.append(d[:10])
+        if isinstance(d, STR_TYPES) and len(d) >= 10:
+            parts.append(ensure_str(d[:10]))
         for key in ('description', 'teaser_text', 'share_subject', 'episode_title'):
             v = item.get(key)
-            if isinstance(v, str) and v.strip():
-                parts.append(self.cleanHtmlStr(v))
+            if isinstance(v, STR_TYPES) and v.strip():
+                parts.append(self.cleanHtmlStr(ensure_str(v)))
                 break
         return '[/br]'.join(parts)
 
@@ -175,11 +179,11 @@ class ORFON(GenericFolderWatchedScraperMixin, CBaseHostClass):
         try:
             nx = (data.get('_links') or {}).get('next')
             if isinstance(nx, dict):
-                return nx.get('href') or ''
-            if isinstance(nx, str):
-                return nx
-            if isinstance(data.get('next'), str):
-                return data['next']
+                return ensure_str(nx.get('href') or '')
+            if isinstance(nx, STR_TYPES):
+                return ensure_str(nx)
+            if isinstance(data.get('next'), STR_TYPES):
+                return ensure_str(data['next'])
         except Exception:
             pass
         return ''
@@ -455,8 +459,13 @@ class ORFON(GenericFolderWatchedScraperMixin, CBaseHostClass):
             meta = {'iptv_livestream': live, 'iptv_proto': 'm3u8'}
             if subTracks:
                 meta['external_sub_tracks'] = subTracks
-            if 'QX' in name.upper() and not live:
-                for it in getDirectM3U8Playlist(strwithmeta(surl, {'iptv_proto': 'm3u8'}), checkExt=False, checkContent=True):
+            if 'QX' in name.upper():
+                if live:
+                    # the live master as it is first (the default, also with "best quality only"): the player
+                    # picks video and audio itself; the single qualities follow - with a separate audio
+                    # rendition they are merge:// links (always buffered)
+                    urlTab.append({'need_resolve': 0, 'name': '%s auto' % name, 'live_master': True, 'url': self.up.decorateUrl(surl, meta)})
+                for it in getDirectM3U8Playlist(strwithmeta(surl, {'iptv_proto': 'm3u8'}), checkExt=False, checkContent=not live):
                     it['need_resolve'] = 0
                     # "QXB 1800k 1280x720 [Deutsch]" (QXB/QXA variants share bitrates) instead of the generic
                     # "bitrate: 1800000 res: 0x0" label
@@ -484,7 +493,8 @@ class ORFON(GenericFolderWatchedScraperMixin, CBaseHostClass):
                     return 0
             mx = max(res(u) for u in urlTab)
             if mx > 0:
-                urlTab = [u for u in urlTab if res(u) == mx] or urlTab[:1]
+                # the live master stays (it has no resolution of its own)
+                urlTab = [u for u in urlTab if res(u) == mx or u.get('live_master')] or urlTab[:1]
         if not live:
             # moviemeta query of INFO: the year must match (other films of the same name)
             metaQuery = sidecarMetaQuery(cItem.get('meta_type', ''), cItem.get('meta_title', ''), cItem.get('meta_year', ''), skip=(), maxYearDiff=1)
@@ -495,7 +505,7 @@ class ORFON(GenericFolderWatchedScraperMixin, CBaseHostClass):
     # INFO
     ###################################################
     def _text(self, value):
-        lines = [self.cleanHtmlStr(x) for x in str(value or '').split('\n')]
+        lines = [self.cleanHtmlStr(x) for x in str(ensure_str(value or '')).split('\n')]
         return '[/br]'.join([x for x in lines if x])
 
     def getArticleContent(self, cItem):
@@ -515,9 +525,9 @@ class ORFON(GenericFolderWatchedScraperMixin, CBaseHostClass):
                 for key, field in (('station', 'main_channel_name'), ('genre', 'genre_title'), ('year', 'production_year'),
                                    ('country', 'production_country'), ('age_limit', 'age_classification')):
                     if data.get(field):
-                        info[key] = self.cleanHtmlStr(str(data[field]))
+                        info[key] = self.cleanHtmlStr(str(ensure_str(data[field])))
                 for key, field in (('broadcast', 'date'), ('remaining', 'killdate')):
-                    value = str(data.get(field) or '')
+                    value = str(ensure_str(data.get(field) or ''))
                     if len(value) >= 10:
                         info[key] = value[:10] if key == 'broadcast' else _('available until %s') % value[:10]
         elif '/profile/' in cItem.get('url', ''):

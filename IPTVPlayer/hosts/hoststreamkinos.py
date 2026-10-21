@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Last Modified: 10.10.2026
+LAST_MODIFIED = "21.10.2026"
 # 10.10.2026 - new host for streamkinos.lat (German films and series, DataLife Engine)
 #   - Movies / Series / Cinema movies / Upcoming / Latest / Genres / Search, First / Jump / Next page (the site's
 #     pager only links the next page; the search pager gives the number of results -> last page)
@@ -129,7 +129,7 @@ class StreamKinos(GenericFolderWatchedScraperMixin, CBaseHostClass):
 
     @staticmethod
     def _plain(title):
-        # zadmario: on Python 2 as unicode - on UTF-8 bytes [^\w] split umlauts into broken bytes ("Sch\xc3 ne")
+        # on Python 2 as unicode - on UTF-8 bytes [^\w] split umlauts into broken bytes ("Sch\xc3 ne")
         text = ensure_str(title or "")
         if not isinstance(text, type(u"")):
             text = text.decode("utf-8", "ignore")

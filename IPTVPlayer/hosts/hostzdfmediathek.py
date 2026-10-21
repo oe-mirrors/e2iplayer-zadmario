@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Last Modified: 07.10.2026
+LAST_MODIFIED = "18.10.2026"
 # 07.10.2026 - INFO (document details, moviemeta for films and
 # series), First/Jump/Next paging (A-Z, search), "Show - SxxExx" / "Title (Year)"
 # from the season/episode numbers and production year, watched key per season
@@ -7,7 +7,7 @@
 ###################################################
 # LOCAL import
 ###################################################
-from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, SetIPTVPlayerLastHostError
+from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
 from Plugins.Extensions.IPTVPlayer.components.ihost import CHostBase, CBaseHostClass
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc
 from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedhelper import IPTVWatchedHelper
@@ -151,8 +151,6 @@ class ZDFmediathek(GenericFolderWatchedScraperMixin, CBaseHostClass):
         sts, data = self.cm.getPage(url, params, post_data)
         if sts and None is data:
             sts = False
-        if sts and 'Duze obciazenie!' in data:
-            SetIPTVPlayerLastHostError(self.cleanHtmlStr(data))
         return sts, data
 
     def getIconUrl(self, url):
@@ -442,7 +440,8 @@ class ZDFmediathek(GenericFolderWatchedScraperMixin, CBaseHostClass):
     def getLinksForVideo(self, cItem):
         printDBG("ZDFmediathek.getLinksForVideo [%s]" % cItem)
 
-        if 'id' not in cItem and 'url' in cItem:
+        # list rows always carry 'id', but it can be empty
+        if not cItem.get('id') and cItem.get('url'):
             sts, data = self.getPage(cItem['url'])
             if not sts:
                 return []
@@ -495,13 +494,13 @@ class ZDFmediathek(GenericFolderWatchedScraperMixin, CBaseHostClass):
                             qualityPref = abs(qualityVal - preferedQuality)
                             formatPref = formatMap.get(type['name'], 10)
                             tmpUrlTab.append({'url': url, 'quality_name': quality, 'quality': qualityVal, 'quality_pref': qualityPref, 'format_name': type['name'], 'format_pref': formatPref})
-                        elif type['name'] == 'm3u8' and isLive:
-                            # live master playlists have separate audio rendition groups -
-                            # hand the master straight to the player, don't pre-resolve
-                            # (otherwise a video-only variant is picked -> picture but no sound)
-                            tmpUrlTab.append({'url': url, 'quality_name': 'auto', 'quality': 10, 'quality_pref': 0,
-                                              'format_name': 'm3u8', 'format_pref': formatMap.get('m3u8', 10)})
                         elif type['name'] == 'm3u8':
+                            if isLive:
+                                # the live master as it is first (the default, also in one-link mode): the player
+                                # picks video and audio itself; the single qualities follow - with the separate audio
+                                # rendition of the live masters they are merge:// links (always buffered)
+                                tmpUrlTab.append({'url': url, 'quality_name': 'auto', 'quality': 10, 'quality_pref': 0, 'pin': True,
+                                                  'format_name': 'm3u8', 'format_pref': formatMap.get('m3u8', 10)})
                             tmpList = getDirectM3U8Playlist(strwithmeta(url, {'iptv_proto': 'm3u8'}), checkExt=False)
                             for tmpItem in tmpList:
                                 res = tmpItem.get('with', 0)
@@ -520,7 +519,10 @@ class ZDFmediathek(GenericFolderWatchedScraperMixin, CBaseHostClass):
                                 qualityVal = ZDFmediathek.QUALITY_MAP.get(quality, 10)
                                 qualityPref = abs(qualityVal - preferedQuality)
                                 formatPref = formatMap.get(type['name'], 10)
-                                tmpUrlTab.append({'url': tmpItem['url'], 'quality_name': quality, 'quality': qualityVal, 'quality_pref': qualityPref, 'format_name': type['name'], 'format_pref': formatPref})
+                                # the audio rendition of the link ("[Deutsch]") from getDirectM3U8Playlist's name
+                                renditionLabel = re.match(r'(\[[^\]]+\])', tmpItem.get('name', ''))
+                                qualityName = quality + (' ' + renditionLabel.group(1) if renditionLabel else '')
+                                tmpUrlTab.append({'url': tmpItem['url'], 'quality_name': qualityName, 'quality': qualityVal, 'quality_pref': qualityPref, 'format_name': type['name'], 'format_pref': formatPref})
             except Exception:
                 printExc()
 
@@ -564,6 +566,8 @@ class ZDFmediathek(GenericFolderWatchedScraperMixin, CBaseHostClass):
                 tmpUrlTab.sort(_cmpLinks)
             else:
                 tmpUrlTab.sort(key=cmp_to_key(_cmpLinks))
+            # the live master ("auto") stays in front of the single qualities
+            tmpUrlTab = [it for it in tmpUrlTab if it.get('pin')] + [it for it in tmpUrlTab if not it.get('pin')]
             onelinkmode = config.plugins.iptvplayer.zdfmediathek_onelinkmode.value
             for item in tmpUrlTab:
                 url = item['url']
@@ -673,12 +677,12 @@ class ZDFmediathek(GenericFolderWatchedScraperMixin, CBaseHostClass):
             self.listBrands(self.currItem)
         elif 'list_content' == category:
             self.listContent(self.currItem)
-    # WYSZUKAJ
+    # SEARCH
         elif category in ["search", "search_next_page"]:
             cItem = dict(self.currItem)
             cItem.update({'search_item': False, 'name': 'category', 'category': 'search_next_page'})
             self.listSearchResult(cItem, searchPattern, searchType)
-    # HISTORIA WYSZUKIWANIA
+    # SEARCH HISTORY
         elif category == "search_history":
             self.listsHistory({'name': 'history', 'category': 'search'}, 'desc')
         else:

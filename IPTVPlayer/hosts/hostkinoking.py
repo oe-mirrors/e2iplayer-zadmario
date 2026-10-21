@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Last Modified: 08.10.2026
+LAST_MODIFIED = "21.10.2026"
 # 02.09.2026 - rewrite for the redesigned kinoking.cc
 #   (Tailwind "fav-data-source" cards; series.php?id=..&season=.. -> inline allEpisodesData JSON
 #    with video_links) + watched flag / sidecar / name norm.
@@ -31,7 +31,7 @@ from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str_deep
 
 
 def _jsonLoads(text):
-    # zadmario: stdlib json gives unicode on Python 2 - as UTF-8 str like the rest of the host's texts
+    # stdlib json gives unicode on Python 2 - as UTF-8 str like the rest of the host's texts
     return ensure_str_deep(json.loads(text))
 
 

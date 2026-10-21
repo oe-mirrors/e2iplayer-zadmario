@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Last Modified: 08.10.2026
+LAST_MODIFIED = "18.10.2026"
 # ARTE
 # Rewritten for the api-cdn.arte.tv "emac v4" JSON API + player v2 config
 # 07.10.2026 - INFO (programme/collection details, moviemeta for
@@ -29,6 +29,7 @@ from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import IsSidecarEna
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import getDirectM3U8Playlist
 from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads
+from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote
 ###################################################
 # FOREIGN import
@@ -41,7 +42,7 @@ import re
 ###################################################
 # Config options for HOST
 ###################################################
-ARTE_LANGS = [("de", "Deutsch"), ("fr", "Français"), ("en", "English"), ("es", "Español"), ("pl", "Polski"), ("it", "Italiano")]
+ARTE_LANGS = [("de", "Deutsch"), ("fr", u"Français"), ("en", "English"), ("es", u"Español"), ("pl", "Polski"), ("it", "Italiano")]
 config.plugins.iptvplayer.artetv_lang = ConfigSelection(default="de", choices=ARTE_LANGS)
 config.plugins.iptvplayer.artetv_quality = ConfigYesNo(default=True)
 config.plugins.iptvplayer.artetv_audio = ConfigYesNo(default=False)
@@ -177,7 +178,7 @@ class ArteTV(GenericFolderWatchedScraperMixin, CBaseHostClass):
                 dl = ''
         if dl:
             parts.append('%s: %s' % (_('Duration'), dl))
-        ei = item.get('episodeInfo')
+        ei = ensure_str(item.get('episodeInfo'))
         if isinstance(ei, str) and ei.strip():
             parts.append(self.cleanHtmlStr(ei))
         else:
@@ -185,14 +186,15 @@ class ArteTV(GenericFolderWatchedScraperMixin, CBaseHostClass):
             if season and episode:
                 parts.append('%s %s, %s %s' % (_('Season'), season, _('Episode'), episode))
         for key in ('teaserText', 'shortDescription'):
-            val = item.get(key)
+            val = ensure_str(item.get(key))
             if isinstance(val, str) and val.strip():
                 parts.append(self.cleanHtmlStr(val))
                 break
         avail = (item.get('availability') or {}).get('label') or ''
         if avail:
             parts.append(self.cleanHtmlStr(avail))
-        return '[/br]'.join(parts)
+        # py2: the JSON texts above are utf-8 str, the label may still be unicode - one type for the join
+        return '[/br]'.join(ensure_str(p) for p in parts)
 
     @staticmethod
     def _seasonEpisode(item):
@@ -274,7 +276,7 @@ class ArteTV(GenericFolderWatchedScraperMixin, CBaseHostClass):
                 if code in ('LIVESTREAM',) or item.get('livestreamRights'):
                     params['live'] = True
                 else:
-                    epInfo = item.get('episodeInfo') or ''
+                    epInfo = ensure_str(item.get('episodeInfo') or '')
                     season, episode = self._seasonEpisode(item)
                     if season and episode:
                         # "Red Light (3/10)" -> "Red Light - S01E03", "Twin Peaks - Staffel 1 (1/8) - Das Geheimnis
@@ -349,7 +351,7 @@ class ArteTV(GenericFolderWatchedScraperMixin, CBaseHostClass):
             items, _pag = self._zoneData(z)
             if not items:
                 continue
-            if all((it.get('kind') or {}).get('code', '').upper() in ('EXTERNAL', 'PAGE') for it in items):
+            if all(((it.get('kind') or {}).get('code') or '').upper() in ('EXTERNAL', 'PAGE') for it in items):
                 continue
             contentZones.append(z)
 
@@ -494,12 +496,11 @@ class ArteTV(GenericFolderWatchedScraperMixin, CBaseHostClass):
                 continue
             if '.m3u8' in surl.lower() or 'manifest' in surl.lower():
                 if live:
-                    # live masters carry separate audio rendition groups - give the
-                    # master straight to the player (a resolved variant = video only)
-                    urlTab.append({'need_resolve': 0, 'name': label or 'HLS',
+                    # the live master as it is first (the default, also with "best quality only"): the player
+                    # picks video and audio itself; the single qualities follow, muxed with ffmpeg like below
+                    urlTab.append({'need_resolve': 0, 'name': ('%s auto' % label).strip(), 'live_master': True,
                                    'url': self.up.decorateUrl(surl, {'iptv_proto': 'm3u8', 'iptv_livestream': True})})
-                    continue
-                hls = getDirectM3U8Playlist(strwithmeta(surl, {'iptv_proto': 'm3u8'}), checkExt=False, checkContent=True)
+                hls = getDirectM3U8Playlist(strwithmeta(surl, {'iptv_proto': 'm3u8'}), checkExt=False, checkContent=not live)
                 for it in hls:
                     it['name'] = ('%s %s' % (label, it.get('name', ''))).strip()
                     extraMeta = {'iptv_livestream': live}
@@ -514,7 +515,7 @@ class ArteTV(GenericFolderWatchedScraperMixin, CBaseHostClass):
                     it['url'] = self.up.decorateUrl(it['url'], extraMeta)
                     it['need_resolve'] = 0
                     urlTab.append(it)
-                if not hls:
+                if not hls and not live:
                     urlTab.append({'need_resolve': 0, 'name': label or 'HLS', 'url': self.up.decorateUrl(surl, {'iptv_proto': 'm3u8', 'iptv_livestream': live})})
             else:
                 urlTab.append({'need_resolve': 0, 'name': label or 'stream', 'url': self.up.decorateUrl(surl, {'iptv_livestream': live})})
@@ -527,7 +528,8 @@ class ArteTV(GenericFolderWatchedScraperMixin, CBaseHostClass):
                     return 0
             mx = max(_res(u) for u in urlTab)
             if mx > 0:
-                urlTab = [u for u in urlTab if _res(u) == mx] or urlTab
+                # the live master stays (it has no resolution of its own)
+                urlTab = [u for u in urlTab if _res(u) == mx or u.get('live_master')] or urlTab
         if not live:
             urlTab = applySidecarToLinks(urlTab, buildSidecarFromItem(cItem, IsSidecarEnabled(), synopsis))
         return urlTab
@@ -571,10 +573,10 @@ class ArteTV(GenericFolderWatchedScraperMixin, CBaseHostClass):
                 info['age_limit'] = '%s+' % int(prog['ageRating'])
         except (TypeError, ValueError):
             pass
-        bcast = prog.get('firstBroadcastDate') or ''
+        bcast = ensure_str(prog.get('firstBroadcastDate') or '')
         if isinstance(bcast, str) and len(bcast) >= 10:
             info['broadcast'] = bcast[:10]
-        end = (prog.get('availability') or {}).get('end') or ''
+        end = ensure_str((prog.get('availability') or {}).get('end') or '')
         if isinstance(end, str) and len(end) >= 10:
             info['remaining'] = _('available until %s') % end[:10]
         return info, year
