@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Last Modified: 08.10.2026
+LAST_MODIFIED = "21.10.2026"
 # SRG SSR (SRF / RTS / RSI / RTR)
 # Rewritten for the il.srgssr.ch integrationlayer 2.0 JSON API
 # 07.10.2026 - INFO (media details, moviemeta for films), First/Next
@@ -55,7 +55,6 @@ class PlayRTSIW(GenericFolderWatchedScraperMixin, CBaseHostClass):
 
     def __init__(self):
         CBaseHostClass.__init__(self, {'history': 'PlayRTSIW', 'cookie': 'srgssr.cookie'})
-        # Wikimedia only serves its standard thumbnail widths (1200px answers 400)
         # the own tile: upload.wikimedia.org answers hotlinked thumbnails with HTTP 429
         self.DEFAULT_ICON_URL = 'file://' + GetIconDir('PlayerSelector/playrtsiw135.png')
         self.HTTP_HEADER = {'User-Agent': self.cm.getDefaultUserAgent(), 'Accept': 'application/json'}
@@ -172,7 +171,7 @@ class PlayRTSIW(GenericFolderWatchedScraperMixin, CBaseHostClass):
                     params['title'] = normalizeMediathekTitle(params['title'], date=media.get('date') or '', sxeHint=title)
                 if isFilm:
                     # "<<Vortex>> - French drama" (French quotation marks) -> "Vortex"
-                    # zadmario: no unicode pattern - on Python 2 it cut the title off before a UTF-8 byte ("Vortex\xc2")
+                    # no unicode pattern - on Python 2 it cut the title off before a UTF-8 byte ("Vortex\xc2")
                     m = re.search('«(.+?)»', media.get('title') or '')
                     params.update({'meta_type': 'movie', 'meta_title': self.cleanHtmlStr(m.group(1) if m else (media.get('title') or ''))})
             if isAudio:
@@ -317,14 +316,15 @@ class PlayRTSIW(GenericFolderWatchedScraperMixin, CBaseHostClass):
     def listSearchResult(self, cItem, searchPattern, searchType):
         bu = (searchType or cItem.get('bu') or 'srf').lower()
         q = urllib_quote(searchPattern)
-        if not cItem.get('url'):
+        # page 1 (also the "First Page" row, which carries a url) lists the matching shows too
+        if int(cItem.get('page') or 1) <= 1:
             data = self._json(self.IL + '%s/searchResultShowList?q=%s' % (bu, q))
             if data:
                 for show in (data.get('searchResultShowList') or data.get('showList') or []):
                     sid = show.get('id') or ''
                     if not sid:
                         continue
-                    params = dict(cItem)
+                    params = stripPagerKeys(dict(cItem), ('base_url',))
                     params.update({'category': 'list_media', 'bu': bu, 'title': '[%s] %s' % (_('Show'), self.cleanHtmlStr(show.get('title') or '')),
                                    'icon': self._icon(show.get('imageUrl')), 'desc': self.cleanHtmlStr(show.get('lead') or ''),
                                    'url': self.IL + '%s/mediaList/video/latest/byShow/%s?pageSize=40' % (bu, sid)})

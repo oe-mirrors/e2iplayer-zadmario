@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Last Modified: 02.09.2026
+LAST_MODIFIED = "18.10.2026"
 # ARD Mediathek
 # Rewritten for the api.ardmediathek.de "page-gateway" JSON API
 ###################################################
@@ -16,6 +16,7 @@ from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import IsSidecarEna
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import getDirectM3U8Playlist
 from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads
+from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str
 from Plugins.Extensions.IPTVPlayer.p2p3.pVer import isPY2
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote_plus
 ###################################################
@@ -225,10 +226,10 @@ class ARDmediathek(GenericFolderWatchedScraperMixin, CBaseHostClass):
                 meta.append('%d:%02d:%02d' % (h, m, s) if h else '%d:%02d min' % (m, s))
             except Exception:
                 pass
-        bcast = t.get('broadcastedOn') or ''
+        bcast = ensure_str(t.get('broadcastedOn') or '')
         if isinstance(bcast, str) and len(bcast) >= 10:
             meta.append(bcast[:10])
-        avail = t.get('availableTo') or ''
+        avail = ensure_str(t.get('availableTo') or '')
         if isinstance(avail, str) and len(avail) >= 10:
             meta.append(_('available until %s') % avail[:10])
         fsk = t.get('maturityContentRating') or ''
@@ -536,11 +537,13 @@ class ARDmediathek(GenericFolderWatchedScraperMixin, CBaseHostClass):
                     isHls = 'mpegurl' in mime or '.m3u8' in murl.lower()
                     audioSuffix = '' if audioKind == 'standard' else ' [%s]' % audioKind
 
-                    if isHls and live:
-                        # hand the master playlist straight to the player for live
-                        tmpUrlTab.append({'url': murl, 'quality_name': 'auto' + audioSuffix, 'quality': 10,
-                                          'quality_pref': 0, 'format_name': 'm3u8', 'format_pref': formatMap.get('m3u8', 10)})
-                    elif isHls:
+                    if isHls:
+                        if live:
+                            # the live master as it is first (the default, also in one-link mode): the player
+                            # picks video and audio itself; the single qualities follow - with a separate audio
+                            # rendition they are merge:// links, which always go through the buffer
+                            tmpUrlTab.append({'url': murl, 'quality_name': 'auto' + audioSuffix, 'quality': 10, 'pin': True,
+                                              'quality_pref': 0, 'format_name': 'm3u8', 'format_pref': formatMap.get('m3u8', 10)})
                         try:
                             hlsList = getDirectM3U8Playlist(strwithmeta(murl, {'iptv_proto': 'm3u8'}), checkExt=False)
                         except Exception:
@@ -557,10 +560,15 @@ class ARDmediathek(GenericFolderWatchedScraperMixin, CBaseHostClass):
                             if res > 1200:
                                 quality = 'hd'
                             qVal = self.QUALITY_MAP.get(quality, 10)
-                            tmpUrlTab.append({'url': it['url'], 'quality_name': '%s %sx%s' % (quality, res, it.get('heigth', 0)) + audioSuffix,
+                            # the audio rendition of the link ("[Deutsch]") from getDirectM3U8Playlist's name
+                            renditionLabel = re.match(r'(\[[^\]]+\])', it.get('name', ''))
+                            qualityName = '%s %sx%s' % (quality, res, it.get('heigth', 0)) + audioSuffix
+                            if renditionLabel:
+                                qualityName += ' ' + renditionLabel.group(1)
+                            tmpUrlTab.append({'url': it['url'], 'quality_name': qualityName,
                                               'quality': qVal, 'quality_pref': abs(qVal - preferedQuality),
                                               'format_name': 'm3u8', 'format_pref': formatMap.get('m3u8', 10)})
-                        if not hlsList:
+                        if not hlsList and not live:
                             tmpUrlTab.append({'url': murl, 'quality_name': 'auto' + audioSuffix, 'quality': 10,
                                               'quality_pref': 0, 'format_name': 'm3u8', 'format_pref': formatMap.get('m3u8', 10)})
                     else:
@@ -611,11 +619,15 @@ class ARDmediathek(GenericFolderWatchedScraperMixin, CBaseHostClass):
             tmpUrlTab.sort(_cmpLinks)
         else:
             tmpUrlTab.sort(key=cmp_to_key(_cmpLinks))
+        # the live master ("auto") stays in front of the single qualities
+        tmpUrlTab = [it for it in tmpUrlTab if it.get('pin')] + [it for it in tmpUrlTab if not it.get('pin')]
 
         onelinkmode = config.plugins.iptvplayer.ardmediathek_onelinkmode.value
         urlTab = []
         for item in tmpUrlTab:
-            if not self.cm.isValidUrl(item['url']):
+            # merge:// = an HLS quality with a separate audio rendition (getDirectM3U8Playlist) - no http url,
+            # but a valid link (it was dropped here, leaving only "auto")
+            if not (item['url'].startswith('merge://') or self.cm.isValidUrl(item['url'])):
                 continue
             decorateParams = {'iptv_livestream': live}
             if item['format_name'] == 'm3u8':
@@ -648,10 +660,10 @@ class ARDmediathek(GenericFolderWatchedScraperMixin, CBaseHostClass):
         show = (widget.get('show') or {}).get('title') or ''
         if show:
             otherInfo['title'] = self.cleanHtmlStr(show)
-        bcast = widget.get('broadcastedOn') or ''
+        bcast = ensure_str(widget.get('broadcastedOn') or '')
         if isinstance(bcast, str) and len(bcast) >= 10:
             otherInfo['premiere'] = bcast[:10]
-        avail = widget.get('availableTo') or ''
+        avail = ensure_str(widget.get('availableTo') or '')
         if isinstance(avail, str) and len(avail) >= 10:
             otherInfo['remaining'] = _('available until %s') % avail[:10]
         fsk = widget.get('maturityContentRating') or ''
@@ -795,7 +807,7 @@ class ARDmediathek(GenericFolderWatchedScraperMixin, CBaseHostClass):
                     descTab.append('%d:%02d' % (m, s))
                 except Exception:
                     pass
-            pub = it.get('publicationStartDateAndTime') or ''
+            pub = ensure_str(it.get('publicationStartDateAndTime') or '')
             if isinstance(pub, str) and len(pub) >= 10:
                 descTab.append(pub[:10])
             syn = self.cleanHtmlStr(it.get('synopsis') or '')
