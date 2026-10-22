@@ -13,6 +13,7 @@ from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, GetIconDir, eConnectCallback, E2PrioFix
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdh import DMHelper
+from Plugins.Extensions.IPTVPlayer.iptvdm.downloaderhelpers import shellQuote
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdownloadercreator import DownloaderCreator
 from Plugins.Extensions.IPTVPlayer.libs.pCommon import DescribeImageFile
 ###################################################
@@ -56,24 +57,24 @@ class IPTVSimpleAudioPlayer():
 
         gstplayerPath = config.plugins.iptvplayer.gstplayerpath.value
         #'export GST_DEBUG="*:6" &&' +
-        cmd = gstplayerPath + ' "%s"' % self.uri
+        cmd = gstplayerPath + ' "%s"' % shellQuote(self.uri)
         if "://" in self.uri:
-            cmd += ' "%s" "%s"  "%s"  "%s" ' % (self.gstAdditionalParams['download-buffer-path'], self.gstAdditionalParams['ring-buffer-max-size'], self.gstAdditionalParams['buffer-duration'], self.gstAdditionalParams['buffer-size'])
+            cmd += ' "%s" "%s"  "%s"  "%s" ' % (shellQuote(self.gstAdditionalParams['download-buffer-path']), shellQuote(self.gstAdditionalParams['ring-buffer-max-size']), shellQuote(self.gstAdditionalParams['buffer-duration']), shellQuote(self.gstAdditionalParams['buffer-size']))
             tmp = strwithmeta(self.uri)
             url, httpParams = DMHelper.getDownloaderParamFromUrl(tmp)
             for key in httpParams:
-                cmd += (' "%s=%s" ' % (key, httpParams[key]))
+                cmd += (' "%s=%s" ' % (key, shellQuote(httpParams[key])))
             if 'http_proxy' in tmp.meta:
                 tmp = tmp.meta['http_proxy']
                 if '://' in tmp:
                     if '@' in tmp:
                         tmp = re.search('([^:]+?://)([^:]+?):([^@]+?)@(.+?)$', tmp)
                         if tmp:
-                            cmd += (' "proxy=%s" "proxy-id=%s" "proxy-pw=%s" ' % (tmp.group(1) + tmp.group(4), tmp.group(2), tmp.group(3)))
+                            cmd += (' "proxy=%s" "proxy-id=%s" "proxy-pw=%s" ' % (shellQuote(tmp.group(1) + tmp.group(4)), shellQuote(tmp.group(2)), shellQuote(tmp.group(3))))
                     else:
-                        cmd += (' "proxy=%s" ' % tmp)
+                        cmd += (' "proxy=%s" ' % shellQuote(tmp))
         else:
-            cmd = '%s "%s"' % (config.plugins.iptvplayer.exteplayer3path.value or 'exteplayer3', self.uri) + " > /dev/null"
+            cmd = '%s "%s"' % (config.plugins.iptvplayer.exteplayer3path.value or 'exteplayer3', shellQuote(self.uri)) + " > /dev/null"
         self.console = eConsoleAppContainer()
         self.console_appClosed_conn = eConnectCallback(self.console.appClosed, self._playerFinished)
         printDBG("IPTVSimpleAudioPlayer.start cmd[%s]" % cmd)

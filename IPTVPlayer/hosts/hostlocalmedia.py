@@ -11,6 +11,7 @@ from Plugins.Extensions.IPTVPlayer.libs.urlparser import urlparser
 from Plugins.Extensions.IPTVPlayer.libs.m3uparser import ParseM3u
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdh import DMHelper
+from Plugins.Extensions.IPTVPlayer.iptvdm.downloaderhelpers import shellQuote
 from Plugins.Extensions.IPTVPlayer.components.iptvchoicebox import IPTVChoiceBoxItem
 from Plugins.Extensions.IPTVPlayer.components.e2ivkselector import GetVirtualKeyboard
 from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads, dumps as json_dumps
@@ -121,7 +122,7 @@ class LocalMedia(CBaseHostClass):
                 insensitiveExt += '[%s%s]' % (l.upper(), l.lower())
             wilcard += '.' + insensitiveExt
             fWildcards.append(wilcard)
-        cmd = '%s "%s" rdl rd %d %d "%s" "%s"' % (lsdirPath, path, start, end, '|'.join(fWildcards), dWildcards)
+        cmd = '%s "%s" rdl rd %d %d "%s" "%s"' % (lsdirPath, shellQuote(path), start, end, shellQuote('|'.join(fWildcards)), shellQuote(dWildcards))
         if config.plugins.iptvplayer.local_showfilesize.value:
             cmd += " 1 "
         return cmd
@@ -304,11 +305,11 @@ class LocalMedia(CBaseHostClass):
         if '' == mountPoint:
             # umount if different image already mounted
             if self.isMountPoint(defaultMountPoint):
-                cmd = 'umount "{0}"'.format(defaultMountPoint) + ' 2>&1'
+                cmd = 'umount "{0}"'.format(ensure_str(shellQuote(defaultMountPoint))) + ' 2>&1'
                 ret = iptv_execute_wrapper(cmd)
                 if ret['sts'] and 0 != ret['code']:
                     # normal umount failed, so detach filesystem only
-                    cmd = 'umount -l "{0}"'.format(defaultMountPoint) + ' 2>&1'
+                    cmd = 'umount -l "{0}"'.format(ensure_str(shellQuote(defaultMountPoint))) + ' 2>&1'
                     ret = iptv_execute_wrapper(cmd)
 
             # now mount the iso file
@@ -317,7 +318,7 @@ class LocalMedia(CBaseHostClass):
                 self.showErrorMessage(message)
                 return
             else:
-                cmd = 'mount -r "{0}" "{1}"'.format(path, defaultMountPoint) + ' 2>&1'
+                cmd = 'mount -r "{0}" "{1}"'.format(ensure_str(shellQuote(path)), ensure_str(shellQuote(defaultMountPoint))) + ' 2>&1'
                 ret = iptv_execute_wrapper(cmd)
                 if ret['sts']:
                     if 0 != ret['code']:
@@ -686,10 +687,10 @@ class IPTVHost(CHostBase):
                             self.needRefresh = cutPath
                         except Exception:
                             printExc()
-                            cmd = 'mv -f "%s" "%s"' % (self.cFilePath, newPath)
+                            cmd = 'mv -f "%s" "%s"' % (ensure_str(shellQuote(self.cFilePath)), ensure_str(shellQuote(newPath)))
                             ret = iptv_execute_wrapper(cmd)
                     elif self.cType == 'copy':
-                        cmd = 'cp "%s" "%s"' % (self.cFilePath, newPath)
+                        cmd = 'cp "%s" "%s"' % (ensure_str(shellQuote(self.cFilePath)), ensure_str(shellQuote(newPath)))
                         ret = iptv_execute_wrapper(cmd)
 
                 if ret['sts'] and 0 != ret['code']:
@@ -704,11 +705,11 @@ class IPTVHost(CHostBase):
             except Exception:
                 printExc()
         elif privateData['action'] == 'umount_iso_file':
-            cmd = 'umount "{0}"'.format(privateData['iso_mount_path']) + ' 2>&1'
+            cmd = 'umount "{0}"'.format(ensure_str(shellQuote(privateData['iso_mount_path']))) + ' 2>&1'
             ret = iptv_execute_wrapper(cmd)
             if ret['sts'] and 0 != ret['code']:
                 # normal umount failed, so detach filesystem only
-                cmd = 'umount -l "{0}"'.format(privateData['iso_mount_path']) + ' 2>&1'
+                cmd = 'umount -l "{0}"'.format(ensure_str(shellQuote(privateData['iso_mount_path']))) + ' 2>&1'
                 ret = iptv_execute_wrapper(cmd)
 
         return RetHost(retCode, value=retlist)

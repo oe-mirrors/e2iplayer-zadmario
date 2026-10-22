@@ -16,10 +16,11 @@ from Plugins.Extensions.IPTVPlayer.libs.youtube_dl.utils import clean_html
 
 from Plugins.Extensions.IPTVPlayer.components.ihost import CDisplayListItem, RetHost
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_unquote
+from Plugins.Extensions.IPTVPlayer.p2p3.UrlParse import urljoin
 from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_binary
 from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads, dumps as json_dumps
 from Plugins.Extensions.IPTVPlayer.libs.subtitlesmatch import parseTitle, langCode
-from Plugins.Extensions.IPTVPlayer.iptvdm.downloaderhelpers import shellQuote
+from Plugins.Extensions.IPTVPlayer.iptvdm.downloaderhelpers import shellQuote, shellSingleQuote
 
 import re
 from os import listdir as os_listdir, path as os_path
@@ -628,7 +629,7 @@ class CBaseSubProviderClass:
     def unpackZipArchive(self, tmpFile, tmpDIR):
         errorCode = 0
         # check if archive is not evil
-        cmd = "unzip -l '{0}' 2>&1 ".format(tmpFile)
+        cmd = "unzip -l {0} 2>&1 ".format(shellSingleQuote(tmpFile))
         ret = self.iptv_execute(cmd)
         if not ret['sts'] or 0 != ret['code']:
             errorCode = ret['code']
@@ -639,7 +640,7 @@ class CBaseSubProviderClass:
 
         # if archive is valid then upack it
         if errorCode == 0:
-            cmd = "unzip -o '{0}' -d '{1}' 2>/dev/null".format(tmpFile, tmpDIR)
+            cmd = "unzip -o {0} -d {1} 2>/dev/null".format(shellSingleQuote(tmpFile), shellSingleQuote(tmpDIR))
             ret = self.iptv_execute(cmd)
             if not ret['sts'] or 0 != ret['code']:
                 errorCode = ret['code']
@@ -666,7 +667,7 @@ class CBaseSubProviderClass:
         if tmpFile.endswith('.zip'):
             return self.unpackZipArchive(tmpFile, tmpDIR)
         elif tmpFile.endswith('.rar'):
-            cmd = "unrar e -o+ -y '{0}' '{1}' 2>/dev/null".format(tmpFile, tmpDIR)
+            cmd = "unrar e -o+ -y {0} {1} 2>/dev/null".format(shellSingleQuote(tmpFile), shellSingleQuote(tmpDIR))
             printDBG("cmd[%s]" % cmd)
             ret = self.iptv_execute(cmd)
             if not ret['sts'] or 0 != ret['code']:

@@ -13,6 +13,7 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import enum, strwithmeta
 from Plugins.Extensions.IPTVPlayer.libs import m3u8
 from Plugins.Extensions.IPTVPlayer.iptvdm.basedownloader import BaseDownloader
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdh import DMHelper
+from Plugins.Extensions.IPTVPlayer.iptvdm.downloaderhelpers import shellQuote
 ###################################################
 from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import strDecode
 from Plugins.Extensions.IPTVPlayer.p2p3.pVer import isPY2
@@ -168,7 +169,7 @@ class M3U8Downloader(BaseDownloader):
                 self.M3U8ListData = ''
                 m3u8Url = self._addTimeStampToUrl(self.m3u8Url)
                 printDBG(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> [%s]" % m3u8Url)
-                cmd = DMHelper.getBaseWgetCmd(self.downloaderParams) + (' --tries=0 --timeout=%d ' % self._getTimeout()) + '"' + m3u8Url + '" -O - 2> /dev/null'
+                cmd = DMHelper.getBaseWgetCmd(self.downloaderParams) + (' --tries=0 --timeout=%d ' % self._getTimeout()) + '"' + shellQuote(m3u8Url) + '" -O - 2> /dev/null'
                 printDBG("m3u8 _updateM3U8Finished download cmd[%s]" % cmd)
                 self.M3U8Updater.execute(E2PrioFix(cmd))
                 return
@@ -276,7 +277,7 @@ class M3U8Downloader(BaseDownloader):
         ##############################################################################
         self.downloadType = self.DOWNLOAD_TYPE.M3U8
         m3u8Url = self._addTimeStampToUrl(self.m3u8Url)
-        cmd = DMHelper.getBaseWgetCmd(self.downloaderParams) + (' --tries=0 --timeout=%d ' % self._getTimeout()) + '"' + m3u8Url + '" -O - 2> /dev/null'
+        cmd = DMHelper.getBaseWgetCmd(self.downloaderParams) + (' --tries=0 --timeout=%d ' % self._getTimeout()) + '"' + shellQuote(m3u8Url) + '" -O - 2> /dev/null'
         if wait > 0:
             cmd = (' sleep %s && ' % wait) + cmd
         printDBG("Download cmd[%s]" % cmd)
@@ -327,7 +328,7 @@ class M3U8Downloader(BaseDownloader):
 
         if None != currentFragment:
             self.wgetStatus = self.WGET_STS.CONNECTING
-            cmd = DMHelper.getBaseWgetCmd(self.downloaderParams) + (' --tries=1 --timeout=%d ' % self._getTimeout()) + '"' + currentFragment + '" -O - >> "' + self.filePath + '"'
+            cmd = DMHelper.getBaseWgetCmd(self.downloaderParams) + (' --tries=1 --timeout=%d ' % self._getTimeout()) + '"' + shellQuote(currentFragment) + '" -O - >> "' + shellQuote(self.filePath) + '"'
             printDBG("Download cmd[%s]" % cmd)
             self.console.execute(E2PrioFix(cmd))
 
