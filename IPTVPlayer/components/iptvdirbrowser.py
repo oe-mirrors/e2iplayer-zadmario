@@ -12,6 +12,7 @@ from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT
 from Plugins.Extensions.IPTVPlayer.components.iptvlist import IPTVMainNavigatorList
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, mkdir, IsValidFileName, GetBinDir, eConnectCallback, E2PrioFix
 from Plugins.Extensions.IPTVPlayer.components.e2ivkselector import GetVirtualKeyboard
+from Plugins.Extensions.IPTVPlayer.iptvdm.downloaderhelpers import shellQuote
 ###################################################
 from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str
 ###################################################
@@ -150,7 +151,7 @@ class IPTVDirectorySelectorWidget(Screen):
             os_chmod(lsdirPath, 0o777)
         except Exception:
             printExc()
-        cmd = '%s "%s" dl d' % (lsdirPath, self.currDir)
+        cmd = '%s "%s" dl d' % (lsdirPath, shellQuote(self.currDir))
         return cmd
 
     def doAction(self, action):
@@ -340,7 +341,7 @@ class IPTVFileSelectorWidget(IPTVDirectorySelectorWidget):
             os_chmod(lsdirPath, 0o777)
         except Exception:
             printExc()
-        cmd = '%s "%s" drl dr' % (lsdirPath, self.currDir)
+        cmd = '%s "%s" drl dr' % (lsdirPath, shellQuote(self.currDir))
         return cmd
 
     def doRefreshNewData(self, newItems):

@@ -20,6 +20,7 @@ from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT
 
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdh import DMHelper, DMItemBase
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvlist import IPTVDownloadManagerList
+from Plugins.Extensions.IPTVPlayer.iptvdm.downloaderhelpers import shellQuote
 ###################################################
 from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str
 ###################################################
@@ -396,7 +397,7 @@ class IPTVDMWidget(Screen):
                 os_chmod(lsdirPath, 0o777)
             except Exception:
                 printExc()
-            cmd = '%s "%s" rl r' % (lsdirPath, config.plugins.iptvplayer.NaszaSciezka.value)
+            cmd = '%s "%s" rl r' % (lsdirPath, shellQuote(config.plugins.iptvplayer.NaszaSciezka.value))
             printDBG("cmd[%s]" % cmd)
             self.console.execute(E2PrioFix(cmd))
 

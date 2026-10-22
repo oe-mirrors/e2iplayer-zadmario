@@ -10,6 +10,7 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, Ge
                                                           MapUcharEncoding, GetPolishSubEncoding
 ###################################################
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote_plus, urllib_unquote_plus
+from Plugins.Extensions.IPTVPlayer.iptvdm.downloaderhelpers import shellQuote, shellSingleQuote
 ###################################################
 # FOREIGN import
 ###################################################
@@ -337,7 +338,7 @@ class Napisy24plProvider(CBaseSubProviderClass):
             rm(tmpFile)
             rm(tmpFileZip)
 
-        cmd = "unzip -po '{0}' -x Napisy24.pl.url > '{1}' 2>/dev/null".format(tmpFileZip, tmpFile)
+        cmd = "unzip -po {0} -x Napisy24.pl.url > {1} 2>/dev/null".format(shellSingleQuote(tmpFileZip), shellSingleQuote(tmpFile))
         ret = self.iptv_execute(cmd)
         if not ret['sts'] or 0 != ret['code']:
             __cleanFiles()
@@ -350,7 +351,7 @@ class Napisy24plProvider(CBaseSubProviderClass):
             return retData
 
         # detect encoding
-        cmd = '%s "%s"' % (config.plugins.iptvplayer.uchardetpath.value, tmpFile)
+        cmd = '%s "%s"' % (config.plugins.iptvplayer.uchardetpath.value, shellQuote(tmpFile))
         ret = self.iptv_execute(cmd)
         if ret['sts'] and 0 == ret['code']:
             encoding = MapUcharEncoding(ret['data'])

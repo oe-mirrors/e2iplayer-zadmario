@@ -12,6 +12,7 @@
 # LOCAL import
 ###################################################
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdh import DMHelper
+from Plugins.Extensions.IPTVPlayer.iptvdm.downloaderhelpers import shellQuote
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.components.cover import Cover3
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, GetIPTVDMImgDir, GetBinDir, GetSubtitlesDir, eConnectCallback, \
@@ -984,7 +985,7 @@ class IPTVExtMoviePlayer(Screen):
                 printDBG("openSubtitlesFromFileCallback rejected non subtitle file[%s]" % filePath)
                 return
             self.subHandler['handler'].removeCacheFile(filePath)
-            cmd = '%s "%s"' % (config.plugins.iptvplayer.uchardetpath.value, filePath)
+            cmd = '%s "%s"' % (config.plugins.iptvplayer.uchardetpath.value, shellQuote(filePath))
             self.workconsole = iptv_system(cmd, boundFunction(self.enableSubtitlesFromFile, filePath))
 
     def enableSubtitlesFromFile(self, filePath, code=127, encoding=""):
@@ -1943,7 +1944,7 @@ class IPTVExtMoviePlayer(Screen):
 
         if blankIframeFilePath != '' and IsExecutable('showiframe') and fileExists(blankIframeFilePath):
             if not self.iframeParams['iframe_continue']:
-                self.iframeParams['console'] = iptv_system('showiframe "{0}"'.format(blankIframeFilePath), boundFunction(self.iptvDoClose, sts, currentTime))
+                self.iframeParams['console'] = iptv_system('showiframe "{0}"'.format(shellQuote(blankIframeFilePath)), boundFunction(self.iptvDoClose, sts, currentTime))
                 return
         self.iptvDoClose(sts, currentTime)
 
@@ -1999,9 +2000,9 @@ class IPTVExtMoviePlayer(Screen):
         if self.iframeParams['show_iframe'] and IsExecutable('showiframe')\
            and fileExists(self.iframeParams['iframe_file_start']):
             if self.iframeParams['iframe_continue']:
-                self.iframeParams['console'] = iptv_system('showiframe "{0}"'.format(self.iframeParams['iframe_file_start']))
+                self.iframeParams['console'] = iptv_system('showiframe "{0}"'.format(shellQuote(self.iframeParams['iframe_file_start'])))
             else:
-                self.iframeParams['console'] = iptv_system('showiframe "{0}"'.format(self.iframeParams['iframe_file_start']), self.iptvGetUrlStart)
+                self.iframeParams['console'] = iptv_system('showiframe "{0}"'.format(shellQuote(self.iframeParams['iframe_file_start'])), self.iptvGetUrlStart)
                 return
         self.iptvGetUrlStart()
 
@@ -2074,7 +2075,7 @@ class IPTVExtMoviePlayer(Screen):
 
             gstplayerPath = config.plugins.iptvplayer.gstplayerpath.value
             #'export GST_DEBUG="*:6" &&' +
-            cmd = gstplayerPath + ' "%s"' % self.fileSRC
+            cmd = gstplayerPath + ' "%s"' % shellQuote(self.fileSRC)
 
             # active audio track
             audioTrackIdx = self.metaHandler.getAudioTrackIdx()
@@ -2095,20 +2096,20 @@ class IPTVExtMoviePlayer(Screen):
                 cmd += ' {0} '.format(0)
 
             if "://" in self.fileSRC:
-                cmd += ' "%s" "%s"  "%s"  "%s" ' % (self.gstAdditionalParams['download-buffer-path'], self.gstAdditionalParams['ring-buffer-max-size'], self.gstAdditionalParams['buffer-duration'], self.gstAdditionalParams['buffer-size'])
+                cmd += ' "%s" "%s"  "%s"  "%s" ' % (shellQuote(self.gstAdditionalParams['download-buffer-path']), shellQuote(self.gstAdditionalParams['ring-buffer-max-size']), shellQuote(self.gstAdditionalParams['buffer-duration']), shellQuote(self.gstAdditionalParams['buffer-size']))
                 tmp = strwithmeta(self.fileSRC)
                 url, httpParams = DMHelper.getDownloaderParamFromUrlWithMeta(tmp, True)
                 for key in httpParams:
-                    cmd += (' "%s=%s" ' % (key, httpParams[key]))
+                    cmd += (' "%s=%s" ' % (key, shellQuote(httpParams[key])))
                 if 'http_proxy' in tmp.meta:
                     tmp = tmp.meta['http_proxy']
                     if '://' in tmp:
                         if '@' in tmp:
                             tmp = re.search('([^:]+?://)([^:]+?):([^@]+?)@(.+?)$', tmp)
                             if tmp:
-                                cmd += (' "proxy=%s" "proxy-id=%s" "proxy-pw=%s" ' % (tmp.group(1) + tmp.group(4), tmp.group(2), tmp.group(3)))
+                                cmd += (' "proxy=%s" "proxy-id=%s" "proxy-pw=%s" ' % (shellQuote(tmp.group(1) + tmp.group(4)), shellQuote(tmp.group(2)), shellQuote(tmp.group(3))))
                         else:
-                            cmd += (' "proxy=%s" ' % tmp)
+                            cmd += (' "proxy=%s" ' % shellQuote(tmp))
             cmd += " > /dev/null"
         else:
             exteplayer3path = config.plugins.iptvplayer.exteplayer3path.value
@@ -2136,18 +2137,18 @@ class IPTVExtMoviePlayer(Screen):
                     if key == 'Range': #Range is always used by ffmpeg
                         continue
                     elif key == 'User-Agent':
-                        cmd += ' -u "%s"' % httpParams[key]
+                        cmd += ' -u "%s"' % shellQuote(httpParams[key])
                     else:
                         headers += ('%s: %s\r\n' % (key, httpParams[key]))
                 if len(headers):
-                    cmd += ' -h "%s"' % headers
+                    cmd += ' -h "%s"' % shellQuote(headers)
                 if url.startswith('http'):
                     url = urlparser.decorateParamsFromUrl(url)
                     if '1' == url.meta.get('MPEGTS-Live', '0'):
                         cmd += ' -v '
                 programId = url.meta.get('PROGRAM-ID', '')
                 if programId != '':
-                    cmd += ' -P "%s" ' % programId
+                    cmd += ' -P "%s" ' % shellQuote(programId)
             else:
                 ramBufferSizeMB = config.plugins.iptvplayer.rambuffer_sizemb_files.value
 
@@ -2191,24 +2192,24 @@ class IPTVExtMoviePlayer(Screen):
                     cmd += ' -9 %d ' % subtitleTrackIdx
 
             if audioUri != '':
-                cmd += ' -x "%s" ' % audioUri
+                cmd += ' -x "%s" ' % shellQuote(audioUri)
 
             if 'iptv_video_rep_idx' in tmpUri.meta:
-                cmd += ' -0 %s ' % tmpUri.meta['iptv_video_rep_idx']
+                cmd += ' -0 "%s" ' % shellQuote(tmpUri.meta['iptv_video_rep_idx'])
 
             if 'iptv_audio_rep_idx' in tmpUri.meta:
-                cmd += ' -1 %s ' % tmpUri.meta['iptv_audio_rep_idx']
+                cmd += ' -1 "%s" ' % shellQuote(tmpUri.meta['iptv_audio_rep_idx'])
 
             if 'iptv_m3u8_live_start_index' in tmpUri.meta:
-                cmd += ' -f "live_start_index=%s" ' % tmpUri.meta['iptv_m3u8_live_start_index']
+                cmd += ' -f "live_start_index=%s" ' % shellQuote(tmpUri.meta['iptv_m3u8_live_start_index'])
 
             if 'iptv_m3u8_key_uri_replace_old' in tmpUri.meta and 'iptv_m3u8_key_uri_replace_new' in tmpUri.meta:
-                cmd += ' -f "key_uri_old=%s" -f "key_uri_new=%s" ' % (tmpUri.meta['iptv_m3u8_key_uri_replace_old'], tmpUri.meta['iptv_m3u8_key_uri_replace_new'])
+                cmd += ' -f "key_uri_old=%s" -f "key_uri_new=%s" ' % (shellQuote(tmpUri.meta['iptv_m3u8_key_uri_replace_old']), shellQuote(tmpUri.meta['iptv_m3u8_key_uri_replace_new']))
 
             if self.extAdditionalParams.get('moov_atom_file', '') != '':
-                 cmd += ' -F "%s" -S %s -O %s' % (self.extAdditionalParams['moov_atom_file'], self.extAdditionalParams['moov_atom_offset'] + self.extAdditionalParams['moov_atom_size'], self.extAdditionalParams['moov_atom_offset'])
+                 cmd += ' -F "%s" -S %s -O %s' % (shellQuote(self.extAdditionalParams['moov_atom_file']), self.extAdditionalParams['moov_atom_offset'] + self.extAdditionalParams['moov_atom_size'], self.extAdditionalParams['moov_atom_offset'])
 
-            cmd += (' "%s"' % videoUri) + " > /dev/null"
+            cmd += (' "%s"' % shellQuote(videoUri)) + " > /dev/null"
 
         self.console = eConsoleAppContainer()
         self.console_appClosed_conn = eConnectCallback(self.console.appClosed, self.eplayer3Finished)
