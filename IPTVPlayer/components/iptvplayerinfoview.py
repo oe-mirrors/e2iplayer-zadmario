@@ -86,35 +86,38 @@ _TEXT_COLOR = 0xffffff
 # line is taken.
 _PROBE_SCRIPT_PATH = "/tmp/.e2i_sysprobe.sh"
 
-_P = '</dev/null 2>&1'
+# r N TOOL ARGS: runs the tool (stdin /dev/null, output and errors), prints at most
+# N lines of it and "@rc <exit code>" - the code tells a tool that crashes or cannot
+# be executed (126/127, or killed by a signal) from one that only prints its usage
 _PROBE_SCRIPT = (
     'T=""; if timeout 4 true >/dev/null 2>&1; then T="timeout 4"; '
     'elif timeout -t 4 true >/dev/null 2>&1; then T="timeout -t 4"; fi; '
     'w(){ command -v "$1" 2>/dev/null || echo "-"; }; '
     'p(){ [ -n "$1" ] && [ -x "$1" ] && echo "$1" || echo "-"; }; '
-    'echo "@@hlsdl";       [ -x "$HL" ] && ($T "$HL" %s || true) | head -n 2; p "$HL"; '
-    'echo "@@cmdwrap";     [ -x "$CW" ] && ($T "$CW" %s || true) | head -n 1; p "$CW"; '
-    'echo "@@lsdir";       [ -x "$LS" ] && ($T "$LS" --version %s || true) | head -n 1; p "$LS"; '
-    'echo "@@f4mdump";     [ -x "$F4" ] && ($T "$F4" %s || true) | head -n 1; p "$F4"; '
-    'echo "@@ffmpeg";      [ -x "$FF" ] && ($T "$FF" -version %s || true) | head -n 1; p "$FF"; '
-    'echo "@@wget";        [ -x "$WG" ] && ($T "$WG" --version %s || true) | head -n 1; p "$WG"; '
-    'echo "@@curl";        C=$(w curl); [ "$C" != "-" ] && ($T "$C" --version %s || true) | head -n 1; echo "$C"; '
-    'echo "@@curlimp";     [ -x "$CI" ] && ($T "$CI" --version %s || true) | head -n 1; p "$CI"; '
-    'echo "@@rtmpdump";    [ -x "$RT" ] && ($T "$RT" --help %s || true) | grep -i rtmpdump | head -n 1; p "$RT"; '
-    'echo "@@exteplayer3"; [ -x "$EP" ] && ($T "$EP" %s || true) | head -n 2; p "$EP"; '
-    'echo "@@gstplayer";   [ -x "$GP" ] && ($T "$GP" %s || true) | head -n 2; p "$GP"; '
-    'echo "@@gstplayer2";  C=$(w gstplayer2); [ "$C" != "-" ] && ($T "$C" %s || true) | head -n 2; echo "$C"; '
+    'r(){ n=$1; shift; o=$($T "$@" </dev/null 2>&1); c=$?; printf "%%s\n" "$o" | head -n $n; echo "@rc $c"; }; '
+    'echo "@@hlsdl";       [ -x "$HL" ] && r 2 "$HL"; p "$HL"; '
+    'echo "@@cmdwrap";     [ -x "$CW" ] && r 1 "$CW"; p "$CW"; '
+    'echo "@@lsdir";       [ -x "$LS" ] && r 1 "$LS" --version; p "$LS"; '
+    'echo "@@f4mdump";     [ -x "$F4" ] && r 1 "$F4"; p "$F4"; '
+    'echo "@@ffmpeg";      [ -x "$FF" ] && r 1 "$FF" -version; p "$FF"; '
+    'echo "@@wget";        [ -x "$WG" ] && r 1 "$WG" --version; p "$WG"; '
+    'echo "@@curl";        C=$(w curl); [ "$C" != "-" ] && r 1 "$C" --version; echo "$C"; '
+    'echo "@@curlimp";     [ -x "$CI" ] && r 1 "$CI" --version; p "$CI"; '
+    'echo "@@rtmpdump";    [ -x "$RT" ] && r 5 "$RT" --help; p "$RT"; '
+    'echo "@@exteplayer3"; [ -x "$EP" ] && r 2 "$EP"; p "$EP"; '
+    'echo "@@gstplayer";   [ -x "$GP" ] && r 2 "$GP"; p "$GP"; '
+    'echo "@@gstplayer2";  C=$(w gstplayer2); [ "$C" != "-" ] && r 2 "$C"; echo "$C"; '
     'echo "@@duktape";     D=/tmp/.e2i_dukver.js; '
     '  printf "%%s" \'try{var v=Duktape.version;print(Math.floor(v/10000)+"."+(Math.floor(v/100)%%100)+"."+(v%%100))}catch(e){print("?")}\' > $D; '
-    '  [ -x "$DK" ] && ($T "$DK" $D %s || true) | head -n 1; rm -f $D; p "$DK"; '
-    'echo "@@quickjs";     [ -x "$QJ" ] && ($T "$QJ" --version %s || true) | head -n 1; p "$QJ"; '
-    'echo "@@uchardet";    [ -x "$UC" ] && ($T "$UC" --version %s || true) | grep -i "version" | head -n 1; p "$UC"; '
-    'echo "@@unzip";       U=$(w unzip); [ "$U" != "-" ] && ($T unzip %s || true) | grep "[^[:space:]]" | head -n 1; echo "$U"; '
-    'echo "@@unrar";       U=$(w unrar); [ "$U" != "-" ] && ($T unrar %s || true) | grep "[^[:space:]]" | head -n 1; echo "$U"; '
+    '  [ -x "$DK" ] && r 1 "$DK" $D; rm -f $D; p "$DK"; '
+    'echo "@@quickjs";     [ -x "$QJ" ] && r 1 "$QJ" --version; p "$QJ"; '
+    'echo "@@uchardet";    [ -x "$UC" ] && r 5 "$UC" --version; p "$UC"; '
+    'echo "@@unzip";       U=$(w unzip); [ "$U" != "-" ] && r 3 unzip; echo "$U"; '
+    'echo "@@unrar";       U=$(w unrar); [ "$U" != "-" ] && r 3 unrar; echo "$U"; '
     'echo "@@deps";        (opkg list-installed 2>/dev/null | grep -i e2iplayer-deps || true); '
     'echo "@@ifdsrc";      (opkg list-installed 2>/dev/null | grep "^gst-ifdsrc " || true); '
     'echo "@@end"\n'
-) % ((_P,) * 17)
+) % ()
 
 
 def _pluginBin(name):
@@ -479,10 +482,12 @@ class _SystemInfo(object):
                 sections[cur].append(line.strip())
 
         def tool(key):
-            # (the output lines, the path - '' when the tool is missing); the path is the last line of a section
+            # (the output lines, the path - '' when the tool is missing); the path is the last line of a section,
+            # "@rc <code>" the exit code of the probe run (see r() in the probe script)
             v = sections.get(key) or []
             path = v[-1] if v else "-"
-            return v[:-1], ("" if path == "-" else path)
+            lines = [line for line in v[:-1] if not line.startswith("@rc ")]
+            return lines, ("" if path == "-" else path)
 
         def withPath(key, value, path):
             # the path the plugin runs the tool from; a tool the setup has not registered is not used yet
@@ -491,17 +496,42 @@ class _SystemInfo(object):
                 value += " - " + _("not registered yet, run the E2iPlayer setup")
             return value
 
+        def broken(key):
+            # "installed, does not start (path)" when the probe run could not be executed (126/127) or was
+            # killed by a signal (128+, e.g. 139 = segmentation fault) - not when only the timeout stopped it
+            lines, path = tool(key)
+            codes = [line[4:] for line in (sections.get(key) or []) if line.startswith("@rc ")]
+            try:
+                code = int(codes[-1]) if codes else 0
+            except ValueError:
+                code = 0
+            if path and (code in (126, 127) or (code >= 128 and code != 143)):
+                printDBG("System info: %s (%s) does not start, exit code %d, output %r" % (key, path, code, lines[:3]))
+                return withPath(key, _("installed, does not start"), path)
+            return ""
+
+        def pick(lines, word):
+            # the output lines from the first one that contains word on (rtmpdump --help, uchardet --version)
+            for i, line in enumerate(lines):
+                if word in line.lower():
+                    return lines[i:]
+            return lines
+
         # every renderer gets the text for a missing tool: what the user loses without it
         def first(key, missing):
             lines, path = tool(key)
             if not path:
                 return missing
+            if broken(key):
+                return broken(key)
             return withPath(key, lines[0] if lines else _("installed"), path)
 
         def ver_line(key, missing):
             lines, path = tool(key)
             if not path:
                 return missing
+            if broken(key):
+                return broken(key)
             for line in lines:
                 low = line.lower()
                 if line.startswith("{") or "version" in low or " v0." in low or " v1." in low:
@@ -512,6 +542,8 @@ class _SystemInfo(object):
             lines, path = tool("lsdir")
             if not path:
                 return missing
+            if broken("lsdir"):
+                return broken("lsdir")
             for line in lines:
                 if line.lower().startswith("lsdir v"):
                     return withPath("lsdir", line, path)
@@ -521,18 +553,23 @@ class _SystemInfo(object):
             lines, path = tool(key)
             if not path:
                 return missing
+            if broken(key):
+                return broken(key)
             line = lines[0] if lines else ""
             if line.lower().startswith("version:"):
                 line = "v" + line.split(":", 1)[1].strip()
             return withPath(key, line or _("installed"), path)
 
-        def path_val(key, missing):
+        def path_val(key, missing, word=""):
             # a version line (or none) + the path, e.g. "curl 8.22.0-IMPERSONATE (arm-...) libcurl/...",
             # "UnZip 6.00 of 20 April 2009, by ...", "BusyBox v1.36.1 (2024-...) multi-call binary.",
             # "UNRAR 7.00 freeware      Copyright (c) ...", "Version 0.0.8" (uchardet)
             lines, path = tool(key)
             if not path:
                 return missing
+            if broken(key):
+                return broken(key)
+            lines = pick(lines, word) if word else lines
             ver = " ".join(lines[0].split()) if lines else ""
             for sep in (" (", " of ", " freeware", " Copyright", " built on "):
                 ver = ver.split(sep, 1)[0]
@@ -567,14 +604,14 @@ class _SystemInfo(object):
         out.append(row("ffmpeg", path_val("ffmpeg", _("not installed (no DASH / ffmpeg downloads)"))))
         out.append(row("wget", path_val("wget", _("not installed (no file, cover or subtitle downloads)"))))
         out.append(row("curl", path_val("curl", _("not installed (wget is used)"))))
-        out.append(row("rtmpdump", path_val("rtmpdump", _("not installed (no RTMP downloads)"))))
+        out.append(row("rtmpdump", path_val("rtmpdump", _("not installed (no RTMP downloads)"), "rtmpdump")))
         out.append(row("duktape", first("duktape", jsMissing)))
         out.append(row("quickjs", first("quickjs", jsMissing)))
         out.append(row("exteplayer3", ver_line("exteplayer3", playerMissing)))
         out.append(row("gstplayer", ver_line("gstplayer", playerMissing)))
         out.append(row("gstplayer2", ver_line("gstplayer2", playerMissing)))
         out.append(row("gst-ifdsrc", self._ifdsrcState(sections.get("ifdsrc") or [])))
-        out.append(row("uchardet", path_val("uchardet", _("not installed (subtitles: code page of the language)"))))
+        out.append(row("uchardet", path_val("uchardet", _("not installed (subtitles: code page of the language)"), "version")))
         out.append(row("unzip", path_val("unzip", _("not installed (no ZIP subtitles)"))))
         out.append(row("unrar", path_val("unrar", _("not installed (no RAR subtitles)"))))
         out.append(row("TorrServer", self._torrserverPath()))
