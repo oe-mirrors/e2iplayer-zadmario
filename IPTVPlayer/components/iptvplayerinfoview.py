@@ -2,12 +2,15 @@
 #
 #  E2iPlayer info / diagnostics screen.
 #
-#  Opened from the BLUE menu -> "Info" and with INFO in the settings. Three
-#  pages, switched with LEFT / RIGHT:
+#  Opened from the BLUE menu -> "Info" and with INFO / EPG / HELP in the
+#  host selection and the settings. Three pages, switched with LEFT / RIGHT:
 #
 #    About   - version, project links, credits
-#    System  - E2iPlayer / Python / image / box, every externally loaded
-#              tool and its version, free space, the debug-log setting
+#    System  - E2iPlayer / Python / image / box / CPU / RAM / clock / IPv6,
+#              every external tool (at the path the plugin runs it from) and
+#              Python module with its version (or what does not work without
+#              it), free space of the config, temp, download and buffering
+#              folders, the debug-log setting
 #    Log     - a live tail of the E2iPlayer debug log (if enabled)
 #
 #  GREEN  saves the current page to /tmp (sysinfo.txt or debug.txt).
@@ -25,9 +28,11 @@
 #
 import os
 import sys
+import time
 
 from enigma import eTimer, eListboxPythonMultiContent, gFont, RT_HALIGN_LEFT, RT_VALIGN_CENTER
 from Components.ActionMap import ActionMap
+from Components.config import config
 from Components.Label import Label
 from Components.ScrollLabel import ScrollLabel
 from Screens.Screen import Screen
@@ -42,7 +47,8 @@ from Plugins.Extensions.IPTVPlayer.components.e2ivk import GetVKTier, _s, toNati
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import (
     printDBG, printExc, iptv_system, eConnectCallback, formatBytes, GetImageName,
     GetIPTVPlayerVersion, GetIPTVPlayerComitStamp, GetShortPythonVersion,
-    GetConfigDir, GetTmpDir, GetDebugLogPath, GetFFmpegPath, GetQjsPath, GetDukPath, GetCurlImpersonatePath,
+    GetConfigDir, GetTmpDir, GetDebugLogPath, GetFFmpegPath, GetQjsPath, GetBinDir, GetPluginDir,
+    IsExecutable, Which, defaultToolPath,
 )
 ###################################################
 
@@ -56,7 +62,8 @@ LOG_TAIL_BYTES = 32 * 1024
 LOG_REFRESH_MS = 2000
 
 PAGE_ABOUT, PAGE_SYSTEM, PAGE_LOG = 0, 1, 2
-PAGE_NAMES = {PAGE_ABOUT: _("About"), PAGE_SYSTEM: _("System"), PAGE_LOG: _("Log")}
+# lambdas: translated when shown, not at import (language change without restart)
+PAGE_NAMES = {PAGE_ABOUT: lambda: _("About"), PAGE_SYSTEM: lambda: _("System"), PAGE_LOG: lambda: _("Log")}
 
 _HEADING_COLOR = 0x66ccff   # System page headings, same accent blue as the articles
 _TEXT_COLOR = 0xffffff
@@ -72,6 +79,11 @@ _TEXT_COLOR = 0xffffff
 # duktape's `duk` has no --version flag, so run a one-line script that
 # prints Duktape.version (e.g. 20700 -> shown as 2.7.0). quickjs' `qjs
 # --version` prints the bare version (e.g. 0.16.2).
+# Every tool is probed at the path the plugin runs it from (the shell
+# variables of _probeToolPaths()) and only when it is there; every section
+# ends with that path ("-" = missing). unzip / unrar without arguments
+# print their banner (unrar after an empty line), so the first non-empty
+# line is taken.
 _PROBE_SCRIPT_PATH = "/tmp/.e2i_sysprobe.sh"
 
 _P = '</dev/null 2>&1'
@@ -79,35 +91,94 @@ _PROBE_SCRIPT = (
     'T=""; if timeout 4 true >/dev/null 2>&1; then T="timeout 4"; '
     'elif timeout -t 4 true >/dev/null 2>&1; then T="timeout -t 4"; fi; '
     'w(){ command -v "$1" 2>/dev/null || echo "-"; }; '
-    'echo "@@hlsdl";       ($T hlsdl %s            || true) | head -n 2; '
-    'echo "@@cmdwrap";     ($T cmdwrap %s          || true) | head -n 1; '
-    'echo "@@lsdir";       ($T lsdir --version %s  || true) | head -n 1; w lsdir; '
-    'echo "@@f4mdump";     ($T f4mdump %s          || true) | head -n 1; '
-    'echo "@@ffmpeg";      ($T "$FF" -version %s   || true) | head -n 1; '
-    'echo "@@wget";        ($T wget --version %s    || true) | head -n 1; '
-    'echo "@@curl";        ($T curl --version %s    || true) | head -n 1; '
-    'echo "@@curlimp";     C=$(w "${CI:-curl-impersonate}"); [ "$C" = "-" ] && [ -x /usr/local/bin/curl-impersonate ] && C=/usr/local/bin/curl-impersonate; '
-    '  [ "$C" != "-" ] && ($T "$C" --version %s || true) | head -n 1; echo "$C"; '
-    'echo "@@rtmpdump";    ($T rtmpdump --help %s   || true) | grep -i rtmpdump | head -n 1; '
-    'echo "@@exteplayer3"; ($T exteplayer3 %s       || true) | head -n 2; '
-    'echo "@@gstplayer";   ($T gstplayer %s         || true) | head -n 2; '
-    'echo "@@gstplayer2";  ($T gstplayer2 %s        || true) | head -n 2; '
+    'p(){ [ -n "$1" ] && [ -x "$1" ] && echo "$1" || echo "-"; }; '
+    'echo "@@hlsdl";       [ -x "$HL" ] && ($T "$HL" %s || true) | head -n 2; p "$HL"; '
+    'echo "@@cmdwrap";     [ -x "$CW" ] && ($T "$CW" %s || true) | head -n 1; p "$CW"; '
+    'echo "@@lsdir";       [ -x "$LS" ] && ($T "$LS" --version %s || true) | head -n 1; p "$LS"; '
+    'echo "@@f4mdump";     [ -x "$F4" ] && ($T "$F4" %s || true) | head -n 1; p "$F4"; '
+    'echo "@@ffmpeg";      [ -x "$FF" ] && ($T "$FF" -version %s || true) | head -n 1; p "$FF"; '
+    'echo "@@wget";        [ -x "$WG" ] && ($T "$WG" --version %s || true) | head -n 1; p "$WG"; '
+    'echo "@@curl";        C=$(w curl); [ "$C" != "-" ] && ($T "$C" --version %s || true) | head -n 1; echo "$C"; '
+    'echo "@@curlimp";     [ -x "$CI" ] && ($T "$CI" --version %s || true) | head -n 1; p "$CI"; '
+    'echo "@@rtmpdump";    [ -x "$RT" ] && ($T "$RT" --help %s || true) | grep -i rtmpdump | head -n 1; p "$RT"; '
+    'echo "@@exteplayer3"; [ -x "$EP" ] && ($T "$EP" %s || true) | head -n 2; p "$EP"; '
+    'echo "@@gstplayer";   [ -x "$GP" ] && ($T "$GP" %s || true) | head -n 2; p "$GP"; '
+    'echo "@@gstplayer2";  C=$(w gstplayer2); [ "$C" != "-" ] && ($T "$C" %s || true) | head -n 2; echo "$C"; '
     'echo "@@duktape";     D=/tmp/.e2i_dukver.js; '
     '  printf "%%s" \'try{var v=Duktape.version;print(Math.floor(v/10000)+"."+(Math.floor(v/100)%%100)+"."+(v%%100))}catch(e){print("?")}\' > $D; '
-    '  ($T "$DK" $D %s || true) | head -n 1; rm -f $D; '
-    'echo "@@quickjs";     ($T "$QJ" --version %s   || true) | head -n 1; '
+    '  [ -x "$DK" ] && ($T "$DK" $D %s || true) | head -n 1; rm -f $D; p "$DK"; '
+    'echo "@@quickjs";     [ -x "$QJ" ] && ($T "$QJ" --version %s || true) | head -n 1; p "$QJ"; '
+    'echo "@@uchardet";    [ -x "$UC" ] && ($T "$UC" --version %s || true) | grep -i "version" | head -n 1; p "$UC"; '
+    'echo "@@unzip";       U=$(w unzip); [ "$U" != "-" ] && ($T unzip %s || true) | grep "[^[:space:]]" | head -n 1; echo "$U"; '
+    'echo "@@unrar";       U=$(w unrar); [ "$U" != "-" ] && ($T unrar %s || true) | grep "[^[:space:]]" | head -n 1; echo "$U"; '
     'echo "@@deps";        (opkg list-installed 2>/dev/null | grep -i e2iplayer-deps || true); '
+    'echo "@@ifdsrc";      (opkg list-installed 2>/dev/null | grep "^gst-ifdsrc " || true); '
     'echo "@@end"\n'
-) % ((_P,) * 14)
+) % ((_P,) * 17)
+
+
+def _pluginBin(name):
+    # IPTVPlayer/bin/<name>: where the setup installs the tools it downloads
+    return GetBinDir(name, '')
+
+
+# key in the probe, shell variable, setup option, where the setup looks for it (in this order)
+_SETUP_TOOLS = (
+    ('hlsdl', 'HL', 'hlsdlpath', lambda: [_pluginBin('hlsdl'), '/usr/bin/hlsdl']),
+    ('cmdwrap', 'CW', 'cmdwrappath', lambda: [_pluginBin('cmdwrap'), '/usr/bin/cmdwrap']),
+    ('f4mdump', 'F4', 'f4mdumppath', lambda: ['/usr/bin/f4mdump', _pluginBin('f4mdump')]),
+    ('wget', 'WG', 'wgetpath', lambda: ['wget', '/usr/bin/wget', '/usr/bin/fullwget', _pluginBin('wget')]),
+    ('rtmpdump', 'RT', 'rtmpdumppath', lambda: ['/usr/bin/rtmpdump', 'rtmpdump']),
+    ('duktape', 'DK', 'dukpath', lambda: [_pluginBin('duk'), '/usr/bin/duk']),
+    ('uchardet', 'UC', 'uchardetpath', lambda: ['/usr/bin/uchardet', _pluginBin('uchardet')]),
+    ('exteplayer3', 'EP', 'exteplayer3path', lambda: [defaultToolPath('exteplayer3')]),
+    ('gstplayer', 'GP', 'gstplayerpath', lambda: ['/usr/bin/gstplayer', _pluginBin('gstplayer')]),
+)
+
+# tools that are there, but not registered by the setup yet (the plugin does not use them then)
+_UNREGISTERED = set()
+
+
+def _executable(path):
+    # the absolute path of an executable path or command name, else ''
+    try:
+        if path and IsExecutable(path):
+            return path if os.path.isabs(path) else Which(path)
+    except Exception:
+        printExc()
+    return ''
 
 
 def _probeToolPaths():
-    # first line of the probe script: the ffmpeg / qjs / duk / curl-impersonate the plugin really uses
-    # (hidden options "ffmpegpath", "qjspath", "dukpath", "curlimpersonatepath"), not only the ones in PATH
+    # first line of the probe script: the path of every tool the plugin really runs - the one the setup
+    # (or the hidden options) registered, not only the one in PATH
+    _UNREGISTERED.clear()
+    paths = {}
+    for key, var, option, candidates in _SETUP_TOOLS:
+        try:
+            path = _executable(getattr(config.plugins.iptvplayer, option).value.strip())
+        except Exception:
+            path = ''
+        if not path:
+            for candidate in candidates():
+                path = _executable(candidate)
+                if path:
+                    _UNREGISTERED.add(key)
+                    break
+        paths[var] = path
+    paths['LS'] = GetBinDir('lsdir')  # local media runs the one of the platform folder
+    paths['FF'] = _executable(GetFFmpegPath())
+    paths['QJ'] = GetQjsPath()
+    try:
+        from Plugins.Extensions.IPTVPlayer.libs import curlimpersonate
+        paths['CI'] = curlimpersonate.getImpersonateBinary()
+    except Exception:
+        printExc()
+        paths['CI'] = ''
+
     def q(value):
-        return "'%s'" % value.replace("'", "'\\''")
-    return 'FF=%s; QJ=%s; DK=%s; CI=%s\n' % (q(GetFFmpegPath()), q(GetQjsPath() or 'qjs'), q(GetDukPath() or 'duk'),
-                                             q(GetCurlImpersonatePath()))
+        return "'%s'" % (value or '').replace("'", "'\\''")
+    return '; '.join('%s=%s' % (var, q(paths[var])) for var in sorted(paths)) + '\n'
 
 _PROBE_CACHE = None       # parsed binary block, reused for the whole session
 _PROBE_KEEPALIVE = None   # holds the iptv_system object until its callback fires
@@ -139,6 +210,59 @@ def _free_space(path):
         )
     except Exception:
         return "?"
+
+
+def _ram():
+    # MemAvailable: what programs can still get without swapping (page cache counts as free)
+    kv = {}
+    try:
+        with open("/proc/meminfo") as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 2 and parts[1].isdigit():
+                    kv[parts[0].rstrip(":")] = int(parts[1]) * 1024
+    except Exception:
+        return "?"
+    total = kv.get("MemTotal", 0)
+    free = kv.get("MemAvailable", kv.get("MemFree", 0))
+    if not total:
+        return "?"
+    return "%s %s / %s" % (formatBytes(free, 1), _("free"), formatBytes(total, 1))
+
+
+def _clock():
+    # a clock that is not set (no NTP yet) makes every HTTPS certificate look invalid
+    now = time.time()
+    text = time.strftime("%Y-%m-%d %H:%M:%S %Z", time.localtime(now))
+    if time.gmtime(now).tm_year < 2025:
+        text += "  (%s)" % _("clock not set")
+    return text
+
+
+def _ipv6():
+    # in use when the box has a global IPv6 address and a default route that is not on lo
+    try:
+        with open("/proc/net/if_inet6") as f:
+            hasAddr = any(p[3] == "00" and p[5] != "lo" for p in (line.split() for line in f) if len(p) >= 6)
+        hasRoute = False
+        if hasAddr:
+            with open("/proc/net/ipv6_route") as f:
+                for line in f:
+                    p = line.split()
+                    if len(p) >= 10 and p[0] == "0" * 32 and p[1] == "00" and p[9] != "lo" and int(p[8], 16) & 1:
+                        hasRoute = True
+                        break
+        return _("Yes") if hasAddr and hasRoute else _("No")
+    except Exception:
+        return "?"
+
+
+def _shortPath(path):
+    # the plugin folder is long and the same on every box: IPTVPlayer/bin/hlsdl is enough
+    base = GetPluginDir('')
+    if path.startswith(base):
+        return "IPTVPlayer/" + path[len(base):]
+    return path
 
 
 def _read_first_line(path):
@@ -256,15 +380,63 @@ class _SystemInfo(object):
             import pycurl
             return pycurl.version.split()[0] if getattr(pycurl, "version", "") else "?"
         except Exception:
-            return _("not installed")
+            return _("not installed (urllib is used)")
 
-    def _pilVersion(self):
+    def _ifdsrcState(self, pkg):
+        # gstplayer only buffers via ifd:// with this GStreamer plugin: the opkg package, or the file
+        # the setup / a feed install puts there
+        if pkg:
+            return pkg[0].split(" - ", 1)[-1]
+        path = "/usr/lib/gstreamer-1.0/libgstifdsrc.so"
+        if os.path.isfile(path):
+            return "%s (%s)" % (_("installed"), path)
+        return _("not installed")
+
+    def _moduleVersion(self, name, oldVersionAttr=""):
+        # oldVersionAttr: where old releases keep the version (Pillow < 6: PILLOW_VERSION)
         try:
-            import PIL
-            v = getattr(PIL, "__version__", "") or getattr(PIL, "PILLOW_VERSION", "")
-            return str(v) if v else _("installed")
+            mod = __import__(name)
         except Exception:
             return _("not installed")
+        v = getattr(mod, "__version__", "") or (getattr(mod, oldVersionAttr, "") if oldVersionAttr else "")
+        return str(v) if v else _("installed")
+
+    def _websocketVersion(self):
+        # the image's websocket-client, else the copy in IPTVPlayer/libs/websocket
+        v = self._moduleVersion("websocket")
+        if v != _("not installed"):
+            return v
+        try:
+            from Plugins.Extensions.IPTVPlayer.libs import websocket
+            return "%s (%s)" % (getattr(websocket, "__version__", "?"), _("bundled with the plugin"))
+        except Exception:
+            return v
+
+    def _cryptoVersion(self):
+        # "Crypto" is the old pycrypto (2.x) or pycryptodome (3.x); pycryptodomex installs as "Cryptodome",
+        # which the plugin does not import
+        found = []
+        try:
+            import Crypto
+            v = str(getattr(Crypto, "__version__", "") or "?")
+            found.append("%s %s" % ("pycryptodome" if v[:1].isdigit() and int(v.split(".")[0]) >= 3 else "pycrypto", v))
+        except Exception:
+            pass
+        try:
+            import Cryptodome
+            found.append("pycryptodomex %s (%s)" % (getattr(Cryptodome, "__version__", "?"), _("not used")))
+        except Exception:
+            pass
+        return ", ".join(found) or _("not installed")
+
+    def _torrserverPath(self):
+        # only the path: running the binary for a version could start the server
+        try:
+            from Plugins.Extensions.IPTVPlayer.libs import torrserver
+            return torrserver.findBinary() or _("not installed (no torrent playback)")
+        except Exception:
+            printExc()
+            return "?"
 
     def _subparserVersion(self):
         try:
@@ -306,54 +478,83 @@ class _SystemInfo(object):
             if cur and cur in sections and line.strip():
                 sections[cur].append(line.strip())
 
-        def first(key):
+        def tool(key):
+            # (the output lines, the path - '' when the tool is missing); the path is the last line of a section
             v = sections.get(key) or []
-            return v[0] if v else _("not found")
+            path = v[-1] if v else "-"
+            return v[:-1], ("" if path == "-" else path)
 
-        def ver_line(key):
-            v = sections.get(key) or []
-            for line in v:
+        def withPath(key, value, path):
+            # the path the plugin runs the tool from; a tool the setup has not registered is not used yet
+            value = "%s (%s)" % (value, _shortPath(path))
+            if key in _UNREGISTERED:
+                value += " - " + _("not registered yet, run the E2iPlayer setup")
+            return value
+
+        # every renderer gets the text for a missing tool: what the user loses without it
+        def first(key, missing):
+            lines, path = tool(key)
+            if not path:
+                return missing
+            return withPath(key, lines[0] if lines else _("installed"), path)
+
+        def ver_line(key, missing):
+            lines, path = tool(key)
+            if not path:
+                return missing
+            for line in lines:
                 low = line.lower()
                 if line.startswith("{") or "version" in low or " v0." in low or " v1." in low:
-                    return line
-            return v[0] if v else _("not found")
+                    return withPath(key, line, path)
+            return withPath(key, lines[0] if lines else _("installed"), path)
 
-        def lsdir_val():
-            v = sections.get("lsdir") or []
-            for line in v:
+        def lsdir_val(missing):
+            lines, path = tool("lsdir")
+            if not path:
+                return missing
+            for line in lines:
                 if line.lower().startswith("lsdir v"):
-                    return line
-            tail = v[-1] if v else "-"
-            return _("installed") if tail and tail != "-" else _("not installed")
+                    return withPath("lsdir", line, path)
+            return withPath("lsdir", _("installed"), path)
 
-        def banner(key):
-            v = sections.get(key) or []
-            if not v:
-                return _("not installed")
-            line = v[0].strip()
+        def banner(key, missing):
+            lines, path = tool(key)
+            if not path:
+                return missing
+            line = lines[0] if lines else ""
             if line.lower().startswith("version:"):
                 line = "v" + line.split(":", 1)[1].strip()
-            return line or _("installed")
+            return withPath(key, line or _("installed"), path)
+
+        def path_val(key, missing):
+            # a version line (or none) + the path, e.g. "curl 8.22.0-IMPERSONATE (arm-...) libcurl/...",
+            # "UnZip 6.00 of 20 April 2009, by ...", "BusyBox v1.36.1 (2024-...) multi-call binary.",
+            # "UNRAR 7.00 freeware      Copyright (c) ...", "Version 0.0.8" (uchardet)
+            lines, path = tool(key)
+            if not path:
+                return missing
+            ver = " ".join(lines[0].split()) if lines else ""
+            for sep in (" (", " of ", " freeware", " Copyright", " built on "):
+                ver = ver.split(sep, 1)[0]
+            return withPath(key, ver or _("installed"), path)
 
         def row(name, value):
             return "%s|%s" % (name, value)
 
-        def curlimp_val():
-            # "curl 8.22.0-IMPERSONATE (arm-...) libcurl/8.22.0-IMPERSONATE BoringSSL ..." + the path (or "-")
-            v = sections.get("curlimp") or []
-            path = v[-1] if v else "-"
-            if not path or path == "-":
-                return _("not installed")
-            ver = v[0].split(" (", 1)[0] if len(v) > 1 else ""
-            return "%s (%s)" % (ver, path) if ver else "%s (%s)" % (_("installed"), path)
+        notInstalled = _("not installed")
+        # one JavaScript engine / one external player is enough: the reason only when all are missing
+        noJs = not tool("duktape")[1] and not tool("quickjs")[1]
+        jsMissing = _("not installed (hosts that need JavaScript fail)") if noJs else notInstalled
+        noPlayer = not any(tool(key)[1] for key in ("exteplayer3", "gstplayer", "gstplayer2"))
+        playerMissing = _("not installed (only the Enigma2 players)") if noPlayer else notInstalled
 
         out = ["--- e2iplayer-deps ---"]
-        out.append(row("hlsdl", first("hlsdl")))
+        out.append(row("hlsdl", first("hlsdl", _("not installed (no HLS downloads or buffering)"))))
         out.append(row("_subparser", self._subparserVersion()))
-        out.append(row("cmdwrap", banner("cmdwrap")))
-        out.append(row("lsdir", lsdir_val()))
-        out.append(row("f4mdump", banner("f4mdump")))
-        out.append(row("curl-impersonate", curlimp_val()))
+        out.append(row("cmdwrap", banner("cmdwrap", _("not installed (no ffmpeg downloads)"))))
+        out.append(row("lsdir", lsdir_val(_("not installed (no local media / folder browser)"))))
+        out.append(row("f4mdump", banner("f4mdump", _("not installed (no HDS/F4M streams)"))))
+        out.append(row("curl-impersonate", path_val("curlimp", _("not installed (sites with bot protection may fail)"))))
         imp = self._impersonateState()
         if imp:
             out.append(row("  " + _("as Chrome this session"), imp))
@@ -363,20 +564,27 @@ class _SystemInfo(object):
 
         out.append("")
         out.append("--- " + _("other binaries") + " ---")
-        out.append(row("ffmpeg", first("ffmpeg")))
-        out.append(row("wget", first("wget")))
-        out.append(row("curl", first("curl")))
-        out.append(row("rtmpdump", first("rtmpdump")))
-        out.append(row("duktape", first("duktape")))
-        out.append(row("quickjs", first("quickjs")))
-        out.append(row("exteplayer3", ver_line("exteplayer3")))
-        out.append(row("gstplayer", ver_line("gstplayer")))
-        out.append(row("gstplayer2", ver_line("gstplayer2")))
+        out.append(row("ffmpeg", path_val("ffmpeg", _("not installed (no DASH / ffmpeg downloads)"))))
+        out.append(row("wget", path_val("wget", _("not installed (no file, cover or subtitle downloads)"))))
+        out.append(row("curl", path_val("curl", _("not installed (wget is used)"))))
+        out.append(row("rtmpdump", path_val("rtmpdump", _("not installed (no RTMP downloads)"))))
+        out.append(row("duktape", first("duktape", jsMissing)))
+        out.append(row("quickjs", first("quickjs", jsMissing)))
+        out.append(row("exteplayer3", ver_line("exteplayer3", playerMissing)))
+        out.append(row("gstplayer", ver_line("gstplayer", playerMissing)))
+        out.append(row("gstplayer2", ver_line("gstplayer2", playerMissing)))
+        out.append(row("gst-ifdsrc", self._ifdsrcState(sections.get("ifdsrc") or [])))
+        out.append(row("uchardet", path_val("uchardet", _("not installed (subtitles: code page of the language)"))))
+        out.append(row("unzip", path_val("unzip", _("not installed (no ZIP subtitles)"))))
+        out.append(row("unrar", path_val("unrar", _("not installed (no RAR subtitles)"))))
+        out.append(row("TorrServer", self._torrserverPath()))
 
         out.append("")
         out.append("--- " + _("Python modules") + " ---")
         out.append(row("pycurl", self._pycurlVersion()))
-        out.append(row("Pillow (PIL)", self._pilVersion()))
+        out.append(row("Pillow (PIL)", self._moduleVersion("PIL", "PILLOW_VERSION")))
+        out.append(row("websocket-client", self._websocketVersion()))
+        out.append(row("Crypto", self._cryptoVersion()))
         return "\n".join(out)
 
     def buildSystemText(self, withBinaries=True):
@@ -395,6 +603,12 @@ class _SystemInfo(object):
         lines.append("--- " + _("System") + " ---")
         row(_("Image"), self._image())
         row(_("Box"), self._boxtype())
+        uname = os.uname()
+        row("CPU", uname[4])
+        row("Kernel", uname[2])
+        row(_("RAM"), _ram())
+        row(_("Time"), _clock())
+        row("IPv6", _ipv6())
 
         lines.append("")
         lines.append("--- " + _("Storage") + " ---")
@@ -402,6 +616,14 @@ class _SystemInfo(object):
                             (_("Temp"), self._safeDir(GetTmpDir))):
             if path:
                 row(label, "%s  [%s]" % (_free_space(path), path))
+        # the folders set in the settings: a full or unmounted disk is a common cause of failed downloads
+        for label, cfg in ((_("Downloads"), "NaszaSciezka"), (_("Buffering location"), "bufferingPath")):
+            try:
+                path = getattr(config.plugins.iptvplayer, cfg).value
+            except Exception:
+                continue
+            if path:
+                row(label, "%s  [%s]" % (_free_space(path) if os.path.isdir(path) else _("not found"), path))
 
         lines.append("")
         lines.append("--- " + _("Debug log") + " ---")
@@ -429,7 +651,7 @@ class _SystemInfo(object):
         for line in text.split("\n"):
             if "|" in line and not line.lstrip().startswith("-"):
                 a, b = line.split("|", 1)
-                out.append("%-15s %s" % (a + ":", b))
+                out.append("%-19s %s" % (a + ":", b))
             else:
                 out.append(line)
         return "\n".join(out)
@@ -646,7 +868,7 @@ class IPTVPlayerInfoView(_SystemInfo, Screen):
 
     def _showPage(self):
         self._logTimer.stop()
-        name = PAGE_NAMES.get(self._page, "")
+        name = PAGE_NAMES.get(self._page, lambda: "")()
         title = "E2iPlayer - %s  (%d/3)" % (name, self._page + 1)
         self.setTitle(title)
         for page, widget in ((PAGE_ABOUT, "about"), (PAGE_SYSTEM, "system"), (PAGE_LOG, "log")):
