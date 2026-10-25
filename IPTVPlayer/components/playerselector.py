@@ -120,7 +120,7 @@ class PlayerSelectorWidget(Screen):
         self.markerPixmapSel = LoadPixmap(GetIconDir("PlayerSelector/markerSel%i.png" % self.MarkerSize))
         self.pageMarkerPixmap = LoadPixmap(GetIconDir("radio_button_on.png"))
         self.menuPixmap = LoadPixmap(GetIconDir("menu.png"))
-        self["actions"] = ActionMap(["WizardActions", "DirectionActions", "ColorActions", "IPTVPlayerListActions"], {"ok": self.ok_pressed, "back": self.back_pressed, "left": self.keyLeft, "right": self.keyRight, "up": self.keyUp, "down": self.keyDown, "blue": self.keyBlue, "menu": self.keyMenu}, -1)
+        self["actions"] = ActionMap(["WizardActions", "DirectionActions", "ColorActions", "IPTVPlayerListActions"], {"ok": self.ok_pressed, "back": self.back_pressed, "left": self.keyLeft, "right": self.keyRight, "up": self.keyUp, "down": self.keyDown, "blue": self.keyBlue, "menu": self.keyMenu, "info": self.keyInfo}, -1)
         self["marker"] = Cover3()
         self["page_marker"] = Cover3()
         self["menu"] = Cover3()
@@ -331,6 +331,14 @@ class PlayerSelectorWidget(Screen):
 
     def keyBlue(self):
         self.close((_("Download manager"), "IPTVDM"))
+
+    def keyInfo(self):
+        # INFO / EPG / HELP: the info screen on top of the host selection
+        try:
+            from Plugins.Extensions.IPTVPlayer.components.iptvplayerinfoview import OpenInfoView
+            OpenInfoView(self.session)
+        except Exception:
+            printExc()
 
     def keyMenu(self):
         printDBG(">> PlayerSelectorWidget.keyMenu")
