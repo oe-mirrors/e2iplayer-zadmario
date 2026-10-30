@@ -423,6 +423,7 @@ class IPTVExtMoviePlayer(Screen):
         self['currTimeLabel'] = Label("0:00:00")
         self['remainedLabel'] = Label("-0:00:00")
         self['lengthTimeLabel'] = Label("0:00:00")
+        initLcdSources(self)  # LCD-PROGRESS
         self['videoInfo'] = Label(" ")
         if self.clockFormat:
             self['clockTime'] = Label(" ")
@@ -1282,6 +1283,7 @@ class IPTVExtMoviePlayer(Screen):
         self['progressBar'].range = (0, newLength)
         self['bufferingCBar'].range = (0, newLength)
         self['lengthTimeLabel'].setText(str(timedelta(seconds=newLength)))
+        updateLcdInfo(self)  # LCD-PROGRESS
 
     def playbackUpdateInfo(self, stsObj):
         #fix TypeError: '>' not supported between instances of 'NoneType' and 'int'
@@ -1340,6 +1342,7 @@ class IPTVExtMoviePlayer(Screen):
                             self.playback['ConfirmedCTime'] = self.playback['CurrentTime']
                     self['currTimeLabel'].setText(str(timedelta(seconds=self.playback['CurrentTime'])))
                     self['remainedLabel'].setText('-' + str(timedelta(seconds=self.playback['Length'] - self.playback['CurrentTime'])))
+                    updateLcdInfo(self)  # LCD-PROGRESS
                     self['pleaseWait'].hide()
                 elif 'BufferCTime' == key:
                     if self.playback['Length'] is not None and self.playback['Length'] < val:
@@ -2465,7 +2468,7 @@ class IPTVExtMoviePlayer(Screen):
             except Exception:
                 pass
         if create:
-            return IPTVExtMoviePlayerSummary
+            return IPTVExtMoviePlayerColorSummary if hasColourLcd() else IPTVExtMoviePlayerSummary  # LCD-PROGRESS
         return None
 
 
@@ -2491,3 +2494,112 @@ class IPTVExtMoviePlayerSummary(Screen):
 
         def __init__(self, session, parent):
                 Screen.__init__(self, session, parent=parent)
+
+
+# ======================================================================
+# LCD-PROGRESS: progress bar and times on colour front displays (LCD)
+# ======================================================================
+from Components.Sources.StaticText import StaticText
+from Components.Sources.Progress import Progress
+
+
+def initLcdSources(self):
+    # sources for the summary screen, used there as parent.lcd*
+    self['lcdProgress'] = Progress(value=0, range=100)
+    self['lcdCurrTime'] = StaticText("0:00:00")
+    self['lcdRemained'] = StaticText("")
+    self['lcdLength'] = StaticText("")
+    self['lcdPercent'] = StaticText("")
+    self.lcdLastState = None
+
+
+def updateLcdInfo(self):
+    # called by the player on every position update
+    # feeds the colour LCD summary with position, remaining time and progress
+    try:
+        length = int(self.playback.get('Length') or 0)
+        curr = int(self.playback.get('CurrentTime') or 0)
+        live = self.playback.get('IsLive', False) or length <= 0
+        if live:
+            percent = 0
+        else:
+            percent = max(0, min(100, curr * 100 // length))
+        state = (curr, length, live)
+        if state == self.lcdLastState:
+            return
+        self.lcdLastState = state
+        self['lcdProgress'].value = percent
+        self['lcdCurrTime'].setText(str(timedelta(seconds=curr)))
+        if live:
+            self['lcdRemained'].setText(_('Live'))
+            self['lcdLength'].setText('')
+            self['lcdPercent'].setText('')
+        else:
+            self['lcdRemained'].setText('-' + str(timedelta(seconds=max(0, length - curr))))
+            self['lcdLength'].setText(str(timedelta(seconds=length)))
+            self['lcdPercent'].setText('%d%%' % percent)
+    except Exception:
+        printExc()
+
+
+def hasColourLcd():
+    # small mono LCDs/OLEDs (132x64 etc.) and text VFDs are smaller - only real colour LCDs pass
+    try:
+        size = getDesktop(1).size()
+        return size.width() >= COLOUR_LCD_MIN_WIDTH and size.height() >= COLOUR_LCD_MIN_HEIGHT
+    except Exception:
+        return False
+
+
+# colour LCD = at least this size (Vu+ 4K series, Duo2, Gigablue Quad, DM900/920 ...)
+COLOUR_LCD_MIN_WIDTH = 220
+COLOUR_LCD_MIN_HEIGHT = 176
+
+
+class IPTVExtMoviePlayerColorSummary(Screen):  # LCD-PROGRESS
+    # Colour front display during playback: title, progress bar, played time | percent | remaining time.
+    # The layout scales with the display size (220x176 up to 800x480 and more).
+    # Can be replaced in the LCD skin with <screen name="IPTVExtMoviePlayerColorSummary"> using the
+    # sources parent.Title, parent.lcdProgress (0-100, render="Progress"), parent.lcdCurrTime,
+    # parent.lcdRemained, parent.lcdLength and parent.lcdPercent.
+
+    # free border in pixels, e.g. when the receiver housing covers the display edge
+    LCD_MARGIN_LEFT = 10
+    LCD_MARGIN_RIGHT = 10
+    LCD_MARGIN_TOP = 0
+    LCD_MARGIN_BOTTOM = 10
+
+    try:
+        w = getDesktop(1).size().width()
+        h = getDesktop(1).size().height()
+    except Exception:
+        w, h = COLOUR_LCD_MIN_WIDTH, COLOUR_LCD_MIN_HEIGHT
+    x0 = LCD_MARGIN_LEFT
+    y0 = LCD_MARGIN_TOP
+    uw = w - LCD_MARGIN_LEFT - LCD_MARGIN_RIGHT   # usable width
+    uh = h - LCD_MARGIN_TOP - LCD_MARGIN_BOTTOM   # usable height
+    pad = max(4, uw // 60)
+    fTitle = max(14, uh // 8)
+    fTime = max(12, uh // 7)
+    barH = max(6, uh // 12)
+    # bar and times sit at the bottom, the title takes all the space above (several lines if needed)
+    timeH = fTime + fTime // 3
+    timeY = y0 + uh - timeH
+    barY = timeY - pad - barH
+    titleY = y0 + pad
+    titleH = barY - pad - titleY
+    cw = uw - 2 * pad
+    colW = cw // 3
+    skin = """
+        <screen position="0,0" size="%(w)d,%(h)d" backgroundColor="#000000">
+            <widget source="parent.Title" render="Label" position="%(x)d,%(ty)d" size="%(cw)d,%(titleH)d" font="Regular;%(fTitle)d" halign="center" valign="center" foregroundColor="#ffffff" backgroundColor="#000000" transparent="1" />
+            <widget source="parent.lcdProgress" render="Progress" position="%(x)d,%(barY)d" size="%(cw)d,%(barH)d" foregroundColor="#ffffff" backgroundColor="#303030" borderWidth="1" borderColor="#a0a0a0" />
+            <widget source="parent.lcdCurrTime" render="Label" position="%(x)d,%(timeY)d" size="%(colW)d,%(timeH)d" font="Regular;%(fTime)d" halign="left" foregroundColor="#ffffff" backgroundColor="#000000" transparent="1" noWrap="1" valign="bottom" />
+            <widget source="parent.lcdPercent" render="Label" position="%(midX)d,%(timeY)d" size="%(colW)d,%(timeH)d" font="Regular;%(fTime)d" halign="center" foregroundColor="#c0c0c0" backgroundColor="#000000" transparent="1" noWrap="1" valign="bottom" />
+            <widget source="parent.lcdRemained" render="Label" position="%(rightX)d,%(timeY)d" size="%(colW)d,%(timeH)d" font="Regular;%(fTime)d" halign="right" foregroundColor="#ffffff" backgroundColor="#000000" transparent="1" noWrap="1" valign="bottom" />
+        </screen>""" % {'w': w, 'h': h, 'x': x0 + pad, 'ty': titleY, 'cw': cw, 'titleH': titleH, 'fTitle': fTitle,
+                         'barY': barY, 'barH': barH, 'timeY': timeY, 'timeH': timeH, 'fTime': fTime,
+                         'colW': colW, 'midX': x0 + pad + colW, 'rightX': x0 + pad + cw - colW}
+
+    def __init__(self, session, parent):
+        Screen.__init__(self, session, parent=parent)
