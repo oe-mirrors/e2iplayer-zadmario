@@ -1302,7 +1302,8 @@ class IPTVExtMoviePlayer(Screen):
         try:
             length = int(self.playback.get('Length') or 0)
             curr = int(self.playback.get('CurrentTime') or 0)
-            live = self.playback.get('IsLive', False)
+            # buffered live streams play a growing file: the player reports a normal length, only the downloader knows
+            live = self.playback.get('IsLive', False) or (self.downloader is not None and self.downloader.isLiveStream() is True)
             known = length > 0 and not live
             percent = max(0, min(100, curr * 100 // length)) if known else 0
             state = (curr, length, live)
