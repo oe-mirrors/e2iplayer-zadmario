@@ -2505,6 +2505,7 @@ from Components.Sources.Progress import Progress
 
 def initLcdSources(self):
     # sources for the summary screen, used there as parent.lcd*
+    self['lcdTitle'] = StaticText(self.title)
     self['lcdProgress'] = Progress(value=0, range=100)
     self['lcdCurrTime'] = StaticText("0:00:00")
     self['lcdRemained'] = StaticText("")
@@ -2519,25 +2520,23 @@ def updateLcdInfo(self):
     try:
         length = int(self.playback.get('Length') or 0)
         curr = int(self.playback.get('CurrentTime') or 0)
-        live = self.playback.get('IsLive', False) or length <= 0
-        if live:
-            percent = 0
-        else:
-            percent = max(0, min(100, curr * 100 // length))
+        live = self.playback.get('IsLive', False)
+        known = length > 0 and not live
+        percent = max(0, min(100, curr * 100 // length)) if known else 0
         state = (curr, length, live)
         if state == self.lcdLastState:
             return
         self.lcdLastState = state
         self['lcdProgress'].value = percent
         self['lcdCurrTime'].setText(str(timedelta(seconds=curr)))
-        if live:
-            self['lcdRemained'].setText(_('Live'))
-            self['lcdLength'].setText('')
-            self['lcdPercent'].setText('')
-        else:
+        if known:
             self['lcdRemained'].setText('-' + str(timedelta(seconds=max(0, length - curr))))
             self['lcdLength'].setText(str(timedelta(seconds=length)))
             self['lcdPercent'].setText('%d%%' % percent)
+        else:
+            self['lcdRemained'].setText(_('Live') if live else '')
+            self['lcdLength'].setText('')
+            self['lcdPercent'].setText('')
     except Exception:
         printExc()
 
@@ -2560,7 +2559,7 @@ class IPTVExtMoviePlayerColorSummary(Screen):  # LCD-PROGRESS
     # Colour front display during playback: title, progress bar, played time | percent | remaining time.
     # The layout scales with the display size (220x176 up to 800x480 and more).
     # Can be replaced in the LCD skin with <screen name="IPTVExtMoviePlayerColorSummary"> using the
-    # sources parent.Title, parent.lcdProgress (0-100, render="Progress"), parent.lcdCurrTime,
+    # sources parent.lcdTitle, parent.lcdProgress (0-100, render="Progress"), parent.lcdCurrTime,
     # parent.lcdRemained, parent.lcdLength and parent.lcdPercent.
 
     # free border in pixels, e.g. when the receiver housing covers the display edge
@@ -2580,7 +2579,10 @@ class IPTVExtMoviePlayerColorSummary(Screen):  # LCD-PROGRESS
     uh = h - LCD_MARGIN_TOP - LCD_MARGIN_BOTTOM   # usable height
     pad = max(4, uw // 60)
     fTitle = max(14, uh // 8)
-    fTime = max(12, uh // 7)
+    cw = uw - 2 * pad
+    colW = cw // 3
+    # three time columns side by side: the font follows the height, but must still fit the column width
+    fTime = max(12, min(uh // 7, cw // 13))
     barH = max(6, uh // 12)
     # bar and times sit at the bottom, the title takes all the space above (several lines if needed)
     timeH = fTime + fTime // 3
@@ -2588,11 +2590,9 @@ class IPTVExtMoviePlayerColorSummary(Screen):  # LCD-PROGRESS
     barY = timeY - pad - barH
     titleY = y0 + pad
     titleH = barY - pad - titleY
-    cw = uw - 2 * pad
-    colW = cw // 3
     skin = """
         <screen position="0,0" size="%(w)d,%(h)d" backgroundColor="#000000">
-            <widget source="parent.Title" render="Label" position="%(x)d,%(ty)d" size="%(cw)d,%(titleH)d" font="Regular;%(fTitle)d" halign="center" valign="center" foregroundColor="#ffffff" backgroundColor="#000000" transparent="1" />
+            <widget source="parent.lcdTitle" render="Label" position="%(x)d,%(ty)d" size="%(cw)d,%(titleH)d" font="Regular;%(fTitle)d" halign="center" valign="center" foregroundColor="#ffffff" backgroundColor="#000000" transparent="1" />
             <widget source="parent.lcdProgress" render="Progress" position="%(x)d,%(barY)d" size="%(cw)d,%(barH)d" foregroundColor="#ffffff" backgroundColor="#303030" borderWidth="1" borderColor="#a0a0a0" />
             <widget source="parent.lcdCurrTime" render="Label" position="%(x)d,%(timeY)d" size="%(colW)d,%(timeH)d" font="Regular;%(fTime)d" halign="left" foregroundColor="#ffffff" backgroundColor="#000000" transparent="1" noWrap="1" valign="bottom" />
             <widget source="parent.lcdPercent" render="Label" position="%(midX)d,%(timeY)d" size="%(colW)d,%(timeH)d" font="Regular;%(fTime)d" halign="center" foregroundColor="#c0c0c0" backgroundColor="#000000" transparent="1" noWrap="1" valign="bottom" />
