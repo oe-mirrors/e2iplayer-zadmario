@@ -43,6 +43,8 @@ from Components.ActionMap import ActionMap
 from Components.config import config
 from Components.Label import Label
 from Components.ProgressBar import ProgressBar
+from Components.Sources.StaticText import StaticText
+from Components.Sources.Progress import Progress
 
 from Components.config import config # temporary player should not use config directly
 from Screens.MessageBox import MessageBox
@@ -423,7 +425,7 @@ class IPTVExtMoviePlayer(Screen):
         self['currTimeLabel'] = Label("0:00:00")
         self['remainedLabel'] = Label("-0:00:00")
         self['lengthTimeLabel'] = Label("0:00:00")
-        initLcdSources(self)  # LCD-PROGRESS
+        self.initLcdSources()
         self['videoInfo'] = Label(" ")
         if self.clockFormat:
             self['clockTime'] = Label(" ")
@@ -1283,7 +1285,47 @@ class IPTVExtMoviePlayer(Screen):
         self['progressBar'].range = (0, newLength)
         self['bufferingCBar'].range = (0, newLength)
         self['lengthTimeLabel'].setText(str(timedelta(seconds=newLength)))
-        updateLcdInfo(self)  # LCD-PROGRESS
+        self.updateLcdInfo()
+
+    def initLcdSources(self):
+        # sources for the summary screen, used there as parent.lcd*
+        self['lcdTitle'] = StaticText(self.title)
+        self['lcdProgress'] = Progress(value=0, range=100)
+        self['lcdCurrTime'] = StaticText("0:00:00")
+        self['lcdRemained'] = StaticText("-0:00:00")
+        self['lcdLength'] = StaticText("0:00:00")
+        self['lcdPercent'] = StaticText("0%")
+        self.lcdLastState = None
+
+    def updateLcdInfo(self):
+        # feeds the colour LCD summary with position, remaining time and progress
+        try:
+            length = int(self.playback.get('Length') or 0)
+            curr = int(self.playback.get('CurrentTime') or 0)
+            live = self.playback.get('IsLive', False)
+            known = length > 0 and not live
+            percent = max(0, min(100, curr * 100 // length)) if known else 0
+            state = (curr, length, live)
+            if state == self.lcdLastState:
+                return
+            self.lcdLastState = state
+            self['lcdProgress'].value = percent
+            self['lcdCurrTime'].setText(str(timedelta(seconds=curr)))
+            if known:
+                self['lcdRemained'].setText('-' + str(timedelta(seconds=max(0, length - curr))))
+                self['lcdLength'].setText(str(timedelta(seconds=length)))
+                self['lcdPercent'].setText('%d%%' % percent)
+            elif live:
+                self['lcdRemained'].setText(_('Live'))
+                self['lcdLength'].setText('')
+                self['lcdPercent'].setText('')
+            else:
+                # length not known yet: show placeholders, so the fields do not pop up later
+                self['lcdRemained'].setText('-0:00:00')
+                self['lcdLength'].setText('0:00:00')
+                self['lcdPercent'].setText('0%')
+        except Exception:
+            printExc()
 
     def playbackUpdateInfo(self, stsObj):
         #fix TypeError: '>' not supported between instances of 'NoneType' and 'int'
@@ -1342,7 +1384,7 @@ class IPTVExtMoviePlayer(Screen):
                             self.playback['ConfirmedCTime'] = self.playback['CurrentTime']
                     self['currTimeLabel'].setText(str(timedelta(seconds=self.playback['CurrentTime'])))
                     self['remainedLabel'].setText('-' + str(timedelta(seconds=self.playback['Length'] - self.playback['CurrentTime'])))
-                    updateLcdInfo(self)  # LCD-PROGRESS
+                    self.updateLcdInfo()
                     self['pleaseWait'].hide()
                 elif 'BufferCTime' == key:
                     if self.playback['Length'] is not None and self.playback['Length'] < val:
@@ -2468,7 +2510,7 @@ class IPTVExtMoviePlayer(Screen):
             except Exception:
                 pass
         if create:
-            return IPTVExtMoviePlayerColorSummary if hasColourLcd() else IPTVExtMoviePlayerSummary  # LCD-PROGRESS
+            return IPTVExtMoviePlayerColorSummary if hasColourLcd() else IPTVExtMoviePlayerSummary
         return None
 
 
@@ -2496,51 +2538,7 @@ class IPTVExtMoviePlayerSummary(Screen):
                 Screen.__init__(self, session, parent=parent)
 
 
-# ======================================================================
-# LCD-PROGRESS: progress bar and times on colour front displays (LCD)
-# ======================================================================
-from Components.Sources.StaticText import StaticText
-from Components.Sources.Progress import Progress
-
-
-def initLcdSources(self):
-    # sources for the summary screen, used there as parent.lcd*
-    self['lcdTitle'] = StaticText(self.title)
-    self['lcdProgress'] = Progress(value=0, range=100)
-    self['lcdCurrTime'] = StaticText("0:00:00")
-    self['lcdRemained'] = StaticText("")
-    self['lcdLength'] = StaticText("")
-    self['lcdPercent'] = StaticText("")
-    self.lcdLastState = None
-
-
-def updateLcdInfo(self):
-    # called by the player on every position update
-    # feeds the colour LCD summary with position, remaining time and progress
-    try:
-        length = int(self.playback.get('Length') or 0)
-        curr = int(self.playback.get('CurrentTime') or 0)
-        live = self.playback.get('IsLive', False)
-        known = length > 0 and not live
-        percent = max(0, min(100, curr * 100 // length)) if known else 0
-        state = (curr, length, live)
-        if state == self.lcdLastState:
-            return
-        self.lcdLastState = state
-        self['lcdProgress'].value = percent
-        self['lcdCurrTime'].setText(str(timedelta(seconds=curr)))
-        if known:
-            self['lcdRemained'].setText('-' + str(timedelta(seconds=max(0, length - curr))))
-            self['lcdLength'].setText(str(timedelta(seconds=length)))
-            self['lcdPercent'].setText('%d%%' % percent)
-        else:
-            self['lcdRemained'].setText(_('Live') if live else '')
-            self['lcdLength'].setText('')
-            self['lcdPercent'].setText('')
-    except Exception:
-        printExc()
-
-
+# progress bar and times on colour front displays (LCD)
 def hasColourLcd():
     # small mono LCDs/OLEDs (132x64 etc.) and text VFDs are smaller - only real colour LCDs pass
     try:
@@ -2555,7 +2553,7 @@ COLOUR_LCD_MIN_WIDTH = 220
 COLOUR_LCD_MIN_HEIGHT = 176
 
 
-class IPTVExtMoviePlayerColorSummary(Screen):  # LCD-PROGRESS
+class IPTVExtMoviePlayerColorSummary(Screen):
     # Colour front display during playback: title, progress bar, played time | percent | remaining time.
     # The layout scales with the display size (220x176 up to 800x480 and more).
     # Can be replaced in the LCD skin with <screen name="IPTVExtMoviePlayerColorSummary"> using the
