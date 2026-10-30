@@ -1290,7 +1290,7 @@ class IPTVExtMoviePlayer(Screen):
     def initLcdSources(self):
         # sources for the summary screen, used there as parent.lcd*
         self['lcdTitle'] = StaticText(self.title)
-        self['lcdProgress'] = Progress(value=0, range=100)
+        self['lcdProgress'] = Progress(0, 100)
         self['lcdCurrTime'] = StaticText("0:00:00")
         self['lcdRemained'] = StaticText("-0:00:00")
         self['lcdLength'] = StaticText("0:00:00")
