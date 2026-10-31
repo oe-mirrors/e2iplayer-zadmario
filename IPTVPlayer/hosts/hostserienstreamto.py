@@ -1,7 +1,12 @@
 # -*- coding: utf-8 -*-
-LAST_MODIFIED = "14.10.2026"
+LAST_MODIFIED = "31.10.2026"
+# 31.10.2026 - "New Episodes": portrait cover fetched parallel (max. 3 s wait, the rest in the background) and kept on disk (SerienStreamTo.covers.json)
 # 23.08.2026 - withArticleContent() now checks type for episodes, fixes wrong Info text on episode press, getSuggestionsProvider() added (forces Google search suggestions) - Kamikaze24
+import json
+import os
 import re
+import threading
+import time
 
 from Plugins.Extensions.IPTVPlayer.components.e2ivkselector import GetVirtualKeyboard
 try:
@@ -15,7 +20,8 @@ from Plugins.Extensions.IPTVPlayer.components.ihost import CBaseHostClass, CHost
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, SetIPTVPlayerLastHostError
 from Plugins.Extensions.IPTVPlayer.libs.moviemeta import getMetaByImdbId
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote_plus
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, GetCookieDir
+from Plugins.Extensions.IPTVPlayer.libs.pCommon import common
 try:
     from Plugins.Extensions.IPTVPlayer.tools.iptvpaging import takePresetJumpPage
 except ImportError:  # E2iPlayer builds without the CH- page preset (e.g. zadmario): the Jump always asks
@@ -66,6 +72,11 @@ class SerienStreamTo(CBaseHostClass):
         self.MAIN_URL = config.plugins.iptvplayer.serienstreamto_hosts.value
         self.DEFAULT_ICON_URL = "https://raw.githubusercontent.com/oe-mirrors/e2iplayer/gh-pages/Thumbnails/serienstream.to.png"
         self.cacheSeriesSeasons = {}
+        # "Neueste Episoden" covers: series path -> (cover path, imdb id), kept on disk across restarts
+        self.COVER_CACHE_FILE = GetCookieDir("SerienStreamTo.covers.json")
+        self.coverLock = threading.Lock()
+        self.coverPending = set()
+        self.cacheSeriesCover = self._loadCoverCache()
         self.sessionEx = MainSessionWrapper()
         self.watchedHelper = IPTVWatchedHelper('serienstreamto')
         self.MENU = [{"category": "list_items", "title": _("Series"), "url": self.getFullUrl("suche")},
@@ -377,32 +388,145 @@ class SerienStreamTo(CBaseHostClass):
             seasonParent = {"category": "list_episodes", "series_url": episodeItems[0].get("series_url", ""), "season_num": episodeItems[0].get("season_num", "")}
             self.watchedHelper.updateParentWatchedState(seasonParent, episodeItems, self._getWatchedKeyForItem)
 
+    def _coverKey(self, seriesUrl):
+        # the path only ("/serie/fire-country/"), so the cache survives a change of the host address
+        return re.sub(r"^https?://[^/]+", "", seriesUrl or "").rstrip("/") + "/"
+
+    def _loadCoverCache(self):
+        try:
+            if os.path.isfile(self.COVER_CACHE_FILE):
+                with open(self.COVER_CACHE_FILE, "r") as f:
+                    data = json.load(f)
+                if isinstance(data, dict):
+                    return dict((k, tuple(v)) for k, v in data.items() if isinstance(v, list) and len(v) == 2)
+        except Exception:
+            printExc()
+        return {}
+
+    def _saveCoverCache(self):
+        try:
+            with self.coverLock:
+                data = dict((k, list(v)) for k, v in self.cacheSeriesCover.items())
+            tmp = self.COVER_CACHE_FILE + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(data, f)
+            os.rename(tmp, self.COVER_CACHE_FILE)
+        except Exception:
+            printExc()
+
+    def _parseSeriesCover(self, data):
+        # the portrait cover lives under /media/images/channel/ - the first data-src on the
+        # page is the 16:9 backdrop, kept only as a fallback
+        icon = self.cm.ph.getSearchGroups(data, r'data-src="([^"]*/images/channel/[^"]+)"')[0]
+        if not icon:
+            icon = self.cm.ph.getSearchGroups(data, 'data-src="([^"]+)')[0]
+        return icon, self.extractImdbId(data)
+
+    def _cachedSeriesCover(self, seriesUrl):
+        # (full icon url, imdb id) from the cover cache, or None when the series was not fetched yet
+        with self.coverLock:
+            cached = self.cacheSeriesCover.get(self._coverKey(seriesUrl))
+        if cached is None:
+            return None
+        return self.getFullIconUrl(cached[0]) if cached[0] else "", cached[1]
+
+    def _coverWorker(self, todo, state):
+        # one of the parallel cover loaders: its own connection object (the host's self.cm is not
+        # shared between threads); reads the cookie file but does not write it
+        try:
+            cm = common()
+        except Exception:
+            printExc()
+            cm = None
+        params = {"header": dict(self.HEADER), "use_cookie": True, "load_cookie": True, "save_cookie": False, "cookiefile": self.COOKIE_FILE}
+        while cm is not None:
+            with self.coverLock:
+                if not todo:
+                    break
+                seriesUrl = todo.pop(0)
+            try:
+                sts, data = cm.getPageCFProtection(seriesUrl, dict(params))
+                if sts:
+                    icon, imdb_id = self._parseSeriesCover(data)
+                    printDBG("SerienStreamTo._coverWorker [%s] icon=[%s] imdb=[%s]" % (seriesUrl, icon, imdb_id))
+                    with self.coverLock:
+                        self.cacheSeriesCover[self._coverKey(seriesUrl)] = (icon, imdb_id)
+                        state["changed"] = True
+            except Exception:
+                printExc()
+            with self.coverLock:
+                self.coverPending.discard(seriesUrl)
+        with self.coverLock:
+            state["running"] -= 1
+            last = state["running"] <= 0 and state["changed"]
+        if last:  # the last worker of the batch writes the cache file once
+            self._saveCoverCache()
+
+    def _fetchCovers(self, seriesUrls, maxWait=3.0, maxWorkers=8):
+        # loads the missing covers in parallel and waits at most maxWait seconds; what is not done
+        # by then keeps loading in the background and shows the next time the list is opened
+        with self.coverLock:
+            todo = [u for u in seriesUrls if u not in self.coverPending]
+            self.coverPending.update(todo)
+        if not todo:
+            return
+        state = {"running": min(maxWorkers, len(todo)), "changed": False}
+        workers = []
+        for _i in range(state["running"]):
+            t = threading.Thread(target=self._coverWorker, args=(todo, state))
+            t.daemon = True
+            t.start()
+            workers.append(t)
+        deadline = time.time() + maxWait
+        for t in workers:
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                break
+            t.join(remaining)
+        printDBG("SerienStreamTo._fetchCovers %d requested, %d still loading" % (len(seriesUrls), len(self.coverPending)))
+
     def listNewEpisodes(self, cItem):
         printDBG("SerienStreamTo.listNewEpisodes")
         sts, data = self.getPage(self.getMainUrl())
         if not sts:
             return
         data = self.cm.ph.getAllItemsBeetwenMarkers(data, 'class="latest-episode', "</a>")
-        if data:
-            for item in data:
-                url = self.getFullUrl(self.cm.ph.getSearchGroups(item, 'href="([^"]+)')[0])
-                name = self.cleanHtmlStr(self.cm.ph.getSearchGroups(item, r'ep-title"\stitle="([^"]+)')[0])
-                se = self.cleanHtmlStr(self.cm.ph.getSearchGroups(item, r'ep-season">([^<]+)')[0])
-                ep = self.cleanHtmlStr(self.cm.ph.getSearchGroups(item, r'ep-episode">([^<]+)')[0])
-                icon = self.getFullIconUrl(self.cm.ph.getSearchGroups(item, 'src="([^"]+)')[0])
-                lang = language(item)
-                if self._useLegacyTitles():
-                    title = "%s - %s - %s%s" % (name, se, ep, (" %s" % lang if lang else ""))
-                else:
-                    season_num = self.cm.ph.getSearchGroups(se, r'(\d+)')[0]
-                    episode_num = self.cm.ph.getSearchGroups(ep, r'(\d+)')[0]
-                    season_ep = formatSxxExx(season_num, episode_num) if season_num and episode_num else "%s %s" % (se, ep)
-                    title = "%s - %s%s" % (name, season_ep, (" - %s" % lang) if lang else "")
-                imdb_lookup_url = re.sub(r'/staffel-\d+/episode-\d+/?$', '/', url)
-                params = dict(cItem)
-                params.update({"good_for_fav": False, "title": title, "url": url, "icon": icon, "imdb_id": "", "imdb_rating": "-", "imdb_lookup_url": imdb_lookup_url})
-                self.watchedHelper.updateHostItemFlag(self, params, self._getWatchedKeyForItem)
-                self.addVideo(params)
+        if not data:
+            return
+        # first pass: the rows, and the series whose cover is not known yet
+        rows = []
+        missing = []
+        for item in data:
+            url = self.getFullUrl(self.cm.ph.getSearchGroups(item, 'href="([^"]+)')[0])
+            seriesUrl = re.sub(r'/staffel-\d+/episode-\d+/?$', '/', url)
+            rows.append((item, url, seriesUrl))
+            if seriesUrl and seriesUrl not in missing and self._cachedSeriesCover(seriesUrl) is None:
+                missing.append(seriesUrl)
+        if missing:
+            self._fetchCovers(missing)
+        # second pass: the list, with every cover that is there by now
+        for item, url, imdb_lookup_url in rows:
+            name = self.cleanHtmlStr(self.cm.ph.getSearchGroups(item, r'ep-title"\stitle="([^"]+)')[0])
+            se = self.cleanHtmlStr(self.cm.ph.getSearchGroups(item, r'ep-season">([^<]+)')[0])
+            ep = self.cleanHtmlStr(self.cm.ph.getSearchGroups(item, r'ep-episode">([^<]+)')[0])
+            icon = self.getFullIconUrl(self.cm.ph.getSearchGroups(item, 'src="([^"]+)')[0])
+            lang = language(item)
+            if self._useLegacyTitles():
+                title = "%s - %s - %s%s" % (name, se, ep, (" %s" % lang if lang else ""))
+            else:
+                season_num = self.cm.ph.getSearchGroups(se, r'(\d+)')[0]
+                episode_num = self.cm.ph.getSearchGroups(ep, r'(\d+)')[0]
+                season_ep = formatSxxExx(season_num, episode_num) if season_num and episode_num else "%s %s" % (se, ep)
+                title = "%s - %s%s" % (name, season_ep, (" - %s" % lang) if lang else "")
+            imdb_id = ""
+            cached = self._cachedSeriesCover(imdb_lookup_url)
+            if cached is not None:
+                icon = cached[0] or icon
+                imdb_id = cached[1]
+            params = dict(cItem)
+            params.update({"good_for_fav": False, "title": title, "url": url, "icon": icon, "imdb_id": imdb_id, "imdb_rating": "-", "imdb_lookup_url": imdb_lookup_url})
+            self.watchedHelper.updateHostItemFlag(self, params, self._getWatchedKeyForItem)
+            self.addVideo(params)
 
     def _addSeriesCard(self, cItem, url, title, icon, desc=""):
         # season links ("Neue Staffeln diese Woche") open the whole series, so the
