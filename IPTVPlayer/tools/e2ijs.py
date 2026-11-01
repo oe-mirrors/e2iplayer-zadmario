@@ -22,6 +22,8 @@ from hashlib import md5
 # QuickJS-ng (package "quickjs", hidden option "qjspath"): ES2023, much faster than duktape,
 # but no bytecode files and no built-in time limit - busybox "timeout" does that part
 QJS_MEMORY_LIMIT = '64m'
+# urlparser (1:1 with python3) starts qjs itself for vidcore
+QJS_PATH = GetQjsPath() or '/usr/bin/qjs'
 
 # fallback cache key when the installed duktape version can't be read
 DUKTAPE_VER = '226'
