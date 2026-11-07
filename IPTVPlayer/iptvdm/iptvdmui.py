@@ -12,9 +12,10 @@
 ###################################################
 # LOCAL import
 ###################################################
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, eConnectCallback, GetIconDir, GetBinDir, E2PrioFix
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, eConnectCallback, GetIconDir, GetBinDir, E2PrioFix, formatBytes
 from Plugins.Extensions.IPTVPlayer.components.iptvplayer import IPTVStandardMoviePlayer, IPTVMiniMoviePlayer
-from Plugins.Extensions.IPTVPlayer.components.iptvextmovieplayer import IPTVExtMoviePlayer
+from Plugins.Extensions.IPTVPlayer.components.iptvextmovieplayer import IPTVExtMoviePlayer, addLcdSources, colorSummaryIfWanted
+from Plugins.Extensions.IPTVPlayer.components.iconmenager import FindCachedIcon
 from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import ConfigMenu, GetMoviePlayer
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
 
@@ -102,6 +103,10 @@ class IPTVDMWidget(Screen):
         }, -1)
 
         self["titel"] = Label()
+        # the colour LCD, same screen as the player: position in the list | percent | speed, size or state, see updateLcd()
+        addLcdSources(self, _("E2iPlayer downloader"))
+        self.lcdLastState = None
+        self.lcdCoverKey = None
 
         self.DM = downloadmanager
         self.DM.connectListChanged(self.onListChanged)
@@ -578,6 +583,74 @@ class IPTVDMWidget(Screen):
             self.started = 1
         return
 
+    def createSummary(self):
+        return colorSummaryIfWanted()
+
+    def updateLcd(self):
+        # outside the Archive a running download: the marked one, else the first; without one the marked row;
+        # the manager's state on an empty list. Runs on every timer tick: the display is only written on a change
+        try:
+            items = self.localFiles if self.localMode else self.currList
+            idx = self["list"].getCurrentIndex() or 0
+            marked = items[idx] if idx < len(items) else None
+            running = [] if self.localMode else [item for item in items if item.status == DMHelper.STS.DOWNLOADING]
+            item = marked if not running or marked in running else running[0]
+            if item is None:
+                state = (_("E2iPlayer downloader"), -1, "", _("STARTED") if self.DM.isRunning() else _("STOPPED"))
+            else:
+                if item.status == DMHelper.STS.DOWNLOADING and not self.localMode:
+                    right = formatBytes(item.downloadedSpeed, 1) + "/s"
+                else:
+                    size = item.fileSize if item.fileSize > 0 else item.downloadedSize
+                    states = {DMHelper.STS.WAITING: _("PENDING"), DMHelper.STS.INTERRUPTED: _("ABORTED"),
+                              DMHelper.STS.ERROR: _("DOWNLOAD ERROR")}
+                    right = formatBytes(float(size), 1) if size > 0 else states.get(item.status, "")
+                state = (item.fileName.split('/')[-1], int(item.downloadedProcent), "%d/%d" % (items.index(item) + 1, len(items)), right)
+            if state != self.lcdLastState:
+                self.lcdLastState = state
+                title, percent, position, right = state
+                self["lcdTitle"].setText(title)
+                self["lcdProgress"].value = max(0, min(100, percent))
+                self["lcdPercent"].setText("%d%%" % percent if percent >= 0 else "")
+                self["lcdCurrTime"].setText(position)
+                self["lcdRemained"].setText(right)
+            self.updateLcdCover(item)
+        except Exception:
+            printExc()
+
+    def updateLcdCover(self, item):
+        # the LCD cover of the shown row, looked up when the row or its status changes (the sidecar .jpg comes
+        # after the video); the summary on the display is told on a change
+        key = None if item is None else (self.localMode, getattr(item, 'fileName', ''), getattr(item, 'status', None))
+        if key == self.lcdCoverKey:
+            return
+        self.lcdCoverKey = key
+        cover = self._lcdCoverPath(item)
+        if cover != self.lcdCoverFile:
+            self.lcdCoverFile = cover
+            for summary in getattr(self, 'summaries', []):
+                if hasattr(summary, 'setLcdCover'):
+                    summary.setLcdCover(cover)
+
+    @staticmethod
+    def _lcdCoverPath(item):
+        # the sidecar .jpg next to the file (finished downloads, the Archive), while it downloads the link's
+        # sidecar picture from the icon cache (the list showed it before the download started); '' without one
+        if item is None:
+            return ''
+        try:
+            name = getattr(item, 'fileName', '') or ''
+            if name:
+                jpg = name.rsplit('.', 1)[0] + '.jpg'
+                if os_path.isfile(jpg) and os_path.getsize(jpg) > 0:
+                    return jpg
+            meta = getattr(getattr(item, 'url', None), 'meta', None)
+            if isinstance(meta, dict) and meta.get('e2i_sidecar_img'):
+                return FindCachedIcon(meta['e2i_sidecar_img'])
+        except Exception:
+            printExc()
+        return ''
+
     def reloadList(self, force=False):
         if not self.localMode:
             global gIPTVDM_listChanged
@@ -594,6 +667,7 @@ class IPTVDMWidget(Screen):
             self["list"].hide()
             self["list"].setList([(x,) for x in self.localFiles])
             self["list"].show()
+        self.updateLcd()
     #end reloadList
 
     def hideWindow(self):
