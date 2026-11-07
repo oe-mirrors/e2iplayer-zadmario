@@ -79,6 +79,27 @@ def SaveInlinePicture(img_url, file_path, prepare=True, firstBytes=None):
     return ''
 
 
+def FindCachedIcon(url):
+    # the cached copy of a picture's url: its md5 name in one of the icon folders of the cache dir (newest folder
+    # first, the folder names carry their time); '' without one. For a screen without an IconMenager of its own,
+    # e.g. the download manager's LCD cover of a running download
+    try:
+        from Plugins.Extensions.IPTVPlayer.tools.iptvtools import GetIconsDirs
+        if not url or url.startswith(('file://', 'data:')):
+            return ''
+        name = strDecode(hexlify(MD5()(url))) + '.jpg'
+        base = config.plugins.iptvplayer.CacheDir.value
+        if not os_path.isdir(base):
+            return ''
+        for entry in sorted(GetIconsDirs(base), reverse=True):
+            path = os_path.join(base, entry, name)
+            if os_path.isfile(path) and os_path.getsize(path) > 0:
+                return path
+    except Exception:
+        printExc()
+    return ''
+
+
 class IconMenager:
     FAILED_RETRY = 60
     HEADER = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.103 Safari/537.36', 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 'Accept-Encoding': 'gzip, deflate'}

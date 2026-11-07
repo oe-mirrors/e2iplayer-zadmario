@@ -56,7 +56,7 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvtools import FreeSpace as iptvtools
                                                           GetE2VideoModeChoices, GetE2VideoMode, SetE2VideoMode, TestTmpCookieDir, TestTmpJSCacheDir,\
                                                           ClearTmpCookieDir, ClearTmpJSCacheDir, SetTmpCookieDir, SetTmpJSCacheDir,\
                                                           GetEnabledHostsList, SaveHostsOrderList, GetUpdateServerUri, GetHostsAliases, formatBytes, getExcMSG, \
-                                                          findT9JumpIndex
+                                                          findT9JumpIndex, StripColorCodes
 from Plugins.Extensions.IPTVPlayer.tools.iptvhostgroups import IPTVHostsGroups
 from Plugins.Extensions.IPTVPlayer.components.iptvhostpin import AskHostPin, ClearUnlockedHosts, HostNeedsPin, IsHostUnlocked
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdh import DMHelper
@@ -360,6 +360,7 @@ class E2iPlayerWidget(Screen):
         self.onClose.append(self.__onClose)
         #self.onLayoutFinish.append(self.onStart)
         self.onShow.append(self.onStart)
+        self.onShown.append(self.updateLcdItem)
 
         #Defs
         self.searchPattern = CSearchHistoryHelper.loadLastPattern()[1]
@@ -1268,8 +1269,18 @@ class E2iPlayerWidget(Screen):
             return Cover.getErrorCoverPath()
         return self.iconMenager.getIconPathFromAAueue(selItem.iconimage)
 
+    def updateLcdItem(self):
+        # the summary of the top screen: only this screen's own, not the one of a screen above it
+        try:
+            if self.session.current_dialog is self and hasattr(self.session.summary, 'setItem'):
+                selItem = self.getSelItem() if self.currList else None
+                self.session.summary.setItem(StripColorCodes(getattr(selItem, 'name', '') or ''))
+        except Exception:
+            printExc()
+
     def changeBottomPanel(self):
         self.displayIcon()
+        self.updateLcdItem()
         selItem = self.getSelItem()
         if selItem and selItem.description != '':
             data = selItem.description
@@ -2574,6 +2585,13 @@ class E2iPlayerWidget(Screen):
                 self.prevVideoMode = GetE2VideoMode()
                 printDBG("Current video mode [%s]" % self.prevVideoMode)
                 gstAdditionalParams = {'defaul_videomode': self.prevVideoMode, 'host_name': self.hostName, 'external_sub_tracks': url.meta.get('external_sub_tracks', []), 'iptv_refresh_cmd': url.meta.get('iptv_refresh_cmd', '')}  # default_player_videooptions
+                # the cover of the row for the colour LCD of the player and the buffering screen
+                try:
+                    iconUrl = self.currItem.iconimage
+                    if iconUrl and self.iconMenager and not self.iconMenager.isIconFailed(iconUrl):
+                        gstAdditionalParams['cover_path'] = self.iconMenager.getIconPathFromAAueue(iconUrl)
+                except Exception:
+                    printExc()
                 if self.currItem.type == CDisplayListItem.TYPE_AUDIO:
                     gstAdditionalParams['show_iframe'] = config.plugins.iptvplayer.show_iframe.value
                     gstAdditionalParams['iframe_file_start'] = config.plugins.iptvplayer.iframe_file.value
@@ -2993,7 +3011,7 @@ class E2iPlayerWidget(Screen):
         self.show()
 
     def createSummary(self):
-        return IPTVPlayerLCDScreen
+        return listSummaryIfWanted()
 
     def canByAddedToFavourites(self):
         try:
@@ -3259,6 +3277,11 @@ class E2iPlayerWidget(Screen):
 # class E2iPlayerWidget
 
 
+def listSummaryIfWanted():
+    # createSummary() of the main list
+    return IPTVPlayerLCDScreen if config.plugins.iptvplayer.extplayer_summary.value != 'no' else None
+
+
 class IPTVPlayerLCDScreen(Screen):
     try:
         summary_screenwidth = getDesktop(1).size().width()
@@ -3266,27 +3289,26 @@ class IPTVPlayerLCDScreen(Screen):
     except Exception:
         summary_screenwidth = 132
         summary_screenheight = 64
-    if summary_screenwidth >= 800 and summary_screenheight >= 480:
+    if summary_screenwidth >= 220 and summary_screenheight >= 176:
+        # colour LCD: the layout follows the display size, the logo keeps the 3:1 of the host logos
+        margin = summary_screenwidth // 40
+        textW = summary_screenwidth - 2 * margin
+        logoH = min(textW // 3, summary_screenheight // 2)
+        logoW = logoH * 3
+        logoY = summary_screenheight - logoH - margin
+        text1H = (logoY - margin) * 2 // 5
+        text2H = logoY - margin - text1H
+        # a tall display has the height, "E2iPlayer" must still fit the width
+        font1 = min(text1H * 3 // 4, textW // 7)
         skin = """
-    <screen position="0,0" size="800,480" title="E2iPlayer">
-        <widget name="text1" position="10,0"  size="800,70" font="Regular;50" halign="center" valign="center" foregroundColor="#05F7F3"/>
-        <widget name="text2" position="10,80" size="800,70" font="Regular;40" halign="center" valign="center" foregroundColor="#FFFF00"/>
-        <widget name="LCDlogo" position="0,210" zPosition="4" size="800,267" alphatest="blend" />
-    </screen>"""
-    elif summary_screenwidth >= 480 and summary_screenheight >= 320:
-        skin = """
-    <screen position="0,0" size="480,320" title="E2iPlayer">
-        <widget name="text1" position="10,0" size="460,70" font="Regular;50" halign="center" valign="center" foregroundColor="#05F7F3"/>
-        <widget name="text2" position="10,80" size="460,70" font="Regular;40" halign="center" valign="center" foregroundColor="#FFFF00"/>
-        <widget name="LCDlogo" position="0,160" zPosition="4" size="480,160" alphatest="blend" />
-    </screen>"""
-    elif summary_screenwidth >= 220 and summary_screenheight >= 176:
-        skin = """
-    <screen position="0,0" size="220,176" title="E2iPlayer">
-        <widget name="text1" position="5,0" size="210,26" font="Regular;24" halign="center" valign="center" foregroundColor="#05F7F3"/>
-        <widget name="text2" position="5,30" size="210,65" font="Regular;22" halign="center" valign="center" foregroundColor="#FFFF00"/>
-        <widget name="LCDlogo" position="5,106" size="210,70" zPosition="4" alphatest="blend" />
-    </screen>"""
+    <screen position="0,0" size="%(w)d,%(h)d" title="E2iPlayer">
+        <widget name="text1" position="%(m)d,%(text1Y)d" size="%(textW)d,%(text1H)d" font="Regular;%(font1)d" halign="center" valign="center" foregroundColor="#05F7F3"/>
+        <widget name="text2" position="%(m)d,%(text2Y)d" size="%(textW)d,%(text2H)d" font="Regular;%(font2)d" halign="center" valign="center" foregroundColor="#FFFF00"/>
+        <widget name="LCDlogo" position="%(logoX)d,%(logoY)d" zPosition="4" size="%(logoW)d,%(logoH)d" alphatest="blend" />
+    </screen>""" % {'w': summary_screenwidth, 'h': summary_screenheight, 'm': margin, 'textW': textW,
+                    'text1Y': margin // 2, 'text1H': text1H, 'font1': font1,
+                    'text2Y': margin // 2 + text1H, 'text2H': text2H, 'font2': font1 * 4 // 5,
+                    'logoX': (summary_screenwidth - logoW) // 2, 'logoY': logoY, 'logoW': logoW, 'logoH': logoH}
     else:
         skin = """
     <screen position="0,0" size="132,64" title="E2iPlayer">
@@ -3297,6 +3319,7 @@ class IPTVPlayerLCDScreen(Screen):
 
     def __init__(self, session, parent):
         Screen.__init__(self, session)
+        self.hostText = ""
         try:
             self["text1"] = Label("E2iPlayer")
             self["text2"] = Label("")
@@ -3306,7 +3329,16 @@ class IPTVPlayerLCDScreen(Screen):
 
     def setText(self, text):
         try:
-            self["text2"].setText(text[0:39])
+            self.hostText = text[0:39]
+            self["text2"].setText(self.hostText)
+        except Exception:
+            pass
+
+    def setItem(self, text):
+        # the marked row of a host: the host moves up to the first line, without a row "E2iPlayer" and the host
+        try:
+            self["text1"].setText(self.hostText if text and self.hostText else "E2iPlayer")
+            self["text2"].setText(text[0:120] if text else self.hostText)
         except Exception:
             pass
 

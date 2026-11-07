@@ -24,6 +24,7 @@ from Screens.ChoiceBox import ChoiceBox
 from Components.config import config, ConfigSubsection, ConfigSelection, ConfigDirectory, ConfigYesNo, ConfigOnOff, Config, ConfigInteger, ConfigSubList, ConfigText, getConfigListEntry, configfile
 ###################################################
 config.plugins.iptvplayer.extplayer_summary = ConfigSelection(default="yes", choices=[('auto', _('Auto')), ('yes', _('Yes')), ('no', _('No'))])
+config.plugins.iptvplayer.lcd_cover = ConfigYesNo(default=True)
 config.plugins.iptvplayer.use_clear_iframe = ConfigYesNo(default=False)
 config.plugins.iptvplayer.show_iframe = ConfigYesNo(default=True)
 config.plugins.iptvplayer.iframe_file = ConfigIPTVFileSelection(fileMatch="^.*\.mvi$", default="/usr/share/enigma2/radio.mvi")
@@ -312,6 +313,7 @@ class ConfigExtMoviePlayer(ConfigBaseWidget, ConfigExtMoviePlayerBase):
         if getDesktop(0).size().width() >= 800:
             list.append(getConfigListEntry(_("Info bar clock format"), config.plugins.iptvplayer.extplayer_infobanner_clockformat))
         list.append(getConfigListEntry(_("Create LCD/VFD summary screen"), config.plugins.iptvplayer.extplayer_summary))
+        list.append(getConfigListEntry("    " + _("Cover on the LCD summary screen"), config.plugins.iptvplayer.lcd_cover))
         if 1:#IsExecutable(config.plugins.iptvplayer.exteplayer3path.value):
             list.append(getConfigListEntry(_("----------------- External exteplayer3 options -----------------"), config.plugins.iptvplayer.fakeExtePlayer3))
             list.append(getConfigListEntry("    " + _("RAM buffer size [MB] for network protocols"), config.plugins.iptvplayer.rambuffer_sizemb_network_proto))
