@@ -1,610 +1,712 @@
 # -*- coding: utf-8 -*-
-###################################################
-# LOCAL import
-###################################################
-from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
-from Plugins.Extensions.IPTVPlayer.components.ihost import CHostBase, CBaseHostClass
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, byteify, CSelOneLink
-from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
-from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import getDirectM3U8Playlist, getMPDLinksWithMeta
-
-###################################################
-from Plugins.Extensions.IPTVPlayer.p2p3.UrlParse import urljoin, parse_qs
-from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote_plus
-###################################################
-# FOREIGN import
-###################################################
+LAST_MODIFIED = "04.10.2026"
+# 03.10.2026 - rewrite for the current SVT Play APIs:
+#   contento GraphQL (api.svt.se/contento/graphql, plain POST queries - the GET
+#   variant is CDN-cached unreliably), video.svt.se/video/<svtId> for streams +
+#   WebVTT subtitles, live channels (ch-svt1 ...), A-Ö, categories, search.
+#   Many titles are geo-blocked to Sweden ("onlyAvailableInSweden"): marked in
+#   the description, optionally hidden, and a clear message when the CDN refuses.
+#   Watched flag / downloaded marker / favourites / name normalisation / sidecar.
 import re
-try:
-    import json
-except Exception:
-    import simplejson as json
-from datetime import datetime, timedelta
-from Components.config import config, ConfigSelection, ConfigYesNo, getConfigListEntry
-###################################################
 
+from Components.config import config, ConfigYesNo, getConfigListEntry
+from Plugins.Extensions.IPTVPlayer.components.ihost import CBaseHostClass, CHostBase
+from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, SetIPTVPlayerLastHostError
+from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import IsSidecarEnabled, IsMediaNamingNormalized
+from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads, dumps as json_dumps
+from Plugins.Extensions.IPTVPlayer.libs.moviemeta import getMeta
+from Plugins.Extensions.IPTVPlayer.libs.urlmetahelper import buildSidecarFromItem, applySidecarToLinks
+from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import getDirectM3U8Playlist
+from Plugins.Extensions.IPTVPlayer.tools.iptvnaming import formatSxxExx
+from Plugins.Extensions.IPTVPlayer.tools.iptvpaging import addPagingItems, isJumpItem, jumpTarget, stripPagerKeys
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc
+from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
+from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedhelper import IPTVWatchedHelper
+from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedfoldermixin import GenericFolderWatchedScraperMixin, GenericFolderWatchedHostMixin
 
-###################################################
-# Config options for HOST
-###################################################
-config.plugins.iptvplayer.svt_default_quality = ConfigSelection(default="99999999", choices=[
-("0", _("the worst")),
-("500", "360p"),
-("600", "480p"),
-("900", "720p"),
-("99999999", _("the best"))
-])
-config.plugins.iptvplayer.svt_use_default_quality = ConfigYesNo(default=False)
-config.plugins.iptvplayer.svt_prefered_format = ConfigSelection(default="hls", choices=[
-("hls", _("HLS/m3u8")),
-("dash", _("DASH/mpd"))
-])
+config.plugins.iptvplayer.svtplayse_hide_geo = ConfigYesNo(default=False)
 
 
 def GetConfigList():
     optionList = []
-    optionList.append(getConfigListEntry(_("Default video quality:"), config.plugins.iptvplayer.svt_default_quality))
-    optionList.append(getConfigListEntry(_("Use default video quality:"), config.plugins.iptvplayer.svt_use_default_quality))
-    optionList.append(getConfigListEntry(_("Preferred format:"), config.plugins.iptvplayer.svt_prefered_format))
-
+    optionList.append(getConfigListEntry(_("Hide titles only available in Sweden") + ":", config.plugins.iptvplayer.svtplayse_hide_geo))
     return optionList
-###################################################
 
 
 def gettytul():
-    return 'https://svtplay.se/'
+    return "https://www.svtplay.se/"
 
 
-class SVTPlaySE(CBaseHostClass):
+GRAPHQL_URL = "https://api.svt.se/contento/graphql?ua=svtplaywebb-play-render-prod-client"
+VIDEO_API_URL = "https://video.svt.se/video/%s"
+IMAGE_URL = "https://www.svtstatic.se/image/medium/%s/%s/%s"
+PAGE_SIZE = 40
+AZ_PAGE_SIZE = 100
+
+SERIES_TYPES = ("TvSeries", "TvShow", "KidsTvShow")
+VIDEO_TYPES = ("Single", "Episode", "Clip", "Trailer", "Variant")
+# start page rows that only make sense with an SVT account / are not playable yet
+SKIP_SELECTION_TYPES = ("keepWatching", "favorites", "personalRecommendations", "upcoming")
+# accessibility / audio flags SVT files under "genres"
+NON_GENRES = ("Tydligare tal", "Uppläst undertext", "5.1", "Dolby Atmos", "Syntolkat", "Teckenspråk", "Kristallen", "Duo")
+# HLS masters in order of preference (AVC only, TS segments first)
+HLS_FORMATS = ("hls-ts-full", "hls", "hls-cmaf-avc", "hls-cmaf-live", "hls-cmaf-full")
+
+VIDEO_ID_RE = re.compile(r'/video/([A-Za-z0-9_-]+)')
+CHANNEL_RE = re.compile(r'/kanaler/([A-Za-z0-9_-]+)')
+SEASON_ID_RE = re.compile(r'^season-(\d+)-')
+POSITION_RE = re.compile(r'S\S*song\s+(\d+)\D+?Avsnitt\s+(\d+)', re.I)
+
+TEASER_FRAGMENT = ("fragment T on Teaser { heading subHeading description durationFormatted liveNow image { id changed } "
+                   "item { __typename svtId name slug urls { svtplay } restrictions { onlyAvailableInSweden drmCopyProtection } "
+                   "... on Episode { number positionInSeason productionYear live { liveNow } parent { name } } "
+                   "... on Single { productionYear originalProgramTitle genres { name } live { liveNow } } } } ")
+
+
+class SVTPlaySE(GenericFolderWatchedScraperMixin, CBaseHostClass):
+    # letter / cat_id: the A-Ö letter and category folders are good_for_fav too and need them to open again
+    FAV_FIELDS = ("name", "category", "type", "url", "title", "s_title", "video_id", "slug", "sel_id", "season", "episode",
+                  "letter", "cat_id", "icon", "desc", "svt_type", "geo", "live", "meta_type", "meta_title", "meta_year")
 
     def __init__(self):
-        CBaseHostClass.__init__(self, {'history': 'SVTPlaySE.tv', 'cookie': 'svtplayse.cookie'})
-        self.HEADER = {'User-Agent': 'Mozilla/5.0', 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 'Accept-Encoding': 'gzip, deflate'}
-        self.AJAX_HEADER = dict(self.HEADER)
-        self.AJAX_HEADER.update({'X-Requested-With': 'XMLHttpRequest'})
-        self.cm.HEADER = self.HEADER # default header
-        self.defaultParams = {'header': self.HEADER, 'use_cookie': True, 'load_cookie': True, 'save_cookie': True, 'cookiefile': self.COOKIE_FILE}
+        CBaseHostClass.__init__(self, {"history": "svtplayse", "cookie": "svtplayse.cookie"})
+        self.HEADER = self.cm.getDefaultHeader(browser="chrome")
+        self.HEADER.update({"Referer": "https://www.svtplay.se/", "Origin": "https://www.svtplay.se"})
+        self.defaultParams = {"header": self.HEADER}
+        self.MAIN_URL = gettytul()
+        self.azCache = None
+        self.MENU = [{"category": "svt_selection", "title": _("Popular"), "sel_id": "popular_start"},
+                     {"category": "svt_selection", "title": _("Latest"), "sel_id": "latest_start"},
+                     {"category": "svt_selection", "title": _("Last chance"), "sel_id": "lastchance_start"},
+                     {"category": "svt_start", "title": _("Home page")},
+                     {"category": "svt_channels", "title": _("Live channels")},
+                     {"category": "svt_selection", "title": _("Live streams"), "sel_id": "live_start"},
+                     {"category": "svt_az_letters", "title": "A-Ö"},
+                     {"category": "svt_categories", "title": _("Categories")}] + self.searchItems()
 
-        self.MAIN_URL = 'https://www.svtplay.se/'
-        self.DEFAULT_ICON_URL = 'https://upload.wikimedia.org/wikipedia/en/5/54/SVT_Play.png'
+        self.watchedHelper = IPTVWatchedHelper("svtplayse")
+        self.wfInitFolderCache()
 
-        self.MAIN_CAT_TAB = [
-                             #{'category':'list_items2',        'title': 'POPULÄRT',                            'url':'/populara'        },
-                             #{'category':'list_items2',        'title': 'SENASTE PROGRAM',                     'url':'/senaste'         },
-                             #{'category':'list_items2',        'title': 'SISTA CHANSEN',                       'url':'/sista-chansen'   },
-                             #{'category':'list_items2',        'title': 'LIVESÄNDNINGAR',                      'url':'/live'            },
-
-                             {'category': 'list_items', 'title': _('Popular'), 'url': '/popular'},
-                             {'category': 'list_items', 'title': _('Latest programs'), 'url': '/latest'},
-                             {'category': 'list_items', 'title': _('Latest news broadcast'), 'url': '/cluster_latest?cluster=nyheter'},
-                             {'category': 'list_items', 'title': _('Last chance'), 'url': '/last_chance'},
-                             {'category': 'list_items', 'title': _('Live broadcasts'), 'url': '/live'},
-                             {'category': 'list_channels', 'title': _('Channels'), 'url': '/kanaler'},
-                             {'category': 'list_az_menu', 'title': _('Programs A-Ö'), 'url': '/program'},   #/all_titles
-                             {'category': 'list_items', 'title': _('Categories'), 'url': '/active_clusters'},
-
-                             {'category': 'search', 'title': _('Search'), 'search_item': True, 'icon': 'https://raw.githubusercontent.com/vonH/plugin.video.iplayerwww/master/media/search.png'},
-                             {'category': 'search_history', 'title': _('Search history'), }]
-        self.itemsPerPage = 48
-        self.programsAZCache = {'keys': [], 'dict': {}}
-
-    def getFullApiUrl(self, url):
-        if url.startswith('/'):
-            url = '/api' + url
-        return self.getFullUrl(url)
-
-    def getIcon(self, item):
+    ###################################################
+    # watched flag
+    ###################################################
+    def _getWatchedKeyForItem(self, cItem):
         try:
-            url = item.get('poster', '')
-            if url == '' or url == None:
-                url = item.get('thumbnail', '')
-            if url == '' or url == None:
-                url = item.get('thumbnailImage', '')
-            if url != None and url != '':
-                url = url.replace('{format}', 'medium')
+            if not isinstance(cItem, dict) or cItem.get("live"):
+                return ""
+            category = cItem.get("category", "")
+            url = str(cItem.get("url", "") or "").strip()
+            if cItem.get("type", "") in ("video", "audio"):
+                return "video:%s" % url if url else ""
+            if category == "svt_series":
+                return "series:%s" % url if url else ""
+            if category == "svt_season":
+                slug = str(cItem.get("slug", "") or "").strip()
+                selId = str(cItem.get("sel_id", "") or "").strip()
+                return "season:%s|%s" % (slug, selId) if slug and selId else ""
+            return ""
         except Exception:
             printExc()
-            url = ''
-        return str(self.getFullIconUrl(url))
+        return ""
 
-    def listMainMenu(self, cItem, nextCategory):
-        printDBG("SVTPlaySE.listMainMenu")
-        self.listsTab(self.MAIN_CAT_TAB, cItem)
-
-    def listAZMenu(self, cItem, nextCategory):
-        self.programsAZCache = {'keys': [], 'dict': {}}
-
-        url = self.getFullUrl(cItem['url'])
-
-        sts, data = self.cm.getPage(url, self.defaultParams)
+    ###################################################
+    # API helpers
+    ###################################################
+    def _gql(self, query, variables=None):
+        params = dict(self.defaultParams)
+        params["header"] = dict(self.HEADER)
+        params["header"].update({"Content-Type": "application/json", "Accept": "application/json"})
+        params["raw_post_data"] = True
+        sts, data = self.cm.getPage(GRAPHQL_URL, params, json_dumps({"query": query, "variables": variables or {}}))
         if not sts:
-            return
-
-        data = self.cm.ph.getDataBeetwenMarkers(data, "root['__svtplay'] = ", ";\n", withMarkers=False)[1]
+            return {}
         try:
-            data = byteify(json.loads(data))
-            data = data['programsPage']['alphabeticList']
-            for item in data:
-                letter = item['letter']
-                self.programsAZCache['keys'].append(letter)
-                self.programsAZCache['dict'][letter] = []
-                for program in item['titles']:
-                    self.programsAZCache['dict'][letter].append(program)
+            data = json_loads(data)
+            if data.get("errors"):
+                printDBG("SVTPlaySE._gql errors: %s" % data["errors"])
+            return data.get("data") or {}
         except Exception:
             printExc()
+        return {}
 
-        params = {'good_for_fav': False, 'category': nextCategory, 'title': _('--All--'), 'letters': list(self.programsAZCache['keys'])}
-        self.addDir(params)
+    def _imageUrl(self, image, width=400):
+        try:
+            if isinstance(image, dict) and image.get("id") and image.get("changed"):
+                return IMAGE_URL % (width, image["id"], image["changed"])
+        except Exception:
+            printExc()
+        return ""
 
-        for letter in self.programsAZCache['keys']:
-            params = {'good_for_fav': False, 'category': nextCategory, 'title': letter, 'letters': [letter]}
+    def _fullUrl(self, path):
+        if not path:
+            return ""
+        if path.startswith("http"):
+            return path
+        return self.MAIN_URL.rstrip("/") + "/" + path.lstrip("/")
+
+    def _hideGeo(self):
+        try:
+            return config.plugins.iptvplayer.svtplayse_hide_geo.value
+        except Exception:
+            return False
+
+    def _geoLabel(self):
+        return _("Only available in %s") % _("Sweden")
+
+    def _movieTitle(self, title, year):
+        if IsMediaNamingNormalized() and year:
+            return "%s (%s)" % (title, year)
+        return title
+
+    def _episodeTitle(self, show, epName, season, episode):
+        epName = (epName or "").strip()
+        if IsMediaNamingNormalized() and season and episode:
+            # "3. Dag 3 - ..." -> "Dag 3 - ..." (the number lives in SxxExx now)
+            epName = re.sub(r'^\d+\.\s*', '', epName)
+            title = "%s - %s" % (show, formatSxxExx(season, episode))
+            return "%s - %s" % (title, epName) if epName else title
+        if not show or show == epName:
+            return epName or show
+        return "%s - %s" % (show, epName) if epName else show
+
+    def _seasonEpisode(self, item, selId=""):
+        season = ""
+        episode = ""
+        match = SEASON_ID_RE.search(selId or "")
+        if match:
+            season = match.group(1)
+        pos = POSITION_RE.search(item.get("positionInSeason") or "")
+        if pos:
+            season = season or pos.group(1)
+            episode = pos.group(2)
+        if season and not episode and item.get("number"):
+            episode = str(item["number"])
+        return season, episode
+
+    ###################################################
+    # rows
+    ###################################################
+    def _addTeaser(self, cItem, teaser, show="", selId=""):
+        item = teaser.get("item") or {}
+        itemType = item.get("__typename", "")
+        path = (item.get("urls") or {}).get("svtplay", "")
+        if not path:
+            return False
+        restrictions = item.get("restrictions") or {}
+        if restrictions.get("drmCopyProtection"):
+            # Widevine-only streams can't be played on enigma2
+            return False
+        geo = bool(restrictions.get("onlyAvailableInSweden"))
+        if geo and self._hideGeo():
+            return False
+        heading = self.cleanHtmlStr(teaser.get("heading") or "")
+        name = self.cleanHtmlStr(item.get("name") or "")
+        icon = self._imageUrl(teaser.get("image")) or cItem.get("icon", "")
+        desc = []
+        sub = self.cleanHtmlStr(teaser.get("description") or teaser.get("subHeading") or "")
+        if teaser.get("liveNow") or (item.get("live") or {}).get("liveNow"):
+            desc.append(_("On Air"))
+        if teaser.get("durationFormatted") and teaser["durationFormatted"] not in sub:
+            desc.append(teaser["durationFormatted"])
+        if geo:
+            desc.append(self._geoLabel())
+        descText = " | ".join(desc)
+        if sub:
+            descText = "%s\n%s" % (descText, sub) if descText else sub
+
+        params = stripPagerKeys(dict(cItem), ("search_pattern", "letter", "cat_id", "sel_id", "season", "episode", "video_id"))
+        params.update({"good_for_fav": True, "url": self._fullUrl(path), "icon": icon, "desc": descText,
+                       "svt_type": itemType, "geo": geo, "live": False})
+        if itemType in SERIES_TYPES:
+            title = heading or name
+            params.update({"category": "svt_series", "title": title, "s_title": title, "slug": path.strip("/").split("/")[0],
+                           "meta_type": "tv", "meta_title": title, "meta_year": ""})
             self.addDir(params)
-
-    def listAZ(self, cItem, nextCategory):
-
-        letters = cItem.get('letters', [])
-        for letter in letters:
-            for item in self.programsAZCache['dict'].get(letter, []):
-                try:
-                    title = self.cleanHtmlStr(item['programTitle'])
-                    url = item['contentUrl']
-                    descTab = []
-                    if item.get('onlyAvailableInSweden', False):
-                        descTab.append(_('Only available in Sweden.'))
-                    if item.get('closedCaptioned', False):
-                        descTab.append(_('With closed captioned.'))
-                    params = dict(cItem)
-                    params.update({'good_for_fav': True, 'category': nextCategory, 'title': title, 'url': self.getFullUrl(url), 'desc': '[/br]'.join(descTab)})
-                    self.addDir(params)
-                except Exception:
-                    printExc()
-
-    def listChannels(self, cItem):
-        url = self.getFullUrl(cItem['url'])
-
-        OFFSET = datetime.now() - datetime.utcnow()
-
-        def _parseDate(dateStr):
-            date = datetime.strptime(dateStr[:-7], "%Y-%m-%dT%H:%M:%S")
-            offsetDir = dateStr[-6]
-            offsetHours = int(dateStr[-5:-3])
-            offsetMins = int(dateStr[-2:])
-            if offsetDir == "+":
-                offsetHours = -offsetHours
-                offsetMins = -offsetMins
-            utc_date = date + timedelta(hours=offsetHours, minutes=offsetMins) + OFFSET
-            if utc_date.time().second == 59:
-                utc_date = utc_date + timedelta(0, 1)
-            return utc_date
-
-        sts, data = self.cm.getPage(url, self.defaultParams)
-        if not sts:
-            return
-
-        data = self.cm.ph.getDataBeetwenMarkers(data, "root['__svtplay'] = ", ";\n", withMarkers=False)[1]
-        try:
-            data = byteify(json.loads(data))
-            for key in data['channelsPage']['schedule']:
-                try:
-                    item = data['channelsPage']['schedule'][key]
-                    if 'channelName' in item and 'channel' in item:
-                        if 'poster' in item and self.cm.isValidUrl(str(item['poster'])):
-                            icon = item['poster']
-                        else:
-                            icon = ''
-
-                        # get description
-                        descTab = []
-                        try:
-                            utc_date = _parseDate(item['publishingTime'])
-                            if utc_date.day == datetime.now().day:
-                                timeHeader = utc_date.strftime('%H:%M:%S')
-                            else:
-                                timeHeader = utc_date.strftime('%Y-%m-%d %H:%M:%S')
-                            descTab.append('%s %s' % (timeHeader, self.cleanHtmlStr(item['programmeTitle'])))
-                            desc = self.cleanHtmlStr(item.get('description', ''))
-                            if desc != '':
-                                descTab.append(desc)
-                            descTab.append('')
-                        except Exception:
-                            printExc()
-
-                        self.addVideo({'title': item['channelName'], 'url': self.getFullUrl('/kanaler/' + item['channel']), 'icon': icon, 'desc': '[/br]'.join(descTab)})
-                except Exception:
-                    printExc()
-
-        except Exception:
-            printExc()
-
-    def listItems(self, cItem, nextCategory):
-        printDBG("SVTPlaySE.listItems")
-
-        url = cItem['url']
-        page = cItem.get('page', 1)
-        if page > 1:
-            if '?' in url:
-                url += '&'
-            else:
-                url += '?'
-            url += 'page=%s&pageSize=%s' % (page, self.itemsPerPage)
-
-        url = self.getFullApiUrl(url)
-        sts, data = self.cm.getPage(url, self.defaultParams)
-        if not sts:
-            return
-
-        nextPage = False
-        try:
-            data = byteify(json.loads(data))
-
-            try:
-                if page < data.get('totalPages', 0):
-                    nextPage = True
-            except Exception:
-                pass
-
-            if 'data' in data:
-                data = data['data']
-
-            for item in data:
-                title = self.cleanHtmlStr(item.get('programTitle', ''))
-                url = self.getFullUrl(item['contentUrl'])
-                desc = item.get('description', '')
-                if desc == None:
-                    desc = ''
-                else:
-                    self.cleanHtmlStr(desc)
-                icon = self.getIcon(item)
-
-                descTab = []
-                if item.get('onlyAvailableInSweden', False):
-                    descTab.append(_('Only available in Sweden.\n'))
-                descTab.append(desc)
-
-                if str(item.get('titleType')) == 'SERIES_OR_TV_SHOW':
-                    title += ' ' + self.cleanHtmlStr(item.get('title', ''))
-
-                if title == '':
-                    title = item.get('name', '')
-
-                params = {'good_for_fav': True, 'title': title, 'url': url, 'icon': icon, 'desc': '[/br]'.join(descTab)}
-                #if not item.get('hasEpisodes', False):
-                if '/klipp/' in url or '/video/' in url:
-                    self.addVideo(params)
-                else:
-                    params['category'] = nextCategory
-                    self.addDir(params)
-        except Exception:
-            printExc()
-
-        if nextPage:
-            params = dict(cItem)
-            params.update({'good_for_fav': False, 'title': _('Next page'), 'page': page + 1})
-            self.addDir(params)
-
-    def explorePage(self, cItem, nextCategory):
-        printDBG("SVTPlaySE.explorePage")
-
-        url = self.getFullUrl(cItem['url'])
-
-        sts, data = self.cm.getPage(url, self.defaultParams)
-        if not sts:
-            return
-
-        tmp = self.cm.ph.getAllItemsBeetwenMarkers(data, '<section', '</section>', withMarkers=True)
-        for sectionData in tmp:
-            m1 = '<h2 class="play_grid'
-            if 'sok?q=' in url and m1 in sectionData:
-                sections = sectionData.split(m1)
-                for idx in range(1, len(sections)):
-                    sections[idx] = '<h2 ' + sections[idx]
-            else:
-                sections = [sectionData]
-
-            for section in sections:
-                idx = section.find('<article')
-                if idx < 0:
-                    continue
-                title = section[0:idx]
-                title = self.cleanHtmlStr(self.cm.ph.getDataBeetwenMarkers(title, '<h2', '</h2>', withMarkers=True)[1])
-                if title == '':
-                    continue
-                articleItems = self.getArticleItems(section[idx:])
-                if len(articleItems):
-                    params = dict(cItem)
-                    params.update({'good_for_fav': False, 'category': 'list_section_items', 'title': title, 'article_items': articleItems})
-                    self.addDir(params)
-
-        # list tabs if available
-        data = self.cm.ph.getAllItemsBeetwenMarkers(data, '<li class="play_tab-list', '</li>', withMarkers=True)
-        for item in data:
-            title = self.cleanHtmlStr(item)
-            url = self.cm.ph.getSearchGroups(item, '''href=['"]([^'^"]+?)['"]''')[0]
-            if url == '':
-                tmp = self.cm.ph.getSearchGroups(item, '''<a[^>]+?id=['"]([^'^"]+?)['"]''')[0].split('-')
-                if len(tmp) >= 2:
-                    url = '?%s=%s' % (tmp[-1], '-'.join(tmp[0:-1]))
-            if url.startswith('?'):
-                url = cItem['url'] + url
-
-            params = dict(cItem)
-            if 'klip' not in url:
-                params['program_title'] = cItem['title']
-            params.update({'good_for_fav': False, 'category': nextCategory, 'title': title, 'url': url})
-            self.addDir(params)
-
-    def listSectionItems(self, cItem, nextCategory):
-        printDBG("SVTPlaySE.listSections")
-
-        baseParams = dict(cItem)
-        del baseParams['article_items']
-        data = cItem.get('article_items', [])
-        for item in data:
-            params = dict(baseParams)
-            params.update(item)
-            if params['type'] == 'category':
-                params['category'] = nextCategory
-            params['good_for_fav'] = True
-            self.currList.append(params)
-
-    def getArticleItems(self, data):
-        retTab = []
-        data = self.cm.ph.getAllItemsBeetwenMarkers(data, '<article', '</article>', withMarkers=True)
-        for item in data:
-            title = self.cleanHtmlStr(self.cm.ph.getDataBeetwenReMarkers(item, re.compile('<h'), re.compile('</h[0-9]>'), withMarkers=True)[1])
-            url = self.cm.ph.getSearchGroups(item, '''href=['"]([^'^"]+?)['"]''')[0]
-            icon = self.cm.ph.getSearchGroups(item, '''data-src=['"]([^'^"]+?)['"]''')[0]
-            if icon == '':
-                icon = self.cm.ph.getSearchGroups(item, '''src=['"]([^'^"]+?)['"]''')[0]
-            descTab = []
-            if '-geo-block' in item:
-                descTab.append(_('Only available in Sweden.'))
-            tmp = self.cm.ph.getAllItemsBeetwenMarkers(item, '<p', '</p>', withMarkers=True)
-            for desc in tmp:
-                descTab.append(self.cleanHtmlStr(desc))
-
-            params = {'title': title, 'url': url, 'icon': self.getFullIconUrl(icon), 'desc': '[/br]'.join(descTab)}
-            if '/klipp/' in url or '/video/' in url:
-                params['type'] = 'video'
-            else:
-                params['type'] = 'category'
-            retTab.append(params)
-        return retTab
-
-    def listTabItems(self, cItem, nextCategory):
-        printDBG("SVTPlaySE.listTabItems")
-
-        url = cItem['url']
-        page = cItem.get('page', 1)
-        if page > 1:
-            if '?' in url:
-                url += '&'
-            else:
-                url += '?'
-            url += 'sida=%s' % (page)
-
-        url = self.getFullUrl(url)
-        sts, data = self.cm.getPage(url, self.defaultParams)
-        if not sts:
-            return
-
-        # select related section
-        sections = self.cm.ph.getAllItemsBeetwenMarkers(data, '<section', '</section>', withMarkers=True)
-        sectionIdx = -1
-        for idx in range(len(sections)):
-            if 'id="related"' in sections[idx]:
-                sectionIdx = idx
-                break
-        if sectionIdx >= 0:
-            data = sections[sectionIdx]
+            return True
+        if itemType not in VIDEO_TYPES:
+            return False
+        videoId = item.get("svtId", "")
+        match = VIDEO_ID_RE.search(path)
+        if match:
+            videoId = match.group(1)
+        params["video_id"] = videoId
+        if itemType == "Episode":
+            showName = show or self.cleanHtmlStr((item.get("parent") or {}).get("name") or "") or heading
+            season, episode = self._seasonEpisode(item, selId)
+            epName = name if name and name != showName else (heading if heading != showName else "")
+            params.update({"category": "svt_video", "title": self._episodeTitle(showName, epName, season, episode),
+                           "s_title": showName, "season": season, "episode": episode,
+                           "meta_type": "", "meta_title": showName, "meta_year": ""})
+        elif itemType == "Single":
+            year = str(item.get("productionYear") or "")
+            isFilm = "Filmer" in [g.get("name") for g in (item.get("genres") or [])]
+            title = name or heading
+            params.update({"category": "svt_video", "title": self._movieTitle(title, year) if isFilm else title, "s_title": title,
+                           "meta_type": "movie" if isFilm else "", "meta_title": self.cleanHtmlStr(item.get("originalProgramTitle") or "") or title,
+                           "meta_year": year})
         else:
-            data = self.cm.ph.getDataBeetwenMarkers(data, '<ul class="play_tab-list', '</section>', withMarkers=True)[1]
-
-        del sections
-
-        if '' != self.cm.ph.getSearchGroups(data, '''sida=(%s)[^0-9]''' % (page + 1))[0]:
-            nextPage = True
-        else:
-            nextPage = False
-
-        data = self.getArticleItems(data)
-        for item in data:
-            params = dict(cItem)
-            params.update(item)
-            if 'program_title' in cItem and cItem['program_title'] not in params['title']:
-                params['title'] = cItem['program_title'] + ' - ' + params['title']
-            if params['type'] == 'category':
-                params['category'] = nextCategory
-            params['good_for_fav'] = True
-            self.currList.append(params)
-
-        if nextPage:
-            params = dict(cItem)
-            params.update({'good_for_fav': False, 'title': _('Next page'), 'page': page + 1})
-            self.addDir(params)
-
-    def listSearchResult(self, cItem, searchPattern, searchType):
-        printDBG("SVTPlaySE.listSearchResult cItem[%s], searchPattern[%s] searchType[%s]" % (cItem, searchPattern, searchType))
-
-        baseUrl = self.getFullUrl('sok?q=' + urllib_quote_plus(searchPattern))
-        cItem = dict(cItem)
-        cItem['url'] = baseUrl
-        self.explorePage(cItem, 'list_tab_items')
-
-    def getLinksForVideo(self, cItem):
-        printDBG("SVTPlaySE.getLinksForVideo [%s]" % cItem)
-        videoUrls = []
-
-        hlsUrl = cItem.get('hls_url')
-        dashUrl = cItem.get('dash_url')
-
-        subtitlesTab = []
-
-        if hlsUrl == None or dashUrl == None:
-            if 'api' not in self.up.getDomain(cItem['url']):
-                url = self.getFullUrl(cItem['url'])
-                sts, data = self.cm.getPage(url, self.defaultParams)
-                if not sts:
-                    return []
-                videoId = self.cm.ph.getSearchGroups(data, '<video\s+?data-video-id="([^"]+?)"')[0]
-                url = 'https://api.svt.se/video/' + videoId
-            else:
-                url = cItem['url']
-
-            sts, data = self.cm.getPage(url, self.defaultParams)
-            if not sts:
-                return []
-
-            printDBG(data)
-
-            try:
-                data = byteify(json.loads(data))
-
-                videoItem = data.get('video', None)
-                if videoItem == None:
-                    videoItem = data
-                for item in videoItem['videoReferences']:
-                    if self.cm.isValidUrl(item['url']):
-                        if 'dashhbbtv' in item['format']:
-                            dashUrl = item['url']
-                        elif 'hls' in item['format']:
-                            hlsUrl = item['url']
-
-                for item in videoItem['subtitleReferences']:
-                    format = item['url'][-3:]
-                    if format in ['srt', 'vtt']:
-                        subtitlesTab.append({'title': format, 'url': self.getFullIconUrl(item['url']), 'lang': 'n/a', 'format': format})
-            except Exception:
-                printExc()
-
-        tmpTab = []
-        if config.plugins.iptvplayer.svt_prefered_format.value == 'hls':
-            tmpTab.append(hlsUrl)
-            tmpTab.append(dashUrl)
-        else:
-            tmpTab.append(dashUrl)
-            tmpTab.append(hlsUrl)
-
-        max_bitrate = int(config.plugins.iptvplayer.svt_default_quality.value)
-        for item in tmpTab:
-            if item == '':
-                continue
-            if item == dashUrl:
-                item = getMPDLinksWithMeta(item, False)
-            elif item == hlsUrl:
-                vidTab = []
-                # item = strwithmeta(item, {'X-Forwarded-For':'83.172.75.170'})
-                try:
-                    tmp = urlparse(item)
-                    tmp = parse_qs(tmp.query)['alt'][0]
-                    vidTab = getDirectM3U8Playlist(tmp, False, checkContent=True)
-                except Exception:
-                    printExc()
-                if 0 == len(vidTab):
-                    item = getDirectM3U8Playlist(item, False, checkContent=True)
-                else:
-                    item = vidTab
-            else:
-                continue
-
-            if len(item):
-                def __getLinkQuality(itemLink):
-                    try:
-                        return int(itemLink['height'])
-                    except Exception:
-                        return 0
-                item = CSelOneLink(item, __getLinkQuality, max_bitrate).getSortedLinks()
-                if config.plugins.iptvplayer.svt_use_default_quality.value:
-                    videoUrls.append(item[0])
-                    break
-                videoUrls.extend(item)
-
-        if len(subtitlesTab):
-            for idx in range(len(videoUrls)):
-                videoUrls[idx]['url'] = strwithmeta(videoUrls[idx]['url'], {'external_sub_tracks': subtitlesTab})
-                videoUrls[idx]['need_resolve'] = 0
-
-        return videoUrls
-
-    def getVideoLinks(self, url):
-        printDBG("SVTPlaySE.getVideoLinks [%s]" % url)
-        retTab = []
-        url = strwithmeta(url)
-        return retTab
-
-    def getFavouriteData(self, cItem):
-        printDBG('SVTPlaySE.getFavouriteData')
-        return json.dumps(cItem)
-
-    def getLinksForFavourite(self, fav_data):
-        printDBG('SVTPlaySE.getLinksForFavourite')
-        links = []
-        try:
-            cItem = byteify(json.loads(fav_data))
-            links = self.getLinksForVideo(cItem)
-        except Exception:
-            printExc()
-        return links
-
-    def setInitListFromFavouriteItem(self, fav_data):
-        printDBG('SVTPlaySE.setInitListFromFavouriteItem')
-        try:
-            params = byteify(json.loads(fav_data))
-        except Exception:
-            params = {}
-            printExc()
-        self.addDir(params)
+            title = heading if heading and heading != name and name else (name or heading)
+            if heading and name and heading != name:
+                title = "%s - %s" % (heading, name)
+            params.update({"category": "svt_video", "title": title, "s_title": heading or name, "meta_type": "", "meta_title": "", "meta_year": ""})
+        self.addVideo(params)
         return True
 
-    def handleService(self, index, refresh=0, searchPattern='', searchType=''):
-        printDBG('handleService start')
+    ###################################################
+    # lists
+    ###################################################
+    def listSelection(self, cItem):
+        selId = cItem.get("sel_id", "")
+        page = max(1, int(cItem.get("page", 1) or 1))
+        offset = (page - 1) * PAGE_SIZE
+        printDBG("SVTPlaySE.listSelection [%s] page %s" % (selId, page))
+        query = TEASER_FRAGMENT + ("query($id:String!, $limit:Int, $offset:Int) { selectionById(id:$id) { id name "
+                                   "itemsPaginated(pagination:{limit:$limit, offset:$offset}) { totalSize items { ...T } } } }")
+        data = self._gql(query, {"id": selId, "limit": PAGE_SIZE, "offset": offset})
+        sel = data.get("selectionById") or {}
+        paginated = sel.get("itemsPaginated") or {}
+        items = paginated.get("items") or []
+        if not items and not offset:
+            # personalised start rows (e.g. "Vi rekommenderar") answer only through the start page
+            query = TEASER_FRAGMENT + "query($ids:[String!]) { startForSvtPlay { selections(includeById:$ids) { items { ...T } } } }"
+            sels = (self._gql(query, {"ids": [selId]}).get("startForSvtPlay") or {}).get("selections") or []
+            items = (sels[0].get("items") or []) if sels else []
+            paginated = {}
+        for teaser in items:
+            self._addTeaser(cItem, teaser)
+        total = int(paginated.get("totalSize", 0) or 0)
+        lastPage = (total + PAGE_SIZE - 1) // PAGE_SIZE
+        # GraphQL offset paging: a constant template only lets "Jump" through
+        addPagingItems(self, dict(cItem, desc=""), page, bool(items) and page < lastPage, lastPage, cItem.get("url") or self.MAIN_URL)
 
-        CBaseHostClass.handleService(self, index, refresh, searchPattern, searchType)
+    def listStart(self, cItem):
+        printDBG("SVTPlaySE.listStart")
+        data = self._gql("query { startForSvtPlay { selections { id name selectionType } } }")
+        for sel in (data.get("startForSvtPlay") or {}).get("selections") or []:
+            if sel.get("selectionType") in SKIP_SELECTION_TYPES or not sel.get("id"):
+                continue
+            params = dict(cItem)
+            params.update({"good_for_fav": True, "category": "svt_selection", "title": self.cleanHtmlStr(sel.get("name") or sel["id"]),
+                           "sel_id": sel["id"], "desc": ""})
+            self.addDir(params)
 
-        name = self.currItem.get("name", '')
-        category = self.currItem.get("category", '')
-        mode = self.currItem.get("mode", '')
+    def listChannels(self, cItem):
+        printDBG("SVTPlaySE.listChannels")
+        query = ("query { channels { channels { id name drmCopyProtection logo { id changed } "
+                 "running { name subHeading startTime image { id changed } } } } }")
+        data = self._gql(query)
+        for channel in (data.get("channels") or {}).get("channels") or []:
+            chId = channel.get("id", "")
+            if not chId or channel.get("drmCopyProtection"):
+                continue
+            running = channel.get("running") or {}
+            desc = []
+            if running.get("name"):
+                now = "%s %s" % (running.get("startTime", ""), self.cleanHtmlStr(running["name"]))
+                if running.get("subHeading"):
+                    now += " - " + self.cleanHtmlStr(running["subHeading"])
+                desc.append(now.strip())
+            desc.append(self._geoLabel())
+            params = dict(cItem)
+            params.update({"good_for_fav": True, "category": "svt_channel", "title": self.cleanHtmlStr(channel.get("name") or chId),
+                           "url": self._fullUrl("kanaler/%s" % chId.replace("ch-", "", 1)), "video_id": chId, "live": True, "geo": True,
+                           "icon": self._imageUrl(running.get("image")) or self._imageUrl(channel.get("logo"), 200), "desc": "\n".join(desc)})
+            self.addVideo(params)
 
-        printDBG("handleService: |||||||||||||||||||||||||||||||||||| name[%s], category[%s] " % (name, category))
-        self.currList = []
+    def _getAZ(self):
+        if self.azCache is None:
+            query = ("query { programAtillO { selections { id name items { heading image { id changed } "
+                     "item { __typename svtId name slug urls { svtplay } restrictions { onlyAvailableInSweden drmCopyProtection } } } } } }")
+            data = self._gql(query)
+            sels = (data.get("programAtillO") or {}).get("selections") or []
+            if sels:
+                self.azCache = sels
+            return sels
+        return self.azCache
 
-    #MAIN MENU
-        if name == None:
-            self.listMainMenu({'name': 'category', 'url': self.MAIN_URL}, 'list_items')
-        elif 'live_streams' == category:
-            self.listLive(self.currItem)
-        elif 'list_channels' == category:
-            self.listChannels(self.currItem)
-        elif 'list_channel' == category:
-            self.listChannelMenu(self.currItem, 'list_items')
-        elif 'list_az_menu' == category:
-            self.listAZMenu(self.currItem, 'list_az')
-        elif 'list_az' == category:
-            self.listAZ(self.currItem, 'explore_page')
-        elif 'list_items' == category:
-            self.listItems(self.currItem, 'explore_page')
-        elif 'explore_page' == category:
-            self.explorePage(self.currItem, 'list_tab_items')
-        elif 'list_tab_items' == category:
-            self.listTabItems(self.currItem, 'explore_page')
-        elif 'list_section_items' == category:
-            self.listSectionItems(self.currItem, 'explore_page')
+    def _azTeasers(self, sel):
+        # the titles of one A-Ö letter that are listed (no DRM, geo-blocked ones only when not hidden)
+        ret = []
+        for teaser in sel.get("items") or []:
+            restrictions = (teaser.get("item") or {}).get("restrictions") or {}
+            if not restrictions.get("drmCopyProtection") and not (restrictions.get("onlyAvailableInSweden") and self._hideGeo()):
+                ret.append(teaser)
+        return ret
 
-    #SEARCH
-        elif category in ["search", "search_next_page"]:
-            cItem = dict(self.currItem)
-            cItem.update({'search_item': False, 'name': 'category'})
-            self.listSearchResult(cItem, searchPattern, searchType)
-    #HISTORIA SEARCH
-        elif category == "search_history":
-            self.listsHistory({'name': 'history', 'category': 'search'}, 'desc', _("Type: "))
+    def listAZLetters(self, cItem):
+        for sel in self._getAZ():
+            letter = sel.get("name", "")
+            count = len(self._azTeasers(sel))
+            if not letter or not count:
+                continue
+            params = dict(cItem)
+            params.update({"good_for_fav": True, "category": "svt_az", "title": "%s (%d)" % (letter, count), "letter": letter, "desc": ""})
+            self.addDir(params)
+
+    def listAZ(self, cItem):
+        # one letter holds up to ~200 titles in one answer - paged here
+        letter = cItem.get("letter", "")
+        page = max(1, int(cItem.get("page", 1) or 1))
+        for sel in self._getAZ():
+            if sel.get("name") == letter:
+                teasers = self._azTeasers(sel)
+                start = (page - 1) * AZ_PAGE_SIZE
+                for teaser in teasers[start:start + AZ_PAGE_SIZE]:
+                    self._addTeaser(cItem, teaser)
+                lastPage = (len(teasers) + AZ_PAGE_SIZE - 1) // AZ_PAGE_SIZE
+                # constant template: the page number drives the list, the template only lets "Jump" through
+                addPagingItems(self, dict(cItem, desc=""), page, page < lastPage, lastPage, self.MAIN_URL)
+                break
+
+    def listCategories(self, cItem):
+        printDBG("SVTPlaySE.listCategories")
+        data = self._gql("query { mainCategories { categories { id heading byline image { id changed } } } }")
+        for cat in (data.get("mainCategories") or {}).get("categories") or []:
+            if not cat.get("id"):
+                continue
+            params = dict(cItem)
+            params.update({"good_for_fav": True, "category": "svt_category", "title": self.cleanHtmlStr(cat.get("heading") or cat["id"]),
+                           "cat_id": cat["id"], "icon": self._imageUrl(cat.get("image")), "desc": self.cleanHtmlStr(cat.get("byline") or "")})
+            self.addDir(params)
+
+    def listCategory(self, cItem):
+        catId = cItem.get("cat_id", "")
+        printDBG("SVTPlaySE.listCategory [%s]" % catId)
+        query = "query($id:String!) { categoryPage(id:$id) { tabs { id name selections { id name selectionType } } } }"
+        data = self._gql(query, {"id": catId})
+        seen = set()
+        for tab in (data.get("categoryPage") or {}).get("tabs") or []:
+            sels = [s for s in (tab.get("selections") or []) if s.get("id") and s.get("selectionType") not in SKIP_SELECTION_TYPES]
+            for sel in sels:
+                if sel["id"] in seen:
+                    continue
+                seen.add(sel["id"])
+                title = sel.get("name") or tab.get("name") or sel["id"]
+                if len(sels) == 1 and tab.get("name"):
+                    title = tab["name"]
+                params = dict(cItem)
+                params.update({"good_for_fav": True, "category": "svt_selection", "title": self.cleanHtmlStr(title), "sel_id": sel["id"], "desc": ""})
+                self.addDir(params)
+
+    def _seriesData(self, slug):
+        query = TEASER_FRAGMENT + ("query($slugs:[String!]!) { listablesBySlug(slugs:$slugs) { __typename name image { id changed } "
+                                   "associatedContent(include:[productionPeriod, season]) { id name items { ...T } } } }")
+        data = self._gql(query, {"slugs": [slug]})
+        listables = data.get("listablesBySlug") or []
+        return listables[0] if listables else {}
+
+    def listSeasons(self, cItem):
+        slug = cItem.get("slug", "")
+        printDBG("SVTPlaySE.listSeasons [%s]" % slug)
+        series = self._seriesData(slug)
+        sels = [s for s in (series.get("associatedContent") or []) if s.get("items")]
+        show = cItem.get("s_title", "") or self.cleanHtmlStr(series.get("name") or "")
+        if len(sels) == 1:
+            for teaser in sels[0]["items"]:
+                self._addTeaser(cItem, teaser, show, sels[0].get("id", ""))
+            return
+        for sel in sels:
+            match = SEASON_ID_RE.search(sel.get("id", ""))
+            params = dict(cItem)
+            params.update({"good_for_fav": True, "category": "svt_season", "title": "%s - %s" % (show, self.cleanHtmlStr(sel.get("name") or "")),
+                           "s_title": show, "sel_id": sel.get("id", ""), "season": match.group(1) if match else "",
+                           "desc": "%s: %d" % (_("Episodes"), len(sel["items"]))})
+            self.addDir(params)
+
+    def listEpisodes(self, cItem):
+        series = self._seriesData(cItem.get("slug", ""))
+        show = cItem.get("s_title", "")
+        selId = cItem.get("sel_id", "")
+        for sel in series.get("associatedContent") or []:
+            if sel.get("id") == selId:
+                for teaser in sel.get("items") or []:
+                    self._addTeaser(cItem, teaser, show, selId)
+                break
+
+    def listSearchResult(self, cItem, searchPattern, searchType):
+        printDBG("SVTPlaySE.listSearchResult [%s]" % searchPattern)
+        query = TEASER_FRAGMENT + ("query($q:String) { searchPage(query:$q) { flat { hits { teaser { ...T } categoryTeaser { id heading } } } "
+                                   "sectioned { hits { teaser { ...T } categoryTeaser { id heading } } } } }")
+        data = self._gql(query, {"q": searchPattern})
+        page = data.get("searchPage") or {}
+        hits = list((page.get("flat") or {}).get("hits") or [])
+        if not hits:
+            for section in page.get("sectioned") or []:
+                hits.extend(section.get("hits") or [])
+        cItem = dict(cItem)
+        cItem.pop("search_pattern", None)
+        seen = set()
+        for hit in hits:
+            if hit.get("teaser"):
+                path = ((hit["teaser"].get("item") or {}).get("urls") or {}).get("svtplay", "")
+                if path in seen:
+                    continue
+                seen.add(path)
+                self._addTeaser(cItem, hit["teaser"])
+            elif (hit.get("categoryTeaser") or {}).get("id"):
+                cat = hit["categoryTeaser"]
+                params = dict(cItem)
+                params.update({"good_for_fav": True, "category": "svt_category", "title": "%s %s" % (_("Category:"), self.cleanHtmlStr(cat.get("heading") or cat["id"])),
+                               "cat_id": cat["id"], "desc": ""})
+                self.addDir(params)
+
+    ###################################################
+    # links
+    ###################################################
+    def _videoId(self, cItem):
+        videoId = cItem.get("video_id", "")
+        if videoId:
+            return videoId
+        url = cItem.get("url", "")
+        match = VIDEO_ID_RE.search(url)
+        if match:
+            return match.group(1)
+        match = CHANNEL_RE.search(url)
+        if match:
+            return "ch-" + match.group(1)
+        return ""
+
+    def getLinksForVideo(self, cItem):
+        printDBG("SVTPlaySE.getLinksForVideo [%s]" % cItem.get("url", ""))
+        videoId = self._videoId(cItem)
+        if not videoId:
+            return []
+        sts, data = self.cm.getPage(VIDEO_API_URL % videoId, self.defaultParams)
+        if not sts:
+            SetIPTVPlayerLastHostError(_("Content not available"))
+            return []
+        try:
+            data = json_loads(data)
+        except Exception:
+            printExc()
+            return []
+        rights = data.get("rights") or {}
+        geo = bool(rights.get("geoBlockedSweden"))
+        if rights.get("drmCopyProtection"):
+            SetIPTVPlayerLastHostError(_("Video with DRM protection."))
+            return []
+        live = bool(cItem.get("live")) or bool(data.get("live")) or videoId.startswith("ch-")
+
+        refs = {}
+        for ref in data.get("videoReferences") or []:
+            if ref.get("format") and ref.get("url"):
+                refs.setdefault(ref["format"], ref["url"])
+        master = ""
+        for fmt in HLS_FORMATS:
+            if refs.get(fmt):
+                master = refs[fmt]
+                break
+        if not master:
+            SetIPTVPlayerLastHostError(_("No stream available"))
+            return []
+        if not live and ("svt-live-" in master or data.get("liveStatus") == "LIVE"):
+            # a broadcast that is on air or just ended (VOD not ready yet) comes from the live origin
+            # (svt-live-event.akamaized.net/.../master-fmp4.m3u8) with "live": false - its split renditions
+            # became merge:// links that did not start, the master itself plays
+            live = True
+
+        subTracks = []
+        for sub in data.get("subtitleReferences") or []:
+            subUrl = sub.get("url", "")
+            if not subUrl or (sub.get("format") or "webvtt") != "webvtt" or not subUrl.split("?", 1)[0].endswith(".vtt"):
+                continue
+            subTracks.append({"title": sub.get("label") or sub.get("languageName") or sub.get("language") or "SV",
+                              "lang": sub.get("language") or "sv", "url": subUrl, "format": "vtt"})
+
+        geoMsg = _("This content is not available in your region.")
+        baseMeta = {"iptv_proto": "m3u8", "iptv_livestream": live, "Referer": self.MAIN_URL, "User-Agent": self.HEADER.get("User-Agent")}
+        if subTracks:
+            baseMeta["external_sub_tracks"] = subTracks
+
+        if live:
+            # live masters carry separate audio renditions - give the master straight to the player
+            sts = self.cm.getPage(master, self.defaultParams)[0]
+            if not sts and geo:
+                SetIPTVPlayerLastHostError(geoMsg)
+                return []
+            return [{"name": "HLS live", "url": strwithmeta(master, baseMeta), "need_resolve": 0}]
+
+        urlTab = []
+        hls = getDirectM3U8Playlist(strwithmeta(master, dict(baseMeta)), checkExt=False, checkContent=True, mergeAltAudio=False)
+        for item in hls:
+            videoUrl = strwithmeta(item["url"])
+            meta = dict(videoUrl.meta)
+            meta.update(baseMeta)
+            if not subTracks:
+                meta.pop("external_sub_tracks", None)
+            name = "%sp" % item.get("height") if item.get("height") else item.get("name", "HLS")
+            audios = item.get("alt_audio_streams") or []
+            if audios:
+                audio = audios[0]
+                for stream in audios:
+                    if getattr(stream, "default", False):
+                        audio = stream
+                        break
+                # split CMAF/TS renditions: mux audio + video with ffmpeg (like ARTE)
+                meta.update({"audio_url": strwithmeta(audio.absolute_uri, dict(baseMeta)), "video_url": strwithmeta(videoUrl, dict(baseMeta)),
+                             "iptv_use_ffmpeg": True, "ff_out_container": "matroska", "iptv_format": "mkv"})
+                meta.pop("iptv_proto", None)
+                url = self.up.decorateUrl("merge://audio_url|video_url", meta)
+            else:
+                url = strwithmeta(videoUrl, meta)
+            urlTab.append({"name": name, "url": url, "need_resolve": 0, "bitrate": item.get("bitrate", 0)})
+
+        if not urlTab:
+            if geo:
+                SetIPTVPlayerLastHostError(geoMsg)
+                return []
         else:
+            try:
+                urlTab.sort(key=lambda x: int(x.get("bitrate") or 0), reverse=True)
+            except Exception:
+                printExc()
+        # the master itself: adaptive, and the only option for gstplayer (no merge:// support)
+        urlTab.append({"name": "HLS (adaptive)", "url": strwithmeta(master, dict(baseMeta)), "need_resolve": 0})
+        sidecarTxt = cItem.get("desc", "")
+        return applySidecarToLinks(urlTab, buildSidecarFromItem(cItem, IsSidecarEnabled(), sidecarTxt))
+
+    def getVideoLinks(self, videoUrl):
+        return []
+
+    ###################################################
+    # info / favourites
+    ###################################################
+    def _genres(self, genres):
+        names = []
+        for genre in genres or []:
+            name = (genre or {}).get("name", "")
+            if name and name not in NON_GENRES and name not in names:
+                names.append(name)
+        return ", ".join(names)
+
+    def getArticleContent(self, cItem):
+        printDBG("SVTPlaySE.getArticleContent [%s]" % cItem.get("url", ""))
+        title = cItem.get("title", "")
+        text = cItem.get("desc", "")
+        icon = cItem.get("icon", "")
+        otherInfo = {}
+        category = cItem.get("category", "")
+        try:
+            if category in ("svt_series", "svt_season"):
+                query = ("query($slugs:[String!]!) { listablesBySlug(slugs:$slugs) { __typename name longDescription image { id changed } "
+                         "restrictions { onlyAvailableInSweden } ... on Content { genres { name } countriesOfOriginWithNames { name } } "
+                         "... on TvSeries { seasons { number } } } }")
+                listables = self._gql(query, {"slugs": [cItem.get("slug", "")]}).get("listablesBySlug") or []
+                if listables:
+                    info = listables[0]
+                    text = self.cleanHtmlStr(info.get("longDescription") or "") or text
+                    icon = self._imageUrl(info.get("image"), 800) or icon
+                    if info.get("genres"):
+                        otherInfo["genres"] = self._genres(info["genres"])
+                    countries = ", ".join([c.get("name", "") for c in info.get("countriesOfOriginWithNames") or [] if c.get("name")])
+                    if countries:
+                        otherInfo["country"] = countries
+                    if info.get("seasons"):
+                        otherInfo["seasons"] = str(len(info["seasons"]))
+                    otherInfo["status"] = self._geoLabel() if (info.get("restrictions") or {}).get("onlyAvailableInSweden") else _("Available worldwide")
+            elif category == "svt_video" and not self._videoId(cItem).startswith("ch-"):
+                query = ("query($ids:[String!]) { listables(ids:$ids) { __typename name longDescription image { id changed } "
+                         "restrictions { onlyAvailableInSweden } "
+                         "... on Single { productionYear duration originalProgramTitle genres { name } countriesOfOriginWithNames { name } validToFormatted } "
+                         "... on Episode { productionYear duration genres { name } validToFormatted positionInSeason parent { name } } "
+                         "... on Clip { duration validToFormatted } } }")
+                listables = self._gql(query, {"ids": [self._videoId(cItem)]}).get("listables") or []
+                if listables:
+                    info = listables[0]
+                    text = self.cleanHtmlStr(info.get("longDescription") or "") or text
+                    icon = self._imageUrl(info.get("image"), 800) or icon
+                    if info.get("productionYear"):
+                        otherInfo["year"] = str(info["productionYear"])
+                    if info.get("duration"):
+                        otherInfo["duration"] = "%d min" % max(1, int(info["duration"]) // 60)
+                    if info.get("genres"):
+                        otherInfo["genres"] = self._genres(info["genres"])
+                    countries = ", ".join([c.get("name", "") for c in info.get("countriesOfOriginWithNames") or [] if c.get("name")])
+                    if countries:
+                        otherInfo["country"] = countries
+                    if info.get("originalProgramTitle") and info["originalProgramTitle"] != cItem.get("s_title", ""):
+                        otherInfo["original_title"] = info["originalProgramTitle"]
+                    if info.get("validToFormatted"):
+                        otherInfo["remaining"] = info["validToFormatted"]
+                    if info.get("positionInSeason"):
+                        otherInfo["episodes"] = info["positionInSeason"]
+                    otherInfo["status"] = self._geoLabel() if (info.get("restrictions") or {}).get("onlyAvailableInSweden") else _("Available worldwide")
+            elif category == "svt_channel":
+                otherInfo["status"] = self._geoLabel()
+        except Exception:
             printExc()
 
+        if cItem.get("meta_type") in ("movie", "tv") and cItem.get("meta_title"):
+            # films and series: the SVT text stays, moviemeta adds rating / cast / director
+            try:
+                meta = getMeta(cItem["meta_type"], cItem["meta_title"], cItem.get("meta_year", ""))
+            except Exception:
+                printExc()
+                meta = {}
+            for key, value in (meta.get("info", {}) or {}).items():
+                if value:
+                    otherInfo.setdefault(key, value)
+            if not icon:
+                icon = meta.get("poster", "")
+            if not text:
+                text = meta.get("plot", "")
+        return [{"title": title, "text": text,
+                 "images": [{"title": "", "url": icon}] if icon else [],
+                 "other_info": otherInfo}]
+
+    def getFavouriteData(self, cItem):
+        try:
+            if cItem.get("category", "").startswith("svt_"):
+                return json_dumps(dict((key, cItem[key]) for key in self.FAV_FIELDS if key in cItem))
+        except Exception:
+            printExc()
+        return CBaseHostClass.getFavouriteData(self, cItem)
+
+    def handleService(self, index, refresh=0, searchPattern="", searchType=""):
+        CBaseHostClass.handleService(self, index, refresh, searchPattern, searchType)
+        if isJumpItem(self.currItem):
+            self.currItem = jumpTarget(self, self.currItem)
+        name = self.currItem.get("name", "")
+        category = self.currItem.get("category", "")
+        printDBG("SVTPlaySE.handleService name[%s] category[%s]" % (name, category))
+        self.currList = []
+        if name is None:
+            self.listsTab(self.MENU, {"name": "category"})
+        elif category == "svt_selection":
+            self.listSelection(self.currItem)
+        elif category == "svt_start":
+            self.listStart(self.currItem)
+        elif category == "svt_channels":
+            self.listChannels(self.currItem)
+        elif category == "svt_az_letters":
+            self.listAZLetters(self.currItem)
+        elif category == "svt_az":
+            self.listAZ(self.currItem)
+        elif category == "svt_categories":
+            self.listCategories(self.currItem)
+        elif category == "svt_category":
+            self.listCategory(self.currItem)
+        elif category == "svt_series":
+            self.listSeasons(self.currItem)
+        elif category == "svt_season":
+            self.listEpisodes(self.currItem)
+        elif category in ["search", "search_next_page"]:
+            cItem = dict(self.currItem)
+            cItem.update({"search_item": False, "name": "category"})
+            self.listSearchResult(cItem, searchPattern, searchType)
+        elif category == "search_history":
+            self.listsHistory({"name": "history", "category": "search"}, "desc", _("Type: "))
+        else:
+            printExc()
         CBaseHostClass.endHandleService(self, index, refresh)
 
 
-class IPTVHost(CHostBase):
-
+class IPTVHost(GenericFolderWatchedHostMixin, CHostBase):
     def __init__(self):
         CHostBase.__init__(self, SVTPlaySE(), True, [])
+        self.cachedRet = None
+        self.refreshAfterWatchedFlagChange = False
+        self.watchedHelper = IPTVWatchedHelper("svtplayse")
+
+    def withArticleContent(self, cItem):
+        return cItem.get("category", "") in ("svt_series", "svt_season", "svt_video", "svt_channel")

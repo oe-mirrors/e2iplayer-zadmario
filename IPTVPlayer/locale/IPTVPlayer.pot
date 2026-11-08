@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: IPTVPlayer VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-09-11 16:15+0200\n"
+"POT-Creation-Date: 2026-11-08 12:43+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -570,10 +570,6 @@ msgstr ""
 msgid "%s services configuration"
 msgstr ""
 
-#, python-format
-msgid "Service [%s] has no additional settings."
-msgstr ""
-
 msgid "Enable reordering mode"
 msgstr ""
 
@@ -637,14 +633,6 @@ msgstr ""
 
 #, python-format
 msgid "\"%s\" Virtual Keyboard layout not available."
-msgstr ""
-
-#, python-format
-msgid "Do you want to download \"%s\" Virtual Keyboard layout now?"
-msgstr ""
-
-#, python-format
-msgid "Do you want to try to re-download \"%s\" Virtual Keyboard layout?"
 msgstr ""
 
 msgid "Search history"
@@ -834,9 +822,6 @@ msgid "16:10 PanScan"
 msgstr ""
 
 msgid "16:9 Letterbox"
-msgstr ""
-
-msgid "----- HIDDEN OPTIONS -----"
 msgstr ""
 
 msgid "Last checked version"
@@ -1907,25 +1892,7 @@ msgstr ""
 msgid "Alternative domain:"
 msgstr ""
 
-msgid "Functionality protected by Google reCAPTCHA!"
-msgstr ""
-
-msgid "trailer"
-msgstr ""
-
-msgid "Use web-proxy for VODs (it may be illegal):"
-msgstr ""
-
-msgid "LIVE"
-msgstr ""
-
-msgid "BY DAY"
-msgstr ""
-
 msgid "A-Z"
-msgstr ""
-
-msgid "Link protected with DRM."
 msgstr ""
 
 msgid "Rating"
@@ -1934,16 +1901,10 @@ msgstr ""
 msgid "Views"
 msgstr ""
 
-msgid "Relese"
-msgstr ""
-
 msgid "New"
 msgstr ""
 
 msgid "Anime list"
-msgstr ""
-
-msgid "Movies list"
 msgstr ""
 
 msgid "Genres"
@@ -2125,78 +2086,19 @@ msgstr ""
 msgid "Use default video quality:"
 msgstr ""
 
-msgid "Preferred format:"
-msgstr ""
-
-msgid "Use web-proxy (it may be illegal):"
-msgstr ""
-
 msgid "Channels"
-msgstr ""
-
-msgid "Most Popular"
 msgstr ""
 
 msgid "Highlights"
 msgstr ""
 
-msgid "Promoted"
-msgstr ""
-
-msgid "Coming up"
-msgstr ""
-
-msgid "Catch up"
-msgstr ""
-
-msgid "Error communicating with the server."
-msgstr ""
-
-msgid "Data mismatch."
-msgstr ""
-
-msgid ""
-"\n"
-"Error[1]."
-msgstr ""
-
-msgid ""
-"\n"
-"Error[2]."
-msgstr ""
-
-msgid ""
-"\n"
-"Error[3]."
-msgstr ""
-
 msgid "Login failed."
-msgstr ""
-
-msgid ""
-"A TV License is required to watch BBC iPlayer streams, see the BBC "
-"website for more information: "
-"https://www.bbc.co.uk/iplayer/help/tvlicence"
-msgstr ""
-
-msgid ""
-"\n"
-"Error[4]."
-msgstr ""
-
-msgid "Use links cache"
 msgstr ""
 
 msgid "Captcha solving service"
 msgstr ""
 
-msgid "Lastest"
-msgstr ""
-
 msgid "Most viewed"
-msgstr ""
-
-msgid "Longest"
 msgstr ""
 
 msgid "Top rated"
@@ -2205,42 +2107,17 @@ msgstr ""
 msgid "Random"
 msgstr ""
 
-msgid "Episode title"
-msgstr ""
-
-msgid "PEGI"
-msgstr ""
-
 msgid "Year"
 msgstr ""
 
 msgid "Network"
 msgstr ""
 
-msgid "Raiting"
-msgstr ""
-
-msgid "the lowest"
-msgstr ""
-
-msgid "the highest"
-msgstr ""
-
 msgid "Main menu"
-msgstr ""
-
-msgid "By year"
-msgstr ""
-
-msgid "Filters"
 msgstr ""
 
 #, python-format
 msgid "%s views"
-msgstr ""
-
-#, python-format
-msgid "%s/10"
 msgstr ""
 
 #, python-format
@@ -2266,12 +2143,6 @@ msgstr ""
 msgid "Most recent"
 msgstr ""
 
-msgid "Most rated"
-msgstr ""
-
-msgid "Ranking"
-msgstr ""
-
 msgid "Trending"
 msgstr ""
 
@@ -2284,34 +2155,10 @@ msgstr ""
 msgid "Playlists"
 msgstr ""
 
-msgid "LATEST CONTENT"
-msgstr ""
-
-msgid "CHANNELS "
-msgstr ""
-
 msgid "ARTISTS"
 msgstr ""
 
-msgid "PARTIES"
-msgstr ""
-
-msgid "VENUES"
-msgstr ""
-
-msgid "Most featured"
-msgstr ""
-
-msgid "Alphabetical "
-msgstr ""
-
 msgid "Video"
-msgstr ""
-
-msgid "Web proxy"
-msgstr ""
-
-msgid "Use proxy"
 msgstr ""
 
 msgid "--All--"
@@ -2323,54 +2170,10 @@ msgstr ""
 msgid "Rating:"
 msgstr ""
 
-msgid "Genre:"
-msgstr ""
-
-msgid "Genres:"
-msgstr ""
-
 msgid "Director:"
 msgstr ""
 
-msgid "Directors:"
-msgstr ""
-
-msgid "Mood:"
-msgstr ""
-
-msgid "Moods:"
-msgstr ""
-
-msgid "Actor:"
-msgstr ""
-
-msgid "Actors:"
-msgstr ""
-
-msgid "Praise:"
-msgstr ""
-
-msgid "Praises:"
-msgstr ""
-
-msgid "Others tags:"
-msgstr ""
-
-msgid "DixMax Suggestions"
-msgstr ""
-
-msgid "Browse"
-msgstr ""
-
-#, python-format
-msgid "%s minutes"
-msgstr ""
-
 msgid "Episode"
-msgstr ""
-
-#, python-format
-msgid "Season %s (%s)"
 msgstr ""
 
 #, python-format
@@ -2378,9 +2181,6 @@ msgid ""
 "The host %s requires registration. \n"
 "Please fill your login and password in the host configuration. Available "
 "under blue button."
-msgstr ""
-
-msgid "Geolocation IP:"
 msgstr ""
 
 msgid "TV channels"
@@ -2392,67 +2192,19 @@ msgstr ""
 msgid "Latest added"
 msgstr ""
 
-msgid "Link protected with CF Turnstile ."
-msgstr ""
-
 msgid "Link protected with google recaptcha v2."
-msgstr ""
-
-msgid "Ask"
-msgstr ""
-
-msgid "Max bitrate:"
-msgstr ""
-
-msgid "Username"
 msgstr ""
 
 msgid "Password"
 msgstr ""
 
-msgid "Matches"
-msgstr ""
-
-#, python-format
-msgid ""
-"The host %s requires subscription.\n"
-"Please fill your login and password in the host configuration - available"
-" under blue button."
-msgstr ""
-
-msgid "Login failed. Invalid email or password."
-msgstr ""
-
-msgid "Source type"
-msgstr ""
-
 msgid "Free"
-msgstr ""
-
-msgid "Not Free"
-msgstr ""
-
-msgid "Playable from "
 msgstr ""
 
 msgid "Now playing"
 msgstr ""
 
-#, python-format
-msgid "Stream starts from %s"
-msgstr ""
-
-msgid "You are not allowed to play this video"
-msgstr ""
-
-#, python-format
-msgid "%s - trailer"
-msgstr ""
-
 msgid "On Air"
-msgstr ""
-
-msgid "Schedule"
 msgstr ""
 
 msgid "All Sports"
@@ -2485,9 +2237,6 @@ msgstr ""
 msgid "Movies genres"
 msgstr ""
 
-msgid "Year: "
-msgstr ""
-
 msgid "Quality:"
 msgstr ""
 
@@ -2497,24 +2246,10 @@ msgstr ""
 msgid "New episodes"
 msgstr ""
 
-msgid "TV-Series"
-msgstr ""
-
-msgid "[trailer]"
-msgstr ""
-
 msgid "Home"
 msgstr ""
 
-msgid "Top movies"
-msgstr ""
-
 msgid "Top series"
-msgstr ""
-
-msgid ""
-"Please fill your login and password in the host configuration (available "
-"under blue button) and try again."
 msgstr ""
 
 #, python-format
@@ -2525,15 +2260,6 @@ msgid "Send"
 msgstr ""
 
 msgid "Answer"
-msgstr ""
-
-msgid "New Movies"
-msgstr ""
-
-msgid "Top Movies"
-msgstr ""
-
-msgid "New Episodes"
 msgstr ""
 
 msgid "Create MKV"
@@ -2549,9 +2275,6 @@ msgid "Alphabetically"
 msgstr ""
 
 msgid "--All Episodes--"
-msgstr ""
-
-msgid "Manga"
 msgstr ""
 
 msgid "Music"
@@ -2573,53 +2296,13 @@ msgstr ""
 msgid "Added by: %s, directory: %s"
 msgstr ""
 
-msgid "any"
-msgstr ""
-
-msgid "Genre: "
-msgstr ""
-
-msgid "Order by: "
-msgstr ""
-
-msgid "Score at least: "
-msgstr ""
-
-#, python-brace-format
-msgid "Season {0}"
-msgstr ""
-
-msgid "Neuste Filme"
-msgstr ""
-
-msgid "Am besten bewertet"
-msgstr ""
-
-msgid "Am meisten gesehen"
-msgstr ""
-
-msgid "Video Kategorien"
-msgstr ""
-
 msgid "Episodes"
 msgstr ""
 
 msgid "Recent"
 msgstr ""
 
-msgid "Programs"
-msgstr ""
-
-msgid "Labels"
-msgstr ""
-
-msgid "Watch Trailer"
-msgstr ""
-
 msgid "Cinema movies"
-msgstr ""
-
-msgid "The website returned a server error for this request."
 msgstr ""
 
 msgid "Countries"
@@ -2629,27 +2312,6 @@ msgid "Spanish"
 msgstr ""
 
 msgid "English"
-msgstr ""
-
-msgid "HDFull Suggestions"
-msgstr ""
-
-msgid "Published:"
-msgstr ""
-
-msgid "Alternative"
-msgstr ""
-
-msgid " Wystąpił chwilowy problem z naszymi serwerami."
-msgstr ""
-
-msgid " zobacz - nie widzi serwera."
-msgstr ""
-
-msgid " Ups, wystąpił chwilowy problem z naszymi serwerami."
-msgstr ""
-
-msgid " Odczekaj momencik na wolne miejsce"
 msgstr ""
 
 msgid "The color of the current version"
@@ -2682,16 +2344,7 @@ msgstr ""
 msgid "%s - subtitles provider"
 msgstr ""
 
-msgid "Bypass geo-blocking for VODs (it may be illegal):"
-msgstr ""
-
-msgid "Connection to server failed!"
-msgstr ""
-
 msgid "Clips"
-msgstr ""
-
-msgid "Missed"
 msgstr ""
 
 msgid "DRM protection detected."
@@ -2700,76 +2353,22 @@ msgstr ""
 msgid "No valid entitlement found for asset."
 msgstr ""
 
-msgid "Entitlement parsing error."
-msgstr ""
-
-msgid "Player data parsing error."
-msgstr ""
-
 msgid "the worst"
-msgstr ""
-
-msgid "Catrtoon list"
-msgstr ""
-
-msgid "Sort by alphabet"
-msgstr ""
-
-msgid "Sort by popularity"
 msgstr ""
 
 msgid "Latest update"
 msgstr ""
 
-msgid "New cartoon"
-msgstr ""
-
 msgid "Animation"
-msgstr ""
-
-msgid "The worst"
 msgstr ""
 
 msgid "Low"
 msgstr ""
 
-msgid "Mid"
-msgstr ""
-
-msgid "High"
-msgstr ""
-
-msgid "The best"
-msgstr ""
-
-msgid "Deutsch"
-msgstr ""
-
-msgid "Video default quality:"
-msgstr ""
-
-msgid "Use default quality:"
-msgstr ""
-
-msgid "Portal:"
-msgstr ""
-
 msgid "Language:"
 msgstr ""
 
-msgid "Alternative geolocation IP 1:"
-msgstr ""
-
-msgid "Alternative geolocation IP 2:"
-msgstr ""
-
-msgid "Live-streams"
-msgstr ""
-
 msgid "Movie"
-msgstr ""
-
-msgid "Series TV"
 msgstr ""
 
 msgid "Quality"
@@ -2804,17 +2403,10 @@ msgid ""
 msgstr ""
 
 #, python-format
-msgid "Make directory [%s]"
-msgstr ""
-
-#, python-format
 msgid ""
 "Mount ISO file [%s] on [%s] failed.\n"
 "Return code[%s].\n"
 "Return data[%s]."
-msgstr ""
-
-msgid "Total size: "
 msgstr ""
 
 #, python-format
@@ -2860,21 +2452,6 @@ msgstr ""
 msgid "Error message: %s\n"
 msgstr ""
 
-msgid "API initialization failed!"
-msgstr ""
-
-msgid "Top day"
-msgstr ""
-
-msgid "live"
-msgstr ""
-
-msgid "Brand"
-msgstr ""
-
-msgid "Clip"
-msgstr ""
-
 msgid "Polish"
 msgstr ""
 
@@ -2893,12 +2470,6 @@ msgstr ""
 msgid "Collections"
 msgstr ""
 
-msgid "Latest movies"
-msgstr ""
-
-msgid "Movies by year"
-msgstr ""
-
 msgid "TV Show"
 msgstr ""
 
@@ -2914,20 +2485,6 @@ msgstr ""
 msgid "Portuguese"
 msgstr ""
 
-msgid "TOP 10"
-msgstr ""
-
-msgid "[Logged-in-only] "
-msgstr ""
-
-#, python-format
-msgid "Player %s: %s"
-msgstr ""
-
-#, python-format
-msgid "Player %s"
-msgstr ""
-
 msgid "All results"
 msgstr ""
 
@@ -2937,22 +2494,10 @@ msgstr ""
 msgid "List by day"
 msgstr ""
 
-msgid "All Leagues"
-msgstr ""
-
-msgid "Previous Seasons"
-msgstr ""
-
-msgid "Goal Of The Month"
-msgstr ""
-
 msgid "large"
 msgstr ""
 
 msgid "small"
-msgstr ""
-
-msgid "Best Pinkbike Videos"
 msgstr ""
 
 msgid "Use HLS streams (adaptive):"
@@ -2979,13 +2524,7 @@ msgstr ""
 msgid "Content not available"
 msgstr ""
 
-msgid "Discover"
-msgstr ""
-
 msgid "TV"
-msgstr ""
-
-msgid "Calendar"
 msgstr ""
 
 msgid "Unknown server response."
@@ -3000,9 +2539,6 @@ msgstr ""
 msgid "Program"
 msgstr ""
 
-msgid "Preview"
-msgstr ""
-
 msgid "Playlist"
 msgstr ""
 
@@ -3010,14 +2546,7 @@ msgstr ""
 msgid "Season %s"
 msgstr ""
 
-#, python-format
-msgid "%s s%se%s"
-msgstr ""
-
 msgid "Use login"
-msgstr ""
-
-msgid "OMDb API Key"
 msgstr ""
 
 msgid "host"
@@ -3039,15 +2568,6 @@ msgstr ""
 msgid "Jump to a selected page"
 msgstr ""
 
-msgid "This site is protected with Google reCaptcha v2."
-msgstr ""
-
-msgid "Top Videos"
-msgstr ""
-
-msgid "Newest Videos"
-msgstr ""
-
 #, python-format
 msgid "Genre: %s"
 msgstr ""
@@ -3067,23 +2587,10 @@ msgstr ""
 msgid "Preferred streaming protocol"
 msgstr ""
 
-#, python-format
-msgid " (planned %s)"
-msgstr ""
-
-msgid "Film"
-msgstr ""
-
 msgid "Login"
 msgstr ""
 
 msgid "Premium"
-msgstr ""
-
-msgid "Fail to get captcha data."
-msgstr ""
-
-msgid "Wrong answer."
 msgstr ""
 
 msgid "the best"
@@ -3095,67 +2602,10 @@ msgstr ""
 msgid "DASH/mpd"
 msgstr ""
 
-msgid "Latest programs"
-msgstr ""
-
-msgid "Latest news broadcast"
-msgstr ""
-
 msgid "Last chance"
 msgstr ""
 
-msgid "Live broadcasts"
-msgstr ""
-
-msgid "Programs A-Ö"
-msgstr ""
-
-msgid "Only available in Sweden."
-msgstr ""
-
-msgid "With closed captioned."
-msgstr ""
-
-msgid "Only available in Sweden.\n"
-msgstr ""
-
-msgid "Talks"
-msgstr ""
-
-msgid "--Any--"
-msgstr ""
-
-msgid "See all topics"
-msgstr ""
-
-msgid "See all languages"
-msgstr ""
-
-msgid "See all events"
-msgstr ""
-
-msgid "Curator"
-msgstr ""
-
-msgid "Always"
-msgstr ""
-
-msgid "Never"
-msgstr ""
-
-msgid "Use web proxy gateway"
-msgstr ""
-
-msgid "Series list"
-msgstr ""
-
-msgid "Popular Episodes"
-msgstr ""
-
 msgid "Newest Episodes"
-msgstr ""
-
-msgid "All A-Z"
 msgstr ""
 
 msgid "vertical"
@@ -3173,69 +2623,10 @@ msgstr ""
 msgid "Icon type"
 msgstr ""
 
-msgid "Show paid items (it may be illegal)"
-msgstr ""
-
-msgid "Show items with DRM"
-msgstr ""
-
-msgid "Missed the program?"
-msgstr ""
-
 msgid "Yesterday"
 msgstr ""
 
-msgid "Items with DRM protection."
-msgstr ""
-
-#, python-format
-msgid "episode: %s"
-msgstr ""
-
-#, python-format
-msgid "duration: %s"
-msgstr ""
-
 msgid "Video with DRM protection."
-msgstr ""
-
-msgid "highest"
-msgstr ""
-
-msgid "lowest"
-msgstr ""
-
-msgid "Preferred bitrate"
-msgstr ""
-
-msgid "Use preferred bitrate"
-msgstr ""
-
-msgid "email"
-msgstr ""
-
-msgid "Try to bypass DRM (it may be illegal)"
-msgstr ""
-
-msgid "Paid"
-msgstr ""
-
-msgid "DRM protected streams are not supported."
-msgstr ""
-
-msgid "No playable sources found."
-msgstr ""
-
-msgid "Sorry. TVPlayer is currently only available in the United Kingdom"
-msgstr ""
-
-msgid "All Platforms"
-msgstr ""
-
-msgid "Xbox One"
-msgstr ""
-
-msgid "PlayStation 4"
 msgstr ""
 
 msgid "Past premieres"
@@ -3268,18 +2659,7 @@ msgid "Videos %s"
 msgstr ""
 
 #, python-format
-msgid "Language: %s"
-msgstr ""
-
-#, python-format
 msgid "%s followers"
-msgstr ""
-
-msgid "Popularity: ?"
-msgstr ""
-
-#, python-format
-msgid "Broadcaster: %s"
 msgstr ""
 
 #, python-format
@@ -3289,15 +2669,8 @@ msgstr ""
 msgid "Live streams"
 msgstr ""
 
-msgid "Channles"
-msgstr ""
-
 #, python-format
 msgid "Channel: %s"
-msgstr ""
-
-#, python-format
-msgid "Videos count: %s"
 msgstr ""
 
 #, python-format
@@ -3308,9 +2681,6 @@ msgid "Text files ytlist and urllist are in:"
 msgstr ""
 
 msgid "Sort the list:"
-msgstr ""
-
-msgid "Group links into categories: "
 msgstr ""
 
 msgid "Urllists player"
@@ -3339,17 +2709,7 @@ msgstr ""
 msgid "Hosting: %s, %s"
 msgstr ""
 
-msgid "Allow hls format"
-msgstr ""
-
-#, python-format
-msgid "Count: %s"
-msgstr ""
-
 msgid "Artists"
-msgstr ""
-
-msgid "Vimeo Suggestions"
 msgstr ""
 
 msgid "People"
@@ -3358,103 +2718,10 @@ msgstr ""
 msgid "Groups"
 msgstr ""
 
-msgid "Specialities"
-msgstr ""
-
-msgid "Browse videos"
-msgstr ""
-
-msgid "News Feed"
-msgstr ""
-
-msgid "Anime Search"
-msgstr ""
-
-msgid "Episode Search"
-msgstr ""
-
-msgid "Monthly"
-msgstr ""
-
-msgid "LIVE 24/7"
-msgstr ""
-
-msgid "WWE"
-msgstr ""
-
-msgid "WWE Network"
-msgstr ""
-
-msgid "TNA"
-msgstr ""
-
-msgid "Weekly Indys"
-msgstr ""
-
-msgid "NJPW"
-msgstr ""
-
-msgid "Other Sports"
-msgstr ""
-
-msgid "RAW"
-msgstr ""
-
-msgid "Smackdown"
-msgstr ""
-
-msgid "Total Divas"
-msgstr ""
-
-msgid "NXT"
-msgstr ""
-
-msgid "Archives"
-msgstr ""
-
-msgid "DATE"
-msgstr ""
-
-msgid "VIEWS"
-msgstr ""
-
-msgid "LIKES"
-msgstr ""
-
-msgid "COMMENTS"
-msgstr ""
-
-msgid "Replay Shows"
-msgstr ""
-
-msgid "iMPACT Wrestling"
-msgstr ""
-
-msgid "Main Event"
-msgstr ""
-
-msgid "UFC"
-msgstr ""
-
-msgid "Indy"
-msgstr ""
-
 msgid "Others"
 msgstr ""
 
-msgid "----------Other----------"
-msgstr ""
-
-msgid "Turn off buffering for http://prognoza.pogody.tv/"
-msgstr ""
-
-msgid "Use Polish proxy for http://prognoza.pogody.tv/"
-msgstr ""
-
 msgid "\"Web\" streams player"
-msgstr ""
-
-msgid "Protocol: "
 msgstr ""
 
 msgid "System language"
@@ -4623,7 +3890,9 @@ msgstr ""
 msgid "(nothing here yet)"
 msgstr ""
 
-msgid "This feed is empty, or the YouTube sign-in has expired - sign out and in again."
+msgid ""
+"This feed is empty, or the YouTube sign-in has expired - sign out and in "
+"again."
 msgstr ""
 
 msgid "This video requires you to sign in to a YouTube account."
@@ -4631,19 +3900,19 @@ msgstr ""
 
 msgid ""
 "1. On a phone or PC in the same network, open the address shown in the "
-"captcha window (or scan its QR code) in a browser with the MyE2i extension "
-"installed. If it asks for a code, you find it in the title of the captcha "
-"window."
+"captcha window (or scan its QR code) in a browser with the MyE2i "
+"extension installed. If it asks for a code, you find it in the title of "
+"the captcha window."
 msgstr ""
 
 msgid ""
-"2. Click the big green button on that page. A new tab opens with the captcha"
-" or the website's browser check."
+"2. Click the big green button on that page. A new tab opens with the "
+"captcha or the website's browser check."
 msgstr ""
 
 msgid ""
-"3. Solve it. The result goes back to the receiver by itself and the captcha "
-"window closes."
+"3. Solve it. The result goes back to the receiver by itself and the "
+"captcha window closes."
 msgstr ""
 
 msgid ""
@@ -4684,8 +3953,8 @@ msgid "Download new version"
 msgstr ""
 
 msgid ""
-"Enter the code shown in the title of the window on your receiver's screen "
-"(or scan the QR code shown there - no code needed then):"
+"Enter the code shown in the title of the window on your receiver's screen"
+" (or scan the QR code shown there - no code needed then):"
 msgstr ""
 
 msgid "Error"
@@ -4731,10 +4000,10 @@ msgid "MyE2i extension: increase security"
 msgstr ""
 
 msgid ""
-"Needs extension v1.18+. Opens the page in this browser, waits until it is "
-"fully rendered (Cloudflare challenge included, solve it if it shows up) and "
-"sends the rendered HTML, the fetch/XHR calls and the cookie names to the box"
-" debug log."
+"Needs extension v1.18+. Opens the page in this browser, waits until it is"
+" fully rendered (Cloudflare challenge included, solve it if it shows up) "
+"and sends the rendered HTML, the fetch/XHR calls and the cookie names to "
+"the box debug log."
 msgstr ""
 
 msgid "Page not found - please check the address."
@@ -4750,7 +4019,8 @@ msgid "Sending the result to the box failed."
 msgstr ""
 
 msgid ""
-"The QR code leads to the wiki page with pictures and the extension download."
+"The QR code leads to the wiki page with pictures and the extension "
+"download."
 msgstr ""
 
 msgid "The data is too large."
@@ -4762,12 +4032,7 @@ msgstr ""
 msgid "This session has no code - scan the QR code on the receiver screen."
 msgstr ""
 
-msgid ""
-"Too many wrong codes - scan the QR code on the receiver screen instead."
-msgstr ""
-
-#, python-format
-msgid "Username in settings is different from %s"
+msgid "Too many wrong codes - scan the QR code on the receiver screen instead."
 msgstr ""
 
 msgid "Waiting for the result ..."
@@ -4781,8 +4046,8 @@ msgstr ""
 
 #, python-format
 msgid ""
-"Your MyE2i extension is outdated or unknown (v%s or newer needed). Please "
-"update:"
+"Your MyE2i extension is outdated or unknown (v%s or newer needed). Please"
+" update:"
 msgstr ""
 
 msgid "debug"
@@ -4793,8 +4058,8 @@ msgstr ""
 
 msgid ""
 "wants you to solve a captcha. Only after solving this captcha, you are "
-"allowed to continue with your downloads. E2iPlayer is not able to auto-solve"
-" these captchas, so we need to pass the captcha to you."
+"allowed to continue with your downloads. E2iPlayer is not able to auto-"
+"solve these captchas, so we need to pass the captcha to you."
 msgstr ""
 
 msgid "Newest videos of a YouTube channel in a group"
@@ -5200,9 +4465,6 @@ msgid "OMDb API key (free at omdbapi.com)"
 msgstr ""
 
 msgid "Show \"Newest videos\" of all YouTube channels in a group"
-msgstr ""
-
-msgid "----- HIDDEN OPTIONS (OK) -----"
 msgstr ""
 
 #, python-format
@@ -5651,3 +4913,1858 @@ msgstr ""
 
 msgid "Show download notification"
 msgstr ""
+
+msgid "Cover on the LCD summary screen"
+msgstr ""
+
+msgid "----- EXPERT OPTIONS (OK) -----"
+msgstr ""
+
+#, python-format
+msgid "%s path"
+msgstr ""
+
+msgid "MIPS floating point architecture"
+msgstr ""
+
+msgid "E2iPlayer auto start at Enigma2 start"
+msgstr ""
+
+msgid "Auto start method"
+msgstr ""
+
+msgid "Prefer hlsdl for playlist with alt. media"
+msgstr ""
+
+msgid "clock not set"
+msgstr ""
+
+msgid "not installed (urllib is used)"
+msgstr ""
+
+msgid "bundled with the plugin"
+msgstr ""
+
+msgid "not used"
+msgstr ""
+
+msgid "not installed (no torrent playback)"
+msgstr ""
+
+msgid "not registered yet, run the E2iPlayer setup"
+msgstr ""
+
+msgid "installed, does not start"
+msgstr ""
+
+msgid "not installed (hosts that need JavaScript fail)"
+msgstr ""
+
+msgid "not installed (only the Enigma2 players)"
+msgstr ""
+
+msgid "not installed (no HLS downloads or buffering)"
+msgstr ""
+
+msgid "not installed (no ffmpeg downloads)"
+msgstr ""
+
+msgid "not installed (no local media / folder browser)"
+msgstr ""
+
+msgid "not installed (no HDS/F4M streams)"
+msgstr ""
+
+msgid "not installed (sites with bot protection may fail)"
+msgstr ""
+
+msgid "not installed (no DASH / ffmpeg downloads)"
+msgstr ""
+
+msgid "not installed (no file, cover or subtitle downloads)"
+msgstr ""
+
+msgid "not installed (wget is used)"
+msgstr ""
+
+msgid "not installed (no RTMP downloads)"
+msgstr ""
+
+msgid "not installed (subtitles: code page of the language)"
+msgstr ""
+
+msgid "not installed (no ZIP subtitles)"
+msgstr ""
+
+msgid "not installed (no RAR subtitles)"
+msgstr ""
+
+msgid "Time"
+msgstr ""
+
+msgid "Dubbed"
+msgstr ""
+
+msgid "No episodes found."
+msgstr ""
+
+#, python-format
+msgid "No results found for: %s"
+msgstr ""
+
+msgid "Sections"
+msgstr ""
+
+msgid "The video file of this title is not available on the server (HTTP 403)."
+msgstr ""
+
+msgid "Foreign movies"
+msgstr ""
+
+msgid "Arabic Movies"
+msgstr ""
+
+msgid "Asian movies"
+msgstr ""
+
+msgid "Turkish Movies"
+msgstr ""
+
+msgid "Indian Movies"
+msgstr ""
+
+msgid "Cartoons and anime"
+msgstr ""
+
+msgid "Genre"
+msgstr ""
+
+msgid "TV Shows"
+msgstr ""
+
+msgid "No items found"
+msgstr ""
+
+msgid "Added"
+msgstr ""
+
+#, python-format
+msgid ""
+"%s refused the request (Cloudflare check, HTTP %s). This host needs curl-"
+"impersonate on the receiver."
+msgstr ""
+
+#, python-format
+msgid "%d programmes"
+msgstr ""
+
+msgid "Ramadan"
+msgstr ""
+
+msgid "Plays"
+msgstr ""
+
+msgid "Programme archive:"
+msgstr ""
+
+msgid "Investigations"
+msgstr ""
+
+msgid "Talk shows"
+msgstr ""
+
+msgid "Digital programmes"
+msgstr ""
+
+msgid "All programmes"
+msgstr ""
+
+#, python-format
+msgid "%d parts"
+msgstr ""
+
+msgid "Part"
+msgstr ""
+
+#, python-format
+msgid "Only unsupported hosters available: %s"
+msgstr ""
+
+msgid "The site's browser check could not be passed."
+msgstr ""
+
+msgid "Specials"
+msgstr ""
+
+msgid "Titles"
+msgstr ""
+
+msgid "Airing now"
+msgstr ""
+
+msgid "Anime Movies"
+msgstr ""
+
+msgid "Latest episodes (airing)"
+msgstr ""
+
+msgid "Latest episodes (finished series)"
+msgstr ""
+
+msgid "Anime series A-Z"
+msgstr ""
+
+msgid "Anime movies A-Z"
+msgstr ""
+
+msgid "Seasons"
+msgstr ""
+
+msgid "Autumn"
+msgstr ""
+
+msgid "Summer"
+msgstr ""
+
+msgid "Spring"
+msgstr ""
+
+msgid "Winter"
+msgstr ""
+
+msgid "anime-odcinki.pl shows this title only to logged-in users."
+msgstr ""
+
+msgid "This video is only on hosters E2iPlayer cannot play."
+msgstr ""
+
+msgid ""
+"The site's browser check (Cloudflare) could not be passed. The site may "
+"also be blocked in your country."
+msgstr ""
+
+msgid "Subbed anime"
+msgstr ""
+
+msgid "Related seasons and works"
+msgstr ""
+
+#, python-format
+msgid "Season %d"
+msgstr ""
+
+msgid "Country / store:"
+msgstr ""
+
+msgid "Browse by genre"
+msgstr ""
+
+#, python-format
+msgid ""
+"%s needs a free account. Enter login and password in the host "
+"configuration."
+msgstr ""
+
+msgid "Failed to connect to host."
+msgstr ""
+
+msgid "Latin American movies"
+msgstr ""
+
+msgid "Dubbed anime"
+msgstr ""
+
+msgid "Foreign series"
+msgstr ""
+
+msgid "Arabic Series"
+msgstr ""
+
+msgid "Asian TV series"
+msgstr ""
+
+msgid "Turkish Series"
+msgstr ""
+
+msgid "Dubbed series"
+msgstr ""
+
+msgid "Latin American series"
+msgstr ""
+
+#, python-format
+msgid "%s posts"
+msgstr ""
+
+msgid "Top 10"
+msgstr ""
+
+msgid "Featured"
+msgstr ""
+
+msgid "Korean"
+msgstr ""
+
+msgid "Chinese"
+msgstr ""
+
+msgid "Thai"
+msgstr ""
+
+msgid "Taiwanese"
+msgstr ""
+
+msgid "Japanese"
+msgstr ""
+
+msgid "Drama"
+msgstr ""
+
+msgid "Completed"
+msgstr ""
+
+msgid "Actors"
+msgstr ""
+
+msgid "Korean dramas"
+msgstr ""
+
+msgid "Japanese dramas"
+msgstr ""
+
+msgid "Video recitations"
+msgstr ""
+
+msgid "Reciters"
+msgstr ""
+
+msgid "Surahs"
+msgstr ""
+
+msgid "Most listened recitations"
+msgstr ""
+
+msgid "Munshids"
+msgstr ""
+
+msgid "Most listened anasheed"
+msgstr ""
+
+msgid "Adhan"
+msgstr ""
+
+msgid "Lecturers"
+msgstr ""
+
+msgid "Cartoons"
+msgstr ""
+
+msgid "No player found for this title."
+msgstr ""
+
+msgid "Polish dubbing"
+msgstr ""
+
+msgid "Polish voice-over"
+msgstr ""
+
+msgid "Polish subtitles"
+msgstr ""
+
+msgid "Cartoons and series"
+msgstr ""
+
+msgid "News Poland"
+msgstr ""
+
+msgid "Politics"
+msgstr ""
+
+msgid "Education"
+msgstr ""
+
+msgid "Economy"
+msgstr ""
+
+msgid "Law"
+msgstr ""
+
+msgid "Religion"
+msgstr ""
+
+msgid "Philosophy"
+msgstr ""
+
+msgid "Patriotism"
+msgstr ""
+
+msgid "Military"
+msgstr ""
+
+msgid "Intervention"
+msgstr ""
+
+msgid "Upbringing"
+msgstr ""
+
+msgid "Kids"
+msgstr ""
+
+msgid "Entertainment"
+msgstr ""
+
+msgid "Art"
+msgstr ""
+
+msgid "Books"
+msgstr ""
+
+msgid "Gaming"
+msgstr ""
+
+msgid "Technology"
+msgstr ""
+
+msgid "Automotive"
+msgstr ""
+
+msgid "Tourism"
+msgstr ""
+
+msgid "Cooking"
+msgstr ""
+
+msgid "Lifestyle"
+msgstr ""
+
+msgid "Fashion"
+msgstr ""
+
+msgid "Animals"
+msgstr ""
+
+msgid "Subscribers"
+msgstr ""
+
+msgid "Not available yet"
+msgstr ""
+
+msgid "Latest videos"
+msgstr ""
+
+msgid "Top-IMDB"
+msgstr ""
+
+msgid "Leagues"
+msgstr ""
+
+msgid "Professionals"
+msgstr ""
+
+msgid "Top scorers"
+msgstr ""
+
+msgid "Teams"
+msgstr ""
+
+msgid "Squad"
+msgstr ""
+
+msgid "goals"
+msgstr ""
+
+msgid "This video has been deleted."
+msgstr ""
+
+msgid "Stadium:"
+msgstr ""
+
+msgid "Competitions"
+msgstr ""
+
+msgid "All series"
+msgstr ""
+
+msgid "Ramadan series"
+msgstr ""
+
+msgid "Server"
+msgstr ""
+
+msgid "Popular series"
+msgstr ""
+
+msgid "Open the page and click the video player there"
+msgstr ""
+
+msgid "Football"
+msgstr ""
+
+msgid "Basketball"
+msgstr ""
+
+msgid "Tennis"
+msgstr ""
+
+msgid "Hockey"
+msgstr ""
+
+msgid "Boxing"
+msgstr ""
+
+msgid "American football"
+msgstr ""
+
+msgid "Cricket"
+msgstr ""
+
+msgid "Darts"
+msgstr ""
+
+msgid "Futsal"
+msgstr ""
+
+msgid "Handball"
+msgstr ""
+
+msgid "Motorsport"
+msgstr ""
+
+msgid "Snooker"
+msgstr ""
+
+msgid "Volleyball"
+msgstr ""
+
+msgid "Winter sports"
+msgstr ""
+
+msgid "The live stream is not available at the moment."
+msgstr ""
+
+#, python-format
+msgid "Episode %d"
+msgstr ""
+
+msgid "Version"
+msgstr ""
+
+msgid "MyE2i captcha: solve it, then Job (no CONTINUE)"
+msgstr ""
+
+msgid ""
+"MaxStream (uprot.net) asks for its image captcha: solve it in MyE2i, then"
+" open the video again."
+msgstr ""
+
+msgid "Aired"
+msgstr ""
+
+msgid ""
+"Vimeo live event: the live transmission (while on air) and the past "
+"transmissions."
+msgstr ""
+
+msgid "Vimeo playlist with the recordings of this page."
+msgstr ""
+
+msgid "Articles"
+msgstr ""
+
+msgid "This section is no longer on the main page."
+msgstr ""
+
+msgid ""
+"The recordings of this page were on the site's old media server, which is"
+" offline."
+msgstr ""
+
+msgid "Other seasons"
+msgstr ""
+
+msgid "All movies"
+msgstr ""
+
+msgid "Korean movies"
+msgstr ""
+
+msgid "Documentary Movies"
+msgstr ""
+
+msgid "Short Movies"
+msgstr ""
+
+msgid "Korean TV series"
+msgstr ""
+
+msgid "Anime Series"
+msgstr ""
+
+msgid "Short films"
+msgstr ""
+
+msgid "Top IMDb"
+msgstr ""
+
+msgid "Updates"
+msgstr ""
+
+msgid "Popular movies"
+msgstr ""
+
+msgid "Torrent"
+msgstr ""
+
+msgid "Most voted"
+msgstr ""
+
+#, python-format
+msgid "Episodes: %s"
+msgstr ""
+
+msgid "Dramas (Asian)"
+msgstr ""
+
+msgid "Captcha was not entered."
+msgstr ""
+
+msgid "Popular episodes"
+msgstr ""
+
+msgid "Most commented"
+msgstr ""
+
+msgid "Latest updates"
+msgstr ""
+
+msgid "With subtitles"
+msgstr ""
+
+msgid "Original version"
+msgstr ""
+
+msgid "Anime A-Z"
+msgstr ""
+
+msgid "Anime movies"
+msgstr ""
+
+msgid "Type"
+msgstr ""
+
+#, python-format
+msgid "Translator: %s"
+msgstr ""
+
+msgid "Other dramas (Chinese, Thai, ...)"
+msgstr ""
+
+msgid "Korean films"
+msgstr ""
+
+msgid "Japanese films"
+msgstr ""
+
+msgid "Other films"
+msgstr ""
+
+msgid "All titles A-Z"
+msgstr ""
+
+#, python-format
+msgid "Only available in %s"
+msgstr ""
+
+msgid "Denmark"
+msgstr ""
+
+msgid "HLS with subtitles"
+msgstr ""
+
+msgid "Audio description"
+msgstr ""
+
+msgid "Spoken subtitles"
+msgstr ""
+
+msgid "Combine pull request merges with their commit"
+msgstr ""
+
+msgid "New since installed version"
+msgstr ""
+
+msgid "Releases"
+msgstr ""
+
+msgid "Open issues"
+msgstr ""
+
+msgid "Open pull requests"
+msgstr ""
+
+msgid "Wiki"
+msgstr ""
+
+msgid "Install E2iPlayer"
+msgstr ""
+
+msgid "Create debug logs"
+msgstr ""
+
+msgid "Solve Cloudflare, hCaptcha and reCAPTCHA with MyE2i"
+msgstr ""
+
+msgid "Solve Google reCAPTCHA v2 with My JDownloader"
+msgstr ""
+
+msgid "For developers"
+msgstr ""
+
+msgid "GitHub API error"
+msgstr ""
+
+#, python-format
+msgid "Installed: v%s - up to date"
+msgstr ""
+
+#, python-format
+msgid "Installed: v%s - %d commits behind %s"
+msgstr ""
+
+#, python-format
+msgid "Installed: v%s"
+msgstr ""
+
+#, python-format
+msgid "Installed: v%s - no matching release tag (local build?)"
+msgstr ""
+
+msgid "Installed version"
+msgstr ""
+
+#, python-format
+msgid "Only the %d oldest new commits are shown"
+msgstr ""
+
+msgid "Draft"
+msgstr ""
+
+msgid "Comments"
+msgstr ""
+
+msgid "Nothing open"
+msgstr ""
+
+msgid "Could not load the wiki page."
+msgstr ""
+
+msgid "Indian TV series"
+msgstr ""
+
+msgid "Turkish series (dubbed)"
+msgstr ""
+
+msgid "Indian series (dubbed)"
+msgstr ""
+
+msgid "Action"
+msgstr ""
+
+msgid "Adventure"
+msgstr ""
+
+msgid "Comedy"
+msgstr ""
+
+msgid "Crime"
+msgstr ""
+
+msgid "Fantasy"
+msgstr ""
+
+msgid "Sci-Fi"
+msgstr ""
+
+msgid "Horror"
+msgstr ""
+
+msgid "Mystery"
+msgstr ""
+
+msgid "Romance"
+msgstr ""
+
+msgid "Thriller"
+msgstr ""
+
+msgid "War"
+msgstr ""
+
+msgid "Sci-Fi & Fantasy"
+msgstr ""
+
+msgid "English movies"
+msgstr ""
+
+msgid "Arabic movies"
+msgstr ""
+
+msgid "Indian movies"
+msgstr ""
+
+msgid "English movies (dubbed)"
+msgstr ""
+
+msgid "Turkish movies (dubbed)"
+msgstr ""
+
+msgid "Indian movies (dubbed)"
+msgstr ""
+
+msgid "Subtitles by Islam El-Gizawy"
+msgstr ""
+
+msgid "Animated movies"
+msgstr ""
+
+msgid "Disney cartoon movies (Egyptian dub)"
+msgstr ""
+
+msgid "Movie collections"
+msgstr ""
+
+msgid "English TV series"
+msgstr ""
+
+msgid "Turkish TV series"
+msgstr ""
+
+msgid "African series"
+msgstr ""
+
+msgid "Documentary series"
+msgstr ""
+
+msgid "English series (dubbed)"
+msgstr ""
+
+msgid "Latin American series (dubbed)"
+msgstr ""
+
+msgid "Asian series (dubbed)"
+msgstr ""
+
+msgid "All seasons"
+msgstr ""
+
+msgid "Chinese anime"
+msgstr ""
+
+msgid "Korean anime"
+msgstr ""
+
+msgid "Anime TV series"
+msgstr ""
+
+msgid "Anime series (dubbed)"
+msgstr ""
+
+msgid "Animated series"
+msgstr ""
+
+msgid "Cartoon series (dubbed)"
+msgstr ""
+
+msgid "Shows and concerts"
+msgstr ""
+
+msgid "Filter"
+msgstr ""
+
+msgid "Voice-over"
+msgstr ""
+
+msgid "Polish films"
+msgstr ""
+
+msgid "This player is not available any more - reload the links."
+msgstr ""
+
+msgid "Biography"
+msgstr ""
+
+msgid "Western"
+msgstr ""
+
+msgid "Detective"
+msgstr ""
+
+msgid ""
+"The video player of this site (hdvbua.pro) does not offer this title in "
+"your country (licence area, mainly Ukraine)."
+msgstr ""
+
+msgid "Released:"
+msgstr ""
+
+msgid "Season pack"
+msgstr ""
+
+msgid "Asian"
+msgstr ""
+
+msgid "Shows with new episodes"
+msgstr ""
+
+msgid "Mini series"
+msgstr ""
+
+#, python-format
+msgid "Season %d (%d episodes)"
+msgstr ""
+
+msgid "Most viewed movies"
+msgstr ""
+
+msgid "4K movies"
+msgstr ""
+
+msgid "Most viewed series"
+msgstr ""
+
+msgid "Top rated series"
+msgstr ""
+
+msgid "Category"
+msgstr ""
+
+msgid "Latest highlights"
+msgstr ""
+
+msgid "Venue"
+msgstr ""
+
+msgid "Referee"
+msgstr ""
+
+msgid "Round"
+msgstr ""
+
+msgid "Original title"
+msgstr ""
+
+msgid "Topics"
+msgstr ""
+
+msgid "Search is not available right now."
+msgstr ""
+
+msgid "The link could not be resolved."
+msgstr ""
+
+msgid "Group search"
+msgstr ""
+
+#, python-format
+msgid "%d of %d hosts asked, %d with results"
+msgstr ""
+
+msgid "Time limit"
+msgstr ""
+
+#, python-format
+msgid "Search: %d of %d - now %s (%d found so far)"
+msgstr ""
+
+msgid "Recommended"
+msgstr ""
+
+msgid "Top airing"
+msgstr ""
+
+msgid "Most favourited"
+msgstr ""
+
+msgid "Top upcoming"
+msgstr ""
+
+msgid "Types"
+msgstr ""
+
+msgid "Filler"
+msgstr ""
+
+msgid ""
+"This episode is not available in this version (SUB/DUB) on this server. "
+"Try another one."
+msgstr ""
+
+msgid "All stations"
+msgstr ""
+
+msgid "Directors"
+msgstr ""
+
+msgid "Random selection"
+msgstr ""
+
+msgid "Series A-Z"
+msgstr ""
+
+msgid "Documentaries A-Z"
+msgstr ""
+
+msgid "Interviews"
+msgstr ""
+
+msgid "Popularity"
+msgstr ""
+
+msgid "Matches of the national teams"
+msgstr ""
+
+msgid "League and cup matches"
+msgstr ""
+
+msgid "Video library"
+msgstr ""
+
+msgid "Last.fm user name:"
+msgstr ""
+
+msgid "Search for an artist (exact name) or a Last.fm user"
+msgstr ""
+
+msgid ""
+"Last.fm charts and tag pages are behind a browser check, only the radio "
+"stations can be used."
+msgstr ""
+
+msgid "Library"
+msgstr ""
+
+msgid "Mix"
+msgstr ""
+
+msgid "Top tracks"
+msgstr ""
+
+msgid "Similar artists mix"
+msgstr ""
+
+msgid "Similar artists"
+msgstr ""
+
+#, python-format
+msgid "Last.fm user \"%s\" not found."
+msgstr ""
+
+#, python-format
+msgid "Artist \"%s\" not found on Last.fm - the exact artist name is needed."
+msgstr ""
+
+msgid "No YouTube video found for this track."
+msgstr ""
+
+msgid "Artist"
+msgstr ""
+
+msgid "User"
+msgstr ""
+
+#, python-format
+msgid "The site did not answer with data (HTTP %s). It may be down or have moved."
+msgstr ""
+
+#, python-format
+msgid "Failed to get the file list from %s."
+msgstr ""
+
+msgid "Total size:"
+msgstr ""
+
+#, python-format
+msgid "Copying file from \"%s\" to \"%s\" failed.\n"
+msgstr ""
+
+msgid ""
+"Lodynet offers this video only on its subscription servers (Lody Plus / "
+"VIP) for now - the free servers usually follow later."
+msgstr ""
+
+msgid "More results"
+msgstr ""
+
+msgid "Catch-up"
+msgstr ""
+
+msgid "Best movies"
+msgstr ""
+
+msgid "Best series"
+msgstr ""
+
+msgid "Status"
+msgstr ""
+
+msgid "Tournament"
+msgstr ""
+
+msgid "Commentator"
+msgstr ""
+
+msgid "Formations"
+msgstr ""
+
+msgid "Radio station - live stream"
+msgstr ""
+
+#, python-format
+msgid "%s plays"
+msgstr ""
+
+#, python-format
+msgid "%s uploads"
+msgstr ""
+
+msgid "You have reached the play limit for this mix."
+msgstr ""
+
+msgid "This mix is only available with a Mixcloud Select subscription."
+msgstr ""
+
+msgid "Mixes"
+msgstr ""
+
+msgid "Users"
+msgstr ""
+
+msgid "Home / Sections"
+msgstr ""
+
+msgid "Most Watched"
+msgstr ""
+
+msgid "Football Live"
+msgstr ""
+
+msgid "Show results"
+msgstr ""
+
+msgid "No subtitles available for this title."
+msgstr ""
+
+#, python-format
+msgid "No subtitles in %s. Available: %s"
+msgstr ""
+
+msgid "Search: "
+msgstr ""
+
+msgid "Replays & highlights"
+msgstr ""
+
+msgid ""
+"Finished matches with a full replay, highlights or match cuts, newest "
+"first (usually a few days after the match)."
+msgstr ""
+
+msgid "Previous days"
+msgstr ""
+
+msgid "TODAY"
+msgstr ""
+
+msgid "TOMORROW"
+msgstr ""
+
+msgid "YESTERDAY"
+msgstr ""
+
+msgid "Older days"
+msgstr ""
+
+msgid "Failed to load the match list"
+msgstr ""
+
+msgid "No replays in these days"
+msgstr ""
+
+msgid "Older replays"
+msgstr ""
+
+msgid "Replay"
+msgstr ""
+
+msgid "Match cuts"
+msgstr ""
+
+msgid "Match not started yet"
+msgstr ""
+
+#, python-format
+msgid "Save subtitles (%s)"
+msgstr ""
+
+#, python-format
+msgid ""
+"Subtitles saved:\n"
+"%s"
+msgstr ""
+
+msgid "First aired"
+msgstr ""
+
+msgid "European movies"
+msgstr ""
+
+#, python-format
+msgid "%d recitations"
+msgstr ""
+
+msgid "Complete Quran"
+msgstr ""
+
+msgid "Live radio"
+msgstr ""
+
+#, python-format
+msgid "%d videos"
+msgstr ""
+
+msgid "Atheer radio (Arabic)"
+msgstr ""
+
+msgid "Tadabor"
+msgstr ""
+
+msgid "Tafsir (Arabic)"
+msgstr ""
+
+msgid "MP3Quran live radio"
+msgstr ""
+
+msgid "Show Youtube Api Key warnings"
+msgstr ""
+
+msgid "Wrong Youtube Api Key length"
+msgstr ""
+
+msgid "Youtube searches are quicker, if you fill API key in setting menu"
+msgstr ""
+
+msgid "iTunes - Top songs by country"
+msgstr ""
+
+msgid "iTunes - Top albums by country"
+msgstr ""
+
+msgid "My list"
+msgstr ""
+
+#, python-format
+msgid "Last week: %s"
+msgstr ""
+
+#, python-format
+msgid "Peak: %s"
+msgstr ""
+
+#, python-format
+msgid "Weeks on chart: %s"
+msgstr ""
+
+msgid "Loved tracks"
+msgstr ""
+
+msgid "Wrestling shows"
+msgstr ""
+
+msgid "Pro wrestling"
+msgstr ""
+
+msgid "Netflix movies"
+msgstr ""
+
+msgid "Classic movies"
+msgstr ""
+
+msgid "Dubbed movies"
+msgstr ""
+
+msgid "Egyptian series"
+msgstr ""
+
+msgid "Netflix series"
+msgstr ""
+
+msgid "Wrestling"
+msgstr ""
+
+msgid "Arabic songs"
+msgstr ""
+
+msgid "Arabic plays"
+msgstr ""
+
+msgid "Series - latest episodes"
+msgstr ""
+
+msgid "Series - seasons"
+msgstr ""
+
+msgid "Top stations"
+msgstr ""
+
+msgid "Aired this week"
+msgstr ""
+
+msgid "Available worldwide"
+msgstr ""
+
+#, python-format
+msgid "Uploader: %s"
+msgstr ""
+
+msgid "Tracklist"
+msgstr ""
+
+msgid "This video needs a paid ororo.tv subscription."
+msgstr ""
+
+msgid "Subspecialities"
+msgstr ""
+
+msgid "Board Review"
+msgstr ""
+
+msgid "CME SAE"
+msgstr ""
+
+msgid "Educational Animation"
+msgstr ""
+
+msgid "Ethical & Legal"
+msgstr ""
+
+msgid "Exam Review"
+msgstr ""
+
+msgid "Humanitarian"
+msgstr ""
+
+msgid "Industry"
+msgstr ""
+
+msgid "Interactive Learning Center(ILC)"
+msgstr ""
+
+msgid "Jobs & Positions"
+msgstr ""
+
+msgid "Journal Club"
+msgstr ""
+
+msgid "Medtryx Marketing"
+msgstr ""
+
+msgid "Meetings"
+msgstr ""
+
+msgid "Pathology Rounds"
+msgstr ""
+
+msgid "Physical Exam"
+msgstr ""
+
+msgid "Powerpoint Presentation"
+msgstr ""
+
+msgid "Practice Management"
+msgstr ""
+
+msgid "Professional Networks"
+msgstr ""
+
+msgid "Radiology Rounds"
+msgstr ""
+
+msgid "Study Plan"
+msgstr ""
+
+msgid "Surgical Approaches"
+msgstr ""
+
+msgid "Surgical Cases"
+msgstr ""
+
+msgid "Surgical Complications"
+msgstr ""
+
+msgid "Surgical Techniques"
+msgstr ""
+
+msgid "Techniques"
+msgstr ""
+
+msgid "Treatment Consult"
+msgstr ""
+
+msgid "Written Boards Review"
+msgstr ""
+
+msgid "Trauma"
+msgstr ""
+
+msgid "Spine"
+msgstr ""
+
+msgid "Shoulder & Elbow"
+msgstr ""
+
+msgid "Knee & Sports"
+msgstr ""
+
+msgid "Pediatrics"
+msgstr ""
+
+msgid "Recon"
+msgstr ""
+
+msgid "Hand"
+msgstr ""
+
+msgid "Foot & Ankle"
+msgstr ""
+
+msgid "Pathology"
+msgstr ""
+
+msgid "Basic Science"
+msgstr ""
+
+msgid "Anatomy"
+msgstr ""
+
+msgid "Approaches"
+msgstr ""
+
+msgid "General"
+msgstr ""
+
+msgid "Best Pinkbike videos"
+msgstr ""
+
+msgid "Programme archive (last 7 days)"
+msgstr ""
+
+msgid "Podcasts by category"
+msgstr ""
+
+msgid "Podcasts by station"
+msgstr ""
+
+msgid "Trending this week"
+msgstr ""
+
+msgid "Paid content"
+msgstr ""
+
+msgid "Nothing available here at the moment (only upcoming broadcasts)."
+msgstr ""
+
+msgid "This is paid content of PZPN+, it needs a purchase on the website."
+msgstr ""
+
+msgid "Audio programme"
+msgstr ""
+
+msgid "Country:"
+msgstr ""
+
+msgid "Cinema History"
+msgstr ""
+
+msgid "The site's catalogue could not be loaded."
+msgstr ""
+
+msgid "Top in your country"
+msgstr ""
+
+msgid "Action & Thriller"
+msgstr ""
+
+msgid "Latest dubbed episodes"
+msgstr ""
+
+msgid "Live-action series episodes"
+msgstr ""
+
+msgid "Series by genre"
+msgstr ""
+
+msgid "Series by year"
+msgstr ""
+
+msgid "Films by genre"
+msgstr ""
+
+msgid "Short series"
+msgstr ""
+
+#, python-format
+msgid "Now playing: %s"
+msgstr ""
+
+msgid "FebBox token (\"ui\" cookie of www.febbox.com):"
+msgstr ""
+
+msgid ""
+"ShowBox streams need a FebBox login: enter the \"ui\" cookie of your "
+"FebBox account in the host configuration."
+msgstr ""
+
+msgid "serial number"
+msgstr ""
+
+msgid "device ID"
+msgstr ""
+
+msgid "device ID 2"
+msgstr ""
+
+msgid "signature"
+msgstr ""
+
+#, python-format
+msgid "Portal %d - name (optional):"
+msgstr ""
+
+#, python-format
+msgid "Portal %d - portal URL (http://host:port/c/):"
+msgstr ""
+
+#, python-format
+msgid "Portal %d - MAC address (00:1A:79:...):"
+msgstr ""
+
+#, python-format
+msgid "Portal %d - %s (optional, from the MAG box):"
+msgstr ""
+
+#, python-format
+msgid "Also use the portals of EStalker (%s)"
+msgstr ""
+
+msgid "Show adult content"
+msgstr ""
+
+#, python-format
+msgid "Expiry: %s"
+msgstr ""
+
+#, python-format
+msgid "Tariff: %s"
+msgstr ""
+
+#, python-format
+msgid "Balance: %s"
+msgstr ""
+
+msgid "Please configure the Stalker portal (blue button)"
+msgstr ""
+
+#, python-format
+msgid ""
+"Portal URL and MAC address in the host configuration, as the provider "
+"gives them out. More portals: %s in the EStalker format (portal URL, then"
+" its MAC addresses, one per line)."
+msgstr ""
+
+msgid "Programmes of the last days of the channels with an archive"
+msgstr ""
+
+#, python-format
+msgid "Catch-up: %d days"
+msgstr ""
+
+msgid "No channels with an archive on this portal."
+msgstr ""
+
+msgid "No recorded programmes on this day."
+msgstr ""
+
+msgid "The Stalker portal of this entry is not configured (any more)."
+msgstr ""
+
+msgid "The portal did not hand out a link for this entry."
+msgstr ""
+
+msgid "No programme guide for this channel."
+msgstr ""
+
+msgid "WebStreamr / AIOStreams manifest URL (your own):"
+msgstr ""
+
+msgid "Runtime"
+msgstr ""
+
+msgid "YP connected"
+msgstr ""
+
+msgid "Collected streams only"
+msgstr ""
+
+msgid "Free IPTV list"
+msgstr ""
+
+msgid "All streams"
+msgstr ""
+
+msgid "Hide titles only available in Sweden"
+msgstr ""
+
+msgid "Sweden"
+msgstr ""
+
+msgid "Category:"
+msgstr ""
+
+msgid "E-mail (free TBN GO account):"
+msgstr ""
+
+msgid ""
+"TBN GO needs a free account to play programmes.\n"
+"Register on https://tbngo.pl/ and enter the e-mail and password in the "
+"host settings."
+msgstr ""
+
+#, python-format
+msgid "Live stream of the %s channel"
+msgstr ""
+
+msgid "Subtitle languages"
+msgstr ""
+
+#, python-format
+msgid "%s talks"
+msgstr ""
+
+msgid "Date"
+msgstr ""
+
+msgid "Events"
+msgstr ""
+
+msgid "WWE shows"
+msgstr ""
+
+msgid "English dubbed"
+msgstr ""
+
+msgid "Indian"
+msgstr ""
+
+msgid "Classic"
+msgstr ""
+
+msgid "Latino"
+msgstr ""
+
+msgid "IMDb"
+msgstr ""
+
+msgid "Maximum torrent size:"
+msgstr ""
+
+msgid "MediaFusion manifest URL (your own):"
+msgstr ""
+
+msgid "Complete series"
+msgstr ""
+
+msgid "Select best available quality"
+msgstr ""
+
+msgid "Poland"
+msgstr ""
+
+msgid "World"
+msgstr ""
+
+msgid "Business"
+msgstr ""
+
+msgid "Culture and lifestyle"
+msgstr ""
+
+msgid "Regions"
+msgstr ""
+
+msgid "This article has no free video."
+msgstr ""
+
+msgid "Live stream on YouTube"
+msgstr ""
+
+msgid ""
+"The video could not be resolved (it may be private, ended or not "
+"available in your country)."
+msgstr ""
+
+msgid "Streaming platforms"
+msgstr ""
+
+msgid "Watch online"
+msgstr ""
+
+msgid "Group links into categories:"
+msgstr ""
+
+#, python-format
+msgid "%s not found in %s"
+msgstr ""
+
+#, python-format
+msgid "Lines that could not be read: %d (first: line %d of %s)"
+msgstr ""
+
+msgid "Link"
+msgstr ""
+
+msgid "Vimeo does not offer this list to anonymous users in your region."
+msgstr ""
+
+msgid "Followers"
+msgstr ""
+
+msgid "Members"
+msgstr ""
+
+msgid "The best short films on the internet, handpicked by Vimeo staff"
+msgstr ""
+
+msgid "Latest anime episodes"
+msgstr ""
+
+msgid "Latest cartoon episodes"
+msgstr ""
+
+msgid "Cartoons A-Z"
+msgstr ""
+
+msgid "Anime genres"
+msgstr ""
+
+msgid "Cartoon genres"
+msgstr ""
+
+msgid "English subbed"
+msgstr ""
+
+msgid "Exclusive"
+msgstr ""
+
+msgid "Size:"
+msgstr ""
+
+msgid "Read by"
+msgstr ""
+
+msgid "All audiobooks"
+msgstr ""
+
+msgid "Authors"
+msgstr ""
+
+msgid "Epochs"
+msgstr ""
+
+msgid "Kinds"
+msgstr ""
+
+msgid "Prefer MP4 over HLS:"
+msgstr ""
+
+#, python-format
+msgid "Account %d - name (optional):"
+msgstr ""
+
+#, python-format
+msgid "Account %d - server (http://host:port or get.php link):"
+msgstr ""
+
+#, python-format
+msgid "Account %d - user name:"
+msgstr ""
+
+#, python-format
+msgid "Account %d - password:"
+msgstr ""
+
+msgid "User-Agent (leave empty for the default):"
+msgstr ""
+
+#, python-format
+msgid "Also use the accounts of X-Streamity (%s)"
+msgstr ""
+
+msgid "Login or password is wrong."
+msgstr ""
+
+#, python-format
+msgid "Status: %s"
+msgstr ""
+
+msgid "never"
+msgstr ""
+
+msgid "Trial"
+msgstr ""
+
+#, python-format
+msgid "Connections: %s of %s"
+msgstr ""
+
+#, python-format
+msgid "Created: %s"
+msgstr ""
+
+#, python-format
+msgid "Stream formats: %s"
+msgstr ""
+
+#, python-format
+msgid "Ports: %s"
+msgstr ""
+
+#, python-format
+msgid "Server time: %s"
+msgstr ""
+
+msgid "Please configure Xtream (blue button)"
+msgstr ""
+
+#, python-format
+msgid ""
+"Server, user name and password in the host configuration. The server "
+"field also takes a get.php link. More accounts: %s with one get.php link "
+"per line (X-Streamity format)."
+msgstr ""
+
+#, python-format
+msgid "Catch-up (%d channels)"
+msgstr ""
+
+msgid "The Xtream account of this entry is not configured (any more)."
+msgstr ""
+
+msgid "Catch-up (timeshift.php)"
+msgstr ""
+
+msgid "New links"
+msgstr ""
+
+msgid "E2iPlayer downloader"
+msgstr ""
+

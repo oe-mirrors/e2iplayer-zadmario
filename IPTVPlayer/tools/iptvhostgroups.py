@@ -5,7 +5,7 @@ from Plugins.Extensions.IPTVPlayer.components.ihost import CHostsGroupItem
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
 from Plugins.Extensions.IPTVPlayer.libs.e2ijson import dumps as json_dumps
 from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import GetConfigDir, GetHostsList, IsHostEnabled, printDBG, printExc
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import GetConfigDir, GetHostsList, getHostsPath, IsHostEnabled, printDBG, printExc
 
 
 class IPTVHostsGroups:
@@ -47,59 +47,8 @@ class IPTVHostsGroups:
         self.CACHE_GROUPS = None
 
         # hosts
-        self.PREDEFINED_HOSTS = {}
-        self.PREDEFINED_HOSTS['userdefined'] = ['favourites', 'localmedia', 'urllist', 'iptvplayerinfo']
-        self.PREDEFINED_HOSTS['moviesandseries'] = ['ekinotv', 'cdapl', 'zaluknijcc', 'filman', 'obejrzyjto', 'filmowoclub', 'freediscpl',
-                                                    'movienightws', 'hdpopcornscom', 'losmovies', 'kinomoc', 'hdseanspl', 'zerioncc',
-                                                    'solarmovie', 'thewatchseriesto', 'classiccinemaonline', 'seriesonline', 'vumooch', 'movizlandcom',
-                                                    'cinemay', 'librestream', 'streamcomplet', 'skstream', 'filmstreamvkcom',
-                                                    'filmpalast', 'serienstreamto', 'hdfilmetv', 'cineto', 'filmezz', 'rtlmost', 'gamatocom', 'xrysoise', 'mooviecc', 'mrpiracy',
-                                                    'filmativa', 'filmovizijastudio', 'filma24hdcom', 'serijeonline', 'cartoonhd', 'tantifilmorg', 'forjatn', 'serialeco', 'faselhdcom',
-                                                    'planetstreamingcom', 'filmeonlineto', 'tainieskaiseirestv', '3sktv', 'cimaclubcom', 'gledalica',
-                                                    'filmaoncom', 'putlockertvto', 'akoam', 'filmehdnet',
-                                                    'altadefinizione01', '123movieshd', 'filma24io', 'ddl', 'hdfull', 'dixmax', 'fenixsite',
-                                                    'kkiste', 'kinox', 'kellerkino', 'tele5']
-        self.PREDEFINED_HOSTS['cartoonsandanime'] = ['bajeczkiorg', 'animeodcinki', 'kisscartoonme', 'watchcartoononline', 'shahiidanimenet',
-                                                     'otakufr']
-        self.PREDEFINED_HOSTS['sport'] = ['webstream', 'meczykipl', 'ekstraklasatv', 'laola1tv', 'bbcsport', 'ourmatchnet', 'hoofootcom', 'okgoals', 'ngolos', 'watchwrestlinguno', 'watchwrestling', 'fighttube', 'fightvideo',
-                                          'twitchtv', 'pinkbike', 'sportdeutschland', 'eurosportplayer', 'del', 'redbull', 'fullmatchtvcom']
-        self.PREDEFINED_HOSTS['live'] = ['webstream', 'streamliveto', 'ustreamtv', 'youtube', 'dailymotion', 'eskago', 'eurosportplayer', 'ustvgo', 'twitchtv', 'vavooto']
-        self.PREDEFINED_HOSTS['documentary'] = ['fokustv', 'dokumentalnenet', 'greekdocumentaries3', 'dailymotion', 'orthobulletscom', 'vumedicom',
-                                                'dmax', 'tlc', 'hgtv']
-        self.PREDEFINED_HOSTS['science'] = ['questtvcouk', 'dailymotion', 'ustreamtv', 'dokumentalnenet', 'orthobulletscom', 'vumedicom']
-
-        self.PREDEFINED_HOSTS['polish'] = ['youtube', 'webstream', 'ekinotv', 'cdapl', 'zaluknijcc', 'filman', 'obejrzyjto', 'zerioncc', 'tvpvod', 'ipla',
-                                           'kinomoc', 'filmowoclub', 'hdseanspl', 'freediscpl', 'ekstraklasatv', 'bajeczkiorg', 'animeodcinki', 'playpuls', 'meczykipl', 'eskago', 'vodpl',
-                                           'tvjworg', 'artetv', 'dailymotion', 'vimeo', 'kabarety', 'twitchtv', 'tvgrypl', 'chomikuj', 'fighttube', 'spryciarze', 'wgrane', 'wolnelekturypl', 'tvn24', 'ninateka',
-                                           'maxtvgo', 'wpolscepl', 'wrealu24tv', 'wptv', 'interiatv', 'dokumentalnenet', 'serialeco', 'radiostacja', 'nuteczki', 'luxveritatis', 'tvproart',
-                                           'christusvincit', 'joemonsterorg']
-        self.PREDEFINED_HOSTS['english'] = ['youtube', 'webstream', 'bbciplayer', 'bbcsport', 'tvplayercom', 'itvcom', 'uktvplay', 'classiccinemaonline', 'seriesonline',
-                                            'thewatchseriesto', 'movienightws', 'artetv',
-                                            'hdpopcornscom', 'losmovies', 'solarmovie', 'putlockertvto', 'vumooch', 'cineto', 'cartoonhd', 'kisscartoonme', 'watchcartoononline', 'dailymotion',
-                                            'ourmatchnet', 'watchwrestlinguno', 'watchwrestling', 'laola1tv', 'hoofootcom', 'fightvideo', 'twitchtv', 'ted', 'ororotv', 'pinkbike', 'dancetrippin',
-                                            'ustreamtv', 'rteieplayer', '3player', 'questtvcouk', 'filmeonlineto', 'playrtsiw', '123movieshd', 'orthobulletscom', 'vumedicom', 'ddl']
-        self.PREDEFINED_HOSTS['german'] = ['youtube', 'twitchtv', 'webstream', 'ardmediathek', 'zdfmediathek', 'orfon', 'artetv', 'dmax', 'tlc', 'hgtv', 'tele5',
-                                           'netzkino', 'aniworld', 'serienstreamto', 'hdfilmetv', 'cineto', 'kinoking', 'filmpalast', 'dailymotion', 'playrtsiw', 'kkiste',
-                                           'kinoger', 'gaskrank', 'einschalten', 'megakino', 'streamkinos', 'streamcloud', 'moflixstream', 'topstreamfilm', 'hdfilme',
-                                           'movie2kcx', 'kinox', 'kellerkino', 'sportdeutschland', 'vavooto']
-
-        self.PREDEFINED_HOSTS['french'] = ['youtube', 'skstream', 'filmstreamvkcom', 'streamcomplet', 'librestream', 'cinemay', 'otakufr', 'rtbfbe', 'artetv', 'dailymotion',
-                                           'vimeo', 'twitchtv', 'planetstreamingcom', 'playrtsiw']
-        # python3's Russian group, as far as zadmario has its hosts (ritsatv, uaserials, eneyida are python3 only)
-        self.PREDEFINED_HOSTS['russian'] = ['youtube', 'dailymotion']
-        self.PREDEFINED_HOSTS['hungarian'] = ['youtube', 'mooviecc', 'filmezz', 'rtlmost', 'dailymotion', 'vimeo', 'twitchtv']
-        self.PREDEFINED_HOSTS['arabic'] = ['youtube', 'webstream', 'akoam', 'movizlandcom', 'shahiidanimenet', 'dailymotion', 'vimeo', 'twitchtv', 'faselhdcom', '3sktv', 'cimaclubcom', 'hdsto']
-        self.PREDEFINED_HOSTS['greek'] = ['youtube', 'xrysoise', 'tainieskaiseirestv', 'gamatocom', 'greekdocumentaries3', 'dailymotion', 'vimeo', 'twitchtv']
-        self.PREDEFINED_HOSTS['latino'] = ['youtube', 'mrpiracy', 'solarmovie', 'artetv', 'dailymotion', 'vimeo', 'twitchtv', 'hdfull', 'dixmax']
-        self.PREDEFINED_HOSTS['italian'] = ['youtube', 'mediasetplay', 'altadefinizione01', 'tantifilmorg', 'dailymotion', 'vimeo', 'twitchtv', 'playrtsiw', 'raiplay']
-        self.PREDEFINED_HOSTS['swedish'] = ['youtube', 'dailymotion', 'vimeo', 'svtplayse', 'twitchtv']
-        self.PREDEFINED_HOSTS['balkans'] = ['youtube', 'filmehdnet', 'gledalica', 'filmativa', 'filmovizijastudio', 'filma24hdcom', 'filma24io', 'filmaoncom', 'serijeonline', 'filmeonlineto', 'fenixsite',
-                                            'dailymotion', 'vimeo', 'twitchtv']
-        self.PREDEFINED_HOSTS['music'] = ['youtube', 'vevo', 'musicmp3ru', 'dancetrippin', 'musicbox', 'vimeo', 'dailymotion', 'shoutcast', 'eskago', 'radiostacja', 'nuteczki', 'mediayou']
-
-        self.PREDEFINED_HOSTS['others'] = ['iptvplayerinfo', 'localmedia', 'urllist', 'youtube', 'cdapl', 'wolnelekturypl', 'chomikuj', 'freediscpl', 'kabarety', 'spryciarze', 'wgrane', 'dailymotion', 'vimeo', 'ted',
-                                           'ororotv', 'tvjworg', 'twitchtv', 'drdk', 'pinkbike', 'kijknl', 'rtbfbe', 'playrtsiw']
-
+        # hosts of the groups: hosts/hostgroups.txt (same file as in the python3 branch)
+        self.PREDEFINED_HOSTS = json_loads(self._loadFromFile(getHostsPath("hostgroups.txt")))
         self.LOADED_HOSTS = {}
         self.LOADED_DISABLED_HOSTS = {}
         self.CACHE_HOSTS = {}

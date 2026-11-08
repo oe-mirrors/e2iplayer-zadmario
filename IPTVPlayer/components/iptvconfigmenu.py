@@ -327,6 +327,8 @@ config.plugins.iptvplayer.normalize_media_names = ConfigYesNo(default=True)
 # third-party web service enc-dec.app. The settings screen makes the user
 # confirm twice before this can be turned on (see ConfigMenu._confirmExternalResolve).
 config.plugins.iptvplayer.allow_external_resolve = ConfigYesNo(default=False)
+# the python3 branch's hosts (localmedia) ask for the download folder by this name; here it is the same option
+config.plugins.iptvplayer.DownloadsDir = config.plugins.iptvplayer.NaszaSciezka
 # movie/series details on the info screen of hosts which support it (libs/moviemeta.py), asked in
 # the order TMDb, IMDb, TVmaze (series), Cinemeta, OMDb; TMDb and OMDb need the user's own free API
 # key, the others none; TMDb and IMDb texts come in meta_language where they have them
@@ -387,6 +389,13 @@ def IsExternalResolveAllowed():
     # asked by parserVIDEASY / parserVIDCORE / parserVIDLINK / parserPEACHIFY
     # before they contact enc-dec.app
     return config.plugins.iptvplayer.allow_external_resolve.value
+
+
+def IsVidcoreResolvable():
+    # asked by the hosts that offer vidcore / vidup / vidfast links: parserVIDCORE runs their player in QuickJS
+    # (package quickjs), enc-dec.app is only the fallback
+    from Plugins.Extensions.IPTVPlayer.tools.e2ijs import quickjs_available
+    return quickjs_available() or config.plugins.iptvplayer.allow_external_resolve.value
 
 
 def IsSidecarEnabled():
@@ -518,7 +527,7 @@ class ConfigMenu(ConfigBaseWidget):
         self.platformOld = config.plugins.iptvplayer.plarform.value
         self.remove_diabled_hostsOld = config.plugins.iptvplayer.remove_diabled_hosts.value
         self.enabledHostsListOld = GetEnabledHostsList()
-        self.hiddenConfVisible = True #HIDDEN OPTIONS (only listed once unlocked)
+        self.hiddenConfVisible = False #EXPERT OPTIONS (last section, collapsed)
         self.basicConfVisible = True #BASIC CONFIGURATION
         self.prxyConfVisible = False #PROXIES CONFIGURATION
         self.buffConfVisible = False #BUFFERING CONFIGURATION
@@ -555,33 +564,6 @@ class ConfigMenu(ConfigBaseWidget):
     def fillConfigList(list, hiddenOptions=False, basicConfVisible=True, prxyConfVisible=False, buffConfVisible=False, downConfVisible=False,
                                                   captConfVisible=False, subtConfVisible=False, playConfVisible=False, otherConfVisible=False, metaConfVisible=False,
                                                   hiddenConfVisible=True, torrConfVisible=False):
-        if hiddenOptions:
-            list.append(getConfigListEntry('\\c00289496' + _("----- HIDDEN OPTIONS (OK) -----"), config.plugins.iptvplayer.hiddenConfVisible))
-        if hiddenOptions and hiddenConfVisible: #HIDDEN OPTIONS
-            list.append(getConfigListEntry(_("Last checked version"), config.plugins.iptvplayer.updateLastCheckedVersion))
-            list.append(getConfigListEntry(_("Show all version in the update menu"), config.plugins.iptvplayer.hiddenAllVersionInUpdate))
-            list.append(getConfigListEntry(_("VFD set current title:"), config.plugins.iptvplayer.set_curr_title))
-            list.append(getConfigListEntry(_("Write current title to file:"), config.plugins.iptvplayer.curr_title_file))
-            list.append(getConfigListEntry(_("The default aspect ratio for the external player"), config.plugins.iptvplayer.hidden_ext_player_def_aspect_ratio))
-
-            list.append(getConfigListEntry("exteplayer3path", config.plugins.iptvplayer.exteplayer3path))
-            list.append(getConfigListEntry("gstplayerpath", config.plugins.iptvplayer.gstplayerpath))
-            list.append(getConfigListEntry("wgetpath", config.plugins.iptvplayer.wgetpath))
-            list.append(getConfigListEntry("rtmpdumppath", config.plugins.iptvplayer.rtmpdumppath))
-            list.append(getConfigListEntry("hlsdlpath", config.plugins.iptvplayer.hlsdlpath))
-            list.append(getConfigListEntry("cmdwrappath", config.plugins.iptvplayer.cmdwrappath))
-            list.append(getConfigListEntry("dukpath", config.plugins.iptvplayer.dukpath))
-            list.append(getConfigListEntry("f4mdumppath", config.plugins.iptvplayer.f4mdumppath))
-            list.append(getConfigListEntry("uchardetpath", config.plugins.iptvplayer.uchardetpath))
-            list.append(getConfigListEntry("ffmpegpath", config.plugins.iptvplayer.ffmpegpath))
-            list.append(getConfigListEntry("qjspath", config.plugins.iptvplayer.qjspath))
-            list.append(getConfigListEntry("curlimpersonatepath", config.plugins.iptvplayer.curlimpersonatepath))
-            list.append(getConfigListEntry("MIPS Floating Point Architecture", config.plugins.iptvplayer.plarformfpuabi))
-            list.append(getConfigListEntry("E2iPlayer auto start at Enigma2 start", config.plugins.iptvplayer.plugin_autostart))
-            list.append(getConfigListEntry("Auto start method", config.plugins.iptvplayer.plugin_autostart_method))
-            list.append(getConfigListEntry("Prefer hlsld for playlist with alt. media", config.plugins.iptvplayer.prefer_hlsdl_for_pls_with_alt_media))
-            list.append(getConfigListEntry(_("Hosts List Type-NOT FINISHED"), config.plugins.iptvplayer.hostsListType))
-
         list.append(getConfigListEntry('\\c00289496' + _("----- BASIC CONFIGURATION (OK) -----"), config.plugins.iptvplayer.basicConfVisible))
         if basicConfVisible: #BASIC CONFIGURATION
             list.append(getConfigListEntry(_("Auto check for plugin update"), config.plugins.iptvplayer.autoCheckForUpdate))
@@ -819,9 +801,36 @@ class ConfigMenu(ConfigBaseWidget):
                 list.append(getConfigListEntry(_("Allow downgrade"), config.plugins.iptvplayer.downgradePossible))
                 list.append(getConfigListEntry(_("Update packet type"), config.plugins.iptvplayer.possibleUpdateType))
 
+        if hiddenOptions:
+            list.append(getConfigListEntry('\\c00289496' + _("----- EXPERT OPTIONS (OK) -----"), config.plugins.iptvplayer.hiddenConfVisible))
+        if hiddenOptions and hiddenConfVisible: #EXPERT OPTIONS
+            list.append(getConfigListEntry(_("Last checked version"), config.plugins.iptvplayer.updateLastCheckedVersion))
+            list.append(getConfigListEntry(_("Show all version in the update menu"), config.plugins.iptvplayer.hiddenAllVersionInUpdate))
+            list.append(getConfigListEntry(_("VFD set current title:"), config.plugins.iptvplayer.set_curr_title))
+            list.append(getConfigListEntry(_("Write current title to file:"), config.plugins.iptvplayer.curr_title_file))
+            list.append(getConfigListEntry(_("The default aspect ratio for the external player"), config.plugins.iptvplayer.hidden_ext_player_def_aspect_ratio))
+
+            list.append(getConfigListEntry(_("%s path") % "exteplayer3", config.plugins.iptvplayer.exteplayer3path))
+            list.append(getConfigListEntry(_("%s path") % "gstplayer", config.plugins.iptvplayer.gstplayerpath))
+            list.append(getConfigListEntry(_("%s path") % "wget", config.plugins.iptvplayer.wgetpath))
+            list.append(getConfigListEntry(_("%s path") % "rtmpdump", config.plugins.iptvplayer.rtmpdumppath))
+            list.append(getConfigListEntry(_("%s path") % "hlsdl", config.plugins.iptvplayer.hlsdlpath))
+            list.append(getConfigListEntry(_("%s path") % "cmdwrap", config.plugins.iptvplayer.cmdwrappath))
+            list.append(getConfigListEntry(_("%s path") % "duk", config.plugins.iptvplayer.dukpath))
+            list.append(getConfigListEntry(_("%s path") % "f4mdump", config.plugins.iptvplayer.f4mdumppath))
+            list.append(getConfigListEntry(_("%s path") % "uchardet", config.plugins.iptvplayer.uchardetpath))
+            list.append(getConfigListEntry(_("%s path") % "ffmpeg", config.plugins.iptvplayer.ffmpegpath))
+            list.append(getConfigListEntry(_("%s path") % "qjs", config.plugins.iptvplayer.qjspath))
+            list.append(getConfigListEntry(_("%s path") % "curlimpersonate", config.plugins.iptvplayer.curlimpersonatepath))
+            list.append(getConfigListEntry(_("MIPS floating point architecture"), config.plugins.iptvplayer.plarformfpuabi))
+            list.append(getConfigListEntry(_("E2iPlayer auto start at Enigma2 start"), config.plugins.iptvplayer.plugin_autostart))
+            list.append(getConfigListEntry(_("Auto start method"), config.plugins.iptvplayer.plugin_autostart_method))
+            list.append(getConfigListEntry(_("Prefer hlsdl for playlist with alt. media"), config.plugins.iptvplayer.prefer_hlsdl_for_pls_with_alt_media))
+            list.append(getConfigListEntry(_("Hosts List Type-NOT FINISHED"), config.plugins.iptvplayer.hostsListType))
+
     def runSetup(self):
         self.list = []
-        ConfigMenu.fillConfigList(self.list, self.isHiddenOptionsUnlocked(), self.basicConfVisible, self.prxyConfVisible, self.buffConfVisible, self.downConfVisible,
+        ConfigMenu.fillConfigList(self.list, True, self.basicConfVisible, self.prxyConfVisible, self.buffConfVisible, self.downConfVisible,
                                                                              self.captConfVisible, self.subtConfVisible, self.playConfVisible, self.otherConfVisible, self.metaConfVisible,
                                                                              self.hiddenConfVisible, self.torrConfVisible)
         ConfigBaseWidget.runSetup(self)

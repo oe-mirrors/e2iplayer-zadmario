@@ -12,10 +12,14 @@ import codecs
 ###################################################
 from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_binary, ensure_str
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_unquote
-from Plugins.Extensions.IPTVPlayer.p2p3.UrlParse import urljoin
+from Plugins.Extensions.IPTVPlayer.p2p3.UrlParse import urljoin, urlparse
 from Plugins.Extensions.IPTVPlayer.p2p3.pVer import isPY2
 if not isPY2():
     unichr = chr
+try:
+    from http.client import responses as HTTP_REASONS
+except ImportError:
+    from httplib import responses as HTTP_REASONS
 
 import base64
 import hashlib
@@ -526,6 +530,9 @@ def getDirectM3U8Playlist(M3U8Url, checkExt=True, variantCheck=True, cookieParam
             # Merge SUBTITLES renditions declared in the master playlist into
             # external_sub_tracks (kept alongside any the caller already
             # passed). The player exposes them as "Download suggested".
+            # The url is the subtitle media playlist ('hls': True) - its
+            # .vtt segments are fetched only where the track is used
+            # (downloaderhelpers.hlsSubtitleSegmentUrls), not here.
             hlsSubTracks = []
             seenSubUrls = set()
             subMeta = dict((k, v) for k, v in meta.items() if k not in ('external_sub_tracks', 'iptv_proto', 'iptv_bitrate', 'iptv_m3u8_custom_base_link'))
@@ -550,7 +557,8 @@ def getDirectM3U8Playlist(M3U8Url, checkExt=True, variantCheck=True, cookieParam
                     hlsSubTracks.append({'title': subTitle,
                                          'lang': subStream.language or '',
                                          'url': strwithmeta(subUrl, subMeta),
-                                         'format': 'vtt'})
+                                         'format': 'vtt',
+                                         'hls': True})
             if hlsSubTracks:
                 meta['external_sub_tracks'] = list(meta.get('external_sub_tracks', [])) + hlsSubTracks
             for playlist in m3u8Obj.playlists:
@@ -860,6 +868,22 @@ def getF4MLinksWithMeta(manifestUrl, checkExt=True, cookieParams={}, sortWithMax
 
             retPlaylists = CSelOneLink(retPlaylists, __getLinkQuality, sortWithMaxBitrate).getSortedLinks()
     return retPlaylists
+
+
+def _toStatus(value):
+    try:
+        return int(value)
+    except Exception:
+        return 0
+
+
+def _setLastHostError(makeText):
+    # the message shown when a link list stays empty; makeText gets the translation function
+    try:
+        from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import SetIPTVPlayerLastHostError, TranslateTXT as _
+        SetIPTVPlayerLastHostError(makeText(_).strip())
+    except Exception:
+        printExc()
 
 
 def getMPDLinksWithMeta(manifestUrl, checkExt=True, cookieParams={}, sortWithMaxBandwidth=-1):

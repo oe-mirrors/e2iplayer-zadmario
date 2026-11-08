@@ -1,24 +1,25 @@
 # -*- coding: utf-8 -*-
+LAST_MODIFIED = "18.10.2026"
 # 11.10.2026 - "Newest videos": video length in the description (uploads playlist page, one request per channel),
-# Shorts with their own list icon; stored YouTube channels, Shorts, live streams / live radios with their icons;
-# no age in the title (file name), the description shows it
+# Shorts with their own list icon; stored live streams / live radios with the live icon
+# 09.10.2026 - "Newest videos": INFO shows the full YouTube description, no age in the title (file name)
+# 08.10.2026 - favourites of a PIN protected host ask for the host's PIN
 # 01.10.2026 - the "Newest videos (all YouTube channels)" row can be switched off in the host settings
-# Last Modified: 20.09.2026 - YouTube channels in a group: sort by newest upload + merged "newest videos" list,
+# 20.09.2026 - YouTube channels in a group: sort by newest upload + merged "newest videos" list,
 # folder watched/started marking, markers under the host's own watched folder name, origin host line
 ###################################################
 # LOCAL import
 ###################################################
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
 from Plugins.Extensions.IPTVPlayer.components.ihost import IHost, CHostBase, CBaseHostClass, CDisplayListItem, RetHost, CUrlItem, CFavItem
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, GetLogoDir, GetFavouritesDir, mkdirs, rm
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, GetLogoDir, GetFavouritesDir, GetWatchedDir, mkdirs, rm
 from Plugins.Extensions.IPTVPlayer.tools.iptvfavourites import IPTVFavourites
 from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedhelper import IPTVWatchedHelper
 from Plugins.Extensions.IPTVPlayer.components.iptvchoicebox import IPTVChoiceBoxItem
-from Plugins.Extensions.IPTVPlayer.components.iptvhostpin import IsHostPinProtected
-from Plugins.Extensions.IPTVPlayer.libs.crypto.hash.md5Hash import MD5
+from Plugins.Extensions.IPTVPlayer.components.iptvhostpin import GetHostDisplayTitle, IsHostPinProtected
 from Plugins.Extensions.IPTVPlayer.libs import ytchannelfeed
 ###################################################
-from Plugins.Extensions.IPTVPlayer.p2p3.pVer import isPY2
+from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_binary
 ###################################################
 # FOREIGN import
 ###################################################
@@ -27,8 +28,7 @@ try:
     import simplejson as json
 except Exception:
     import json
-from binascii import hexlify
-import re
+from hashlib import md5
 import time
 from Components.config import config, ConfigInteger, ConfigYesNo, getConfigListEntry
 ###################################################
@@ -67,7 +67,6 @@ class Favourites(CBaseHostClass):
         self.DEFAULT_ICON_URL = "https://raw.githubusercontent.com/oe-mirrors/e2iplayer/refs/heads/gh-pages/icons/favourites.png"
         self._guestParentWatchedHelper = IPTVWatchedHelper('favourites')
         self.ytSortedGroups = set()  # group ids shown sorted by the newest YouTube upload (this visit only)
-        self.hostTitles = {}  # host module name -> title to show, see _getHostTitle()
 
     def _setHost(self, hostName):
         if hostName == self.hostName:
@@ -150,21 +149,10 @@ class Favourites(CBaseHostClass):
 
     def _addHostLine(self, hostName, desc):
         # the host a favourite comes from, first line of its description
-        title = self._getHostTitle(hostName)
+        title = GetHostDisplayTitle(hostName)
         if title == '':
             return desc
         return _("Host") + ": " + title + ("\n" + desc if desc else '')
-
-    def _getHostTitle(self, hostName):
-        if hostName not in self.hostTitles:
-            title = ''
-            try:
-                module = __import__('Plugins.Extensions.IPTVPlayer.hosts.host' + hostName, globals(), locals(), ['gettytul'], 0)
-                title = re.sub(r'^https?://(www\.)?', '', str(module.gettytul()).strip()).rstrip('/')
-            except Exception:
-                printExc()
-            self.hostTitles[hostName] = title or str(hostName)
-        return self.hostTitles[hostName]
 
     def _parseFavItem(self, item):
         # -> (favUrl, favItem) of a stored favourite; favItem is the host's own item dict (or None)
@@ -318,7 +306,7 @@ class Favourites(CBaseHostClass):
                   'yt_video': True, 'yt_item': video, 'fav_item': video, 'fav_url': video['url']}
         if entry['short']:
             params['image_type'] = 'SHORT'  # still a video, only the list icon differs (ShortItem.png)
-        self.addVideo(self._addPinLock(params, 'youtube'))
+        self.addVideo(params)
 
     def _addNewestNotice(self, groupId, failed):
         # a row that says so, not a silently shorter list; pressing OK on it asks the feeds again
@@ -328,7 +316,7 @@ class Favourites(CBaseHostClass):
         else:
             title = _("(no videos found)")
             desc = _("The YouTube channels of this group have no videos.")
-        self.addDir(self._addPinLock({'name': 'category', 'category': 'yt_newest', 'group_id': groupId, 'title': title, 'desc': desc}, 'youtube'))
+        self.addDir({'name': 'category', 'category': 'yt_newest', 'group_id': groupId, 'title': title, 'desc': desc})
 
     def getLinksForVideo(self, cItem):
         printDBG("Favourites.getLinksForVideo idx[%r]" % cItem)
@@ -412,12 +400,16 @@ class Favourites(CBaseHostClass):
             if sts:
                 item = data[cItem['item_idx']]
                 if self._setHost(cItem['host']):
-                    ret = self.host.setInitFavouriteItem(item)
-                    if RetHost.OK == ret.status:
-                        ret = True
+                    ret = RetHost.OK == self.host.setInitFavouriteItem(item).status
         except Exception:
             printExc()
         return ret
+
+    def getYtArticleContent(self, cItem):
+        # INFO on a video of the merged "newest videos" list: the YouTube host reads the full description
+        if self._setHost('youtube'):
+            return RetHost(RetHost.OK, value=self.host.host.getArticleContent(dict(cItem['yt_item'])))
+        return RetHost(RetHost.ERROR, value=[])
 
     def getCurrentGuestHost(self):
         return self.host
@@ -575,10 +567,7 @@ class IPTVHost(CHostBase):
             hostName = str(self.host.getHostNameFromItem(index))
         if hostName in [None, '']:
             return None
-        hashAlg = MD5()
-        hashData = hexlify(hashAlg('%s_%s' % (str(displayItem.name), str(displayItem.type))))
-        if not isPY2():
-            hashData = hashData.decode()
+        hashData = md5(ensure_binary('%s_%s' % (str(displayItem.name), str(displayItem.type)))).hexdigest()
         return (hostName, hashData)
 
     def _getWatchedDirName(self, hostName):
@@ -608,10 +597,7 @@ class IPTVHost(CHostBase):
         hashSrc = self._getStableItemHashSource(index)
         if hashSrc == '':
             hashSrc = '%s_%s' % (str(displayItem.name), str(displayItem.type))
-        hashAlg = MD5()
-        hashData = hexlify(hashAlg(hashSrc))
-        if not isPY2():
-            hashData = hashData.decode()
+        hashData = md5(ensure_binary(hashSrc)).hexdigest()
         return (hostName, hashData)
 
     def getItemHashData(self, index, displayItem):
@@ -637,14 +623,14 @@ class IPTVHost(CHostBase):
         if content is None or (content == IPTVWatchedHelper.STARTED_MARKER and oldContent != IPTVWatchedHelper.STARTED_MARKER):
             content = oldContent
             self._createViewedFile(hashData, oldContent)
-        rm(GetFavouritesDir('IPTVWatched/%s/.%s.iptvhash' % oldData))
+        rm(GetWatchedDir('%s/.%s.iptvhash' % oldData))
         return content
 
     def _readMarkerContent(self, hashData):
         # None = no file at all, '' or any other text = watched, STARTED_MARKER = started
         if hashData is None:
             return None
-        flagFilePath = GetFavouritesDir('IPTVWatched/%s/.%s.iptvhash' % hashData)
+        flagFilePath = GetWatchedDir('%s/.%s.iptvhash' % hashData)
         if not fileExists(flagFilePath):
             return None
         try:
@@ -699,8 +685,8 @@ class IPTVHost(CHostBase):
         displayItem.isStarted = content == IPTVWatchedHelper.STARTED_MARKER
 
     def _createViewedFile(self, hashData, content=''):
-        if hashData is not None and mkdirs(GetFavouritesDir('IPTVWatched') + ('/%s/' % hashData[0])):
-            flagFilePath = GetFavouritesDir('IPTVWatched/%s/.%s.iptvhash' % hashData)
+        if hashData is not None and mkdirs(GetWatchedDir('%s/' % hashData[0])):
+            flagFilePath = GetWatchedDir('%s/.%s.iptvhash' % hashData)
             try:
                 # write (not touch): must overwrite a possible "started" marker
                 f = open(flagFilePath, 'w')
@@ -814,7 +800,7 @@ class IPTVHost(CHostBase):
                 if ret is not None and hasattr(ret, 'value') and 0 <= Index < len(ret.value) \
                    and ret.value[Index].type in [CDisplayListItem.TYPE_VIDEO, CDisplayListItem.TYPE_AUDIO]:
                     tmp = self.getItemHashData(Index, ret.value[Index])
-                    if tmp != '':
+                    if tmp is not None:
                         isWatched = bool(self.cachedRet.value[Index].isWatched)
                         isStarted = bool(getattr(self.cachedRet.value[Index], 'isStarted', False))
                         if not isWatched:
@@ -880,7 +866,7 @@ class IPTVHost(CHostBase):
                 hashData = privateData['hash_data']
                 Index = privateData['item_index']
                 if privateData['action'] == 'unset_watched_flag':
-                    flagFilePath = GetFavouritesDir('IPTVWatched/%s/.%s.iptvhash' % hashData)
+                    flagFilePath = GetWatchedDir('%s/.%s.iptvhash' % hashData)
                     if rm(flagFilePath):
                         self.cachedRet.value[Index].isWatched = False
                         self.cachedRet.value[Index].isStarted = False
@@ -905,7 +891,7 @@ class IPTVHost(CHostBase):
             return self.host.getCurrentGuestHost().getLinksForVideo(Index)
         else:
             listLen = len(self.host.currList)
-            if listLen < Index and listLen > 0:
+            if not 0 <= Index < listLen:
                 printDBG("ERROR getLinksForVideo - current list is to short len: %d, Index: %d" % (listLen, Index))
                 return RetHost(RetHost.ERROR, value=[])
 
@@ -983,6 +969,8 @@ class IPTVHost(CHostBase):
         guestIndex = Index
         callQuestHost = True
         if not self.host.isQuestMode():
+            if 0 <= Index < len(self.host.currList) and self.host.currList[Index].get('yt_video'):
+                return self.host.getYtArticleContent(self.host.currList[Index])
             callQuestHost = self.host.prepareGuestHostItem(Index)
             guestIndex = 0
         if callQuestHost:

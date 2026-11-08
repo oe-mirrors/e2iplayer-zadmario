@@ -1,259 +1,480 @@
 # -*- coding: utf-8 -*-
-
+LAST_MODIFIED = "14.10.2026"
+# Ninateka (ninateka.pl) - Polish films, documentaries, theatre, concerts, talks and animation
+# of the Narodowy Instytut Audiowizualny / Filmoteka Narodowa.
+# 03.10.2026 - revival + rewrite for the Redge (RGP) platform the site runs on now:
+#   JSON API under /api (sections of the home page, categories, vods, serials -> seasons -> episodes,
+#   search), streams from /api/products/<id>/videos/playlist (plain HLS from redcdn, DRM-only titles
+#   such as the audiobooks -> message) + watched flag / downloaded flag / name normalisation /
+#   sidecar / moviemeta INFO for feature films / favourites / paging (First / Jump / Next from totalCount).
+# 14.10.2026 - playlists with a "drm" block -> DRM message (their HLS is FairPlay SAMPLE-AES, the
+#   download failed); free titles carry video-only TS + a separate AUDIO group -> merge:// (was silent).
 ###################################################
 # LOCAL import
 ###################################################
+from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, SetIPTVPlayerLastHostError
 from Plugins.Extensions.IPTVPlayer.components.ihost import CHostBase, CBaseHostClass
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, CSearchHistoryHelper, printExc, byteify
+from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import IsSidecarEnabled, IsMediaNamingNormalized
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc
+from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
+from Plugins.Extensions.IPTVPlayer.tools.iptvnaming import formatSxxExx
+from Plugins.Extensions.IPTVPlayer.tools.iptvpaging import addPagingItems, isJumpItem, jumpTarget
+from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedhelper import IPTVWatchedHelper
+from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedfoldermixin import GenericFolderWatchedScraperMixin, GenericFolderWatchedHostMixin
+from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads, dumps as json_dumps
+from Plugins.Extensions.IPTVPlayer.libs.moviemeta import getMeta
+from Plugins.Extensions.IPTVPlayer.libs.urlmetahelper import buildSidecarFromItem, applySidecarToLinks
 from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import getDirectM3U8Playlist
-from Plugins.Extensions.IPTVPlayer.libs.pCommon import common, CParsingHelper
-###################################################
-
-###################################################
-# FOREIGN import
-###################################################
-import re
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote_plus
-try:
-    import json
-except Exception:
-    import simplejson
 ###################################################
-
-###################################################
-# Config options for HOST
-###################################################
-# None
 
 
 def GetConfigList():
-    optionList = []
-    # None
-    return optionList
-###################################################
+    return []
 
 
 def gettytul():
-    return 'http://ninateka.pl/'
+    return 'https://ninateka.pl/'
 
 
-class Ninateka(CBaseHostClass):
+SUB_LANGS = {'pol': 'pl', 'eng': 'en', 'ukr': 'uk', 'deu': 'de', 'ger': 'de', 'fra': 'fr', 'fre': 'fr'}
+
+
+class Ninateka(GenericFolderWatchedScraperMixin, CBaseHostClass):
+    API = 'https://ninateka.pl/api/'
+    PAGE_SIZE = 40
+    FEATURE_FILM_CAT = 85554    # "FABULA"
+    VIDEO_ROOT_CAT = 1          # "video" - parent of all browsable categories
+    # audio side of the site (radio "Kronika Polska", audiobooks): Widevine/PlayReady only, no plain source
+    AUDIO_CATS = (153683, 153684, 85666)
+    FAV_FIELDS = ('name', 'category', 'type', 'prod_id', 'prod_type', 'serial_id', 'season_id', 'url', 'title', 's_title',
+                  'icon', 'desc', 'meta_type', 'meta_title', 'meta_year', 'season', 'episode')
+
     def __init__(self):
         CBaseHostClass.__init__(self, {'history': 'ninateka', 'cookie': 'ninateka.cookie'})
-        self.DEFAULT_ICON_URL = 'http://ninateka.pl/Content/images/ninateka_logo.png'
+        self.MAIN_URL = 'https://ninateka.pl/'
+        self.DEFAULT_ICON_URL = 'https://ninateka.pl/static/images/logo.png'
+        self.HEADER = self.cm.getDefaultHeader(browser='chrome')
+        self.HEADER.update({'Accept': 'application/json, text/plain, */*', 'Referer': self.MAIN_URL})
+        self.defaultParams = {'header': self.HEADER}
+        self.watchedHelper = IPTVWatchedHelper('ninateka')
+        self.wfInitFolderCache()
 
-        self.menuHTML = ''
-        self.refresh = False
-        self.cm = common()
-        self.history = CSearchHistoryHelper('ninateka')
-
-        self.MAIN_URL = 'http://ninateka.pl/'
-        self.VIDEOS_URL = self.getFullUrl('filmy?MediaType=video&Paid=False&CategoryCodenames=')
-        self.SEARCH_URL = self.VIDEOS_URL + '&SearchQuery='
-
-        #DEFAULT_GET_PARAM = 'MediaType=video&Paid=False'
-
-        self.MAIN_CAT_TAB = [{'category': 'list_all', 'title': 'Wszystkie', 'url': self.VIDEOS_URL},
-                             {'category': 'list_cats', 'title': 'Kategorie', 'url': self.MAIN_URL},
-
-                             {'category': 'search', 'title': _('Search'), 'search_item': True, },
-                             {'category': 'search_history', 'title': _('Search history'), }
-                            ]
-
-    def getMenuHTML(self):
-        printDBG("getMenuHTML start")
-
-        if True == self.refresh or '' == self.menuHTML:
-            self.menuHTML = ''
-            sts, data = self.cm.getPage(self.MAIN_URL)
-            if sts:
-                self.menuHTML = CParsingHelper.getDataBeetwenMarkers(data, '<div class="nav-collapse collapse">', '<!--/.nav-collapse -->', False)[1]
-        return self.menuHTML
-
-    def getMainCategory(self):
-        menuHTML = self.getMenuHTML()
-
-        match = re.compile('<li data-codename="([^"]+?)"><a href="/filmy/([^"^,^/]+?)">([^<]+?)</a>').findall(menuHTML)
-        if len(match) > 0:
-            for i in range(len(match)):
-                params = {'name': 'main-category', 'page': match[i][0], 'title': match[i][2]}
-                self.addDir(params)
-
-    def getSubCategory(self, cat):
-        menuHTML = self.getMenuHTML()
-
-        pattern = '<li data-codename="([^"]+?)"><a href="/filmy/(%s,[^"^,^/]+?)">([^<]+?)</a></li>' % cat
-        match = re.compile(pattern).findall(menuHTML)
-        if len(match) > 0:
-            for i in range(len(match)):
-                params = {'name': 'sub-category', 'page': self.VIDEOS_URL + (match[i][1]).replace(',', '%2C'), 'title': match[i][2]}
-                self.addDir(params)
-
-    def getLinksForVideo(self, cItem):
-        printDBG("getVideoUrl url[%s]" % cItem)
-        linksTab = []
-        url = cItem['url']
-        sts, data = self.cm.getPage(url)
-        if not sts:
-            printDBG("getVideoUrl except")
-            return linksTab
-
+    ###################################################
+    # watched flag
+    ###################################################
+    def _getWatchedKeyForItem(self, cItem):
         try:
-            arg = self.cm.ph.getDataBeetwenMarkers(data, '(playerOptionsWithMainSource,', ')', False)[1].strip()
-            arg = int(arg)
-
-            def _repFun(item):
-                url = ''
-                if not self.cm.isValidUrl(item):
-                    for c in item:
-                        url += chr(arg ^ ord(c))
-                else:
-                    url = item
-                printDBG(">>>> " + url)
-                return url
-            data = self.cm.ph.getDataBeetwenMarkers(data, 'playerOptionsWithMainSource =', '};', False)[1]
-            printDBG(data)
-            data = byteify(json.loads(data + '}'))
-            for item in data['sources']:
-                type = item.get('type', '').lower()
-                if '/mp4' in type:
-                    url = _repFun(item['src'])
-                    linksTab.append({'name': 'mp4', 'url': url, 'need_resolve': 0})
-                if '/x-mpegurl' in type:
-                    url = _repFun(item['src'])
-                    linksTab.extend(getDirectM3U8Playlist(url))
-            printDBG(data)
+            if not isinstance(cItem, dict):
+                return ''
+            if cItem.get('type', '') in ('video', 'audio'):
+                pid = str(cItem.get('prod_id', '') or '').strip()
+                return 'video:%s' % pid if pid else ''
+            category = cItem.get('category', '')
+            if category == 'list_serial' and cItem.get('serial_id'):
+                return 'serial:%s' % cItem['serial_id']
+            if category == 'list_episodes' and cItem.get('season_id'):
+                return 'season:%s' % cItem['season_id']
+            return ''
         except Exception:
             printExc()
-        return linksTab
+        return ''
 
-    def getVideosList(self, url):
-        printDBG("getVideosList url[%s]" % url)
-        sts, data = self.cm.getPage(url)
-        if not sts:
-            printDBG("getVideosList except")
+    ###################################################
+    # helpers
+    ###################################################
+    def getPage(self, url, addParams=None, post_data=None):
+        if addParams is None:
+            addParams = dict(self.defaultParams)
+        return self.cm.getPage(url, addParams, post_data)
+
+    def _api(self, path, query=''):
+        # NOTE: no "lang" parameter - with lang=pl the search hits a missing OpenSearch index
+        url = self.API + path + '?platform=BROWSER'
+        if query:
+            url += '&' + query
+        return url
+
+    def _json(self, url):
+        sts, data = self.getPage(url)
+        if not sts or not data:
+            return None
+        try:
+            return json_loads(data)
+        except Exception:
+            printExc()
+        return None
+
+    def _img(self, item):
+        try:
+            images = item.get('images') or item.get('artworks') or {}
+            for key in ('16x9', '4x3', '2x3', '1x1'):
+                for img in (images.get(key) or []):
+                    url = img.get('url') or ''
+                    if url.startswith('//'):
+                        url = 'https:' + url
+                    if url:
+                        return url
+        except Exception:
+            printExc()
+        return ''
+
+    @staticmethod
+    def _duration(secs):
+        try:
+            secs = int(secs or 0)
+        except Exception:
+            return ''
+        if secs <= 0:
+            return ''
+        if secs >= 3600:
+            return '%d:%02d:%02d' % (secs // 3600, (secs % 3600) // 60, secs % 60)
+        return '%d:%02d' % (secs // 60, secs % 60)
+
+    def _desc(self, item):
+        parts = []
+        if item.get('year'):
+            parts.append(str(item['year']))
+        dur = self._duration(item.get('duration'))
+        if dur:
+            parts.append(dur)
+        head = ' | '.join(parts)
+        lead = self.cleanHtmlStr(item.get('lead') or '')
+        return '[/br]'.join([x for x in (head, lead) if x])
+
+    def _isFeatureFilm(self, item):
+        for cat in (item.get('categories') or []):
+            try:
+                if int(cat.get('id', 0)) == self.FEATURE_FILM_CAT:
+                    return True
+            except Exception:
+                pass
+        return False
+
+    def _isDrmAudio(self, item):
+        if item.get('audio') and not item.get('video'):
+            return True
+        cats = [(item.get('mainCategory') or {}).get('id')] + [c.get('id') for c in (item.get('categories') or []) if isinstance(c, dict)]
+        for cid in cats:
+            try:
+                if int(cid or 0) in self.AUDIO_CATS:
+                    return not item.get('video')
+            except Exception:
+                pass
+        return False
+
+    @staticmethod
+    def _baseTitle(title):
+        # the site writes "<title> | <director>" - the bare title is what moviemeta and the
+        # normalised name need
+        return title.split(' | ', 1)[0].strip() if ' | ' in title else title.strip()
+
+    def _addProduct(self, cItem, item):
+        try:
+            if not isinstance(item, dict):
+                return False
+            ptype = (item.get('type') or item.get('type_') or '').upper()
+            pid = item.get('id')
+            title = self.cleanHtmlStr(item.get('title') or '')
+            if not pid or not title or ptype not in ('VOD', 'EPISODE', 'SERIAL') or self._isDrmAudio(item):
+                return False
+            params = {'name': 'category', 'good_for_fav': True, 'prod_id': str(pid), 'prod_type': ptype,
+                      'title': title, 'icon': self._img(item), 'desc': self._desc(item),
+                      'url': item.get('webUrl') or '%sapi/products/vods/%s' % (self.MAIN_URL, pid)}
+            if ptype == 'SERIAL':
+                params.update({'category': 'list_serial', 'serial_id': str(pid), 's_title': title})
+                self.addDir(params)
+                return True
+            if ptype == 'VOD' and self._isFeatureFilm(item):
+                base = self._baseTitle(title)
+                year = str(item.get('year') or '')
+                params.update({'meta_type': 'movie', 'meta_title': base, 'meta_year': year})
+                if IsMediaNamingNormalized() and year:
+                    params['title'] = '%s (%s)' % (base, year)
+            elif ptype == 'EPISODE':
+                season = item.get('season') or {}
+                serial = season.get('serial') or {}
+                sTitle = self.cleanHtmlStr(serial.get('title') or cItem.get('s_title') or '')
+                sNum = season.get('number') or cItem.get('season') or ''
+                eNum = item.get('number') or ''
+                if sTitle and sNum and eNum:
+                    params.update({'s_title': sTitle, 'season': str(sNum), 'episode': str(eNum)})
+                    if IsMediaNamingNormalized():
+                        params['title'] = '%s - %s' % (sTitle, formatSxxExx(sNum, eNum))
+            self.addVideo(params)
+            return True
+        except Exception:
+            printExc()
+        return False
+
+    def _first(self, cItem):
+        # firstResult of the page to list
+        return (max(1, int(cItem.get('page', 1) or 1)) - 1) * self.PAGE_SIZE
+
+    def _addPaging(self, cItem, meta, count):
+        # the API pages with firstResult/maxResults + totalCount; the page number drives the request, the
+        # template (the site's own "?page=N" form) only gives Jump its target
+        page = max(1, int(cItem.get('page', 1) or 1))
+        try:
+            total = int(meta.get('totalCount', 0) or 0)
+        except Exception:
+            total = 0
+        lastPage = (total + self.PAGE_SIZE - 1) // self.PAGE_SIZE if total else 0
+        addPagingItems(self, cItem, page, bool(count) and page < lastPage, lastPage, self.MAIN_URL + '?page={page}')
+
+    ###################################################
+    # lists
+    ###################################################
+    def listHome(self, cItem):
+        data = self._json(self._api('products/sections/main', 'elementsLimit=1'))
+        if not isinstance(data, list):
             return
+        for section in data:
+            try:
+                if not isinstance(section, dict) or section.get('layout') == 'BANNER':
+                    continue
+                title = self.cleanHtmlStr(section.get('title') or '')
+                if not title or not section.get('id'):
+                    continue
+                first = ((section.get('elements') or [{}])[0] or {}).get('item') or {}
+                # skip article/teaser rows and the audiobook shelf (serials of DRM-only audio)
+                ftype = (first.get('type') or '').upper()
+                if first and (ftype not in ('VOD', 'EPISODE', 'SERIAL') or (ftype == 'SERIAL' and self._isDrmAudio(first))):
+                    continue
+                params = dict(cItem)
+                params.update({'category': 'list_section', 'title': title, 'section_id': str(section['id']),
+                               'good_for_fav': True, 'page': 1})
+                self.addDir(params)
+            except Exception:
+                printExc()
 
-        # get pagination HTML part
-        nextPageData = CParsingHelper.getDataBeetwenMarkers(data, 'class="pager"', '</div>', False)[1]
-        # get Video HTML part
-        data = CParsingHelper.getDataBeetwenMarkers(data, '<!-- ************ end user menu ************ -->', '</ul>', False)[1].split('<li>')
-        del data[0]
+    def listSection(self, cItem):
+        first = self._first(cItem)
+        data = self._json(self._api('products/sections/%s' % cItem['section_id'],
+                                    'firstResult=%d&maxResults=%d' % (first, self.PAGE_SIZE)))
+        if not isinstance(data, dict):
+            return
+        elements = data.get('elements') or []
+        for el in elements:
+            self._addProduct(cItem, (el or {}).get('item'))
+        self._addPaging(cItem, data.get('meta') or {}, len(elements))
 
-        for videoItemData in data:
-            printDBG('videoItemData')
-            icon = ''
-            duration = ''
-            gatunek = ''
-            desc = ''
-            title = ''
-            url = ''
+    def listCategories(self, cItem):
+        data = self._json(self._api('items/categories', 'mainCategoryId=%d' % self.VIDEO_ROOT_CAT))
+        if not isinstance(data, list):
+            return
+        for cat in data:
+            try:
+                title = self.cleanHtmlStr(cat.get('name') or '')
+                if not title or not cat.get('id') or cat.get('adult') or int(cat['id']) in self.AUDIO_CATS:
+                    continue
+                params = dict(cItem)
+                params.update({'category': 'list_vods', 'title': title[:1] + title[1:].lower(),
+                               'cat_id': str(cat['id']), 'good_for_fav': True, 'page': 1})
+                self.addDir(params)
+            except Exception:
+                printExc()
 
-            if 'class="playIcon"' in videoItemData:
-                # get icon src
-                match = re.search('src="(http://[^"]+?)"', videoItemData)
-                if match:
-                    icon = match.group(1).replace('&amp;', '&')
-                # get duration
-                duration = self.cleanHtmlStr(self.cm.ph.getDataBeetwenMarkers(videoItemData, '<span class="duration">', '</span>')[1])
-                # get gatunek
-                gatunek = self.cleanHtmlStr(self.cm.ph.getDataBeetwenMarkers(videoItemData, '<a class="gatunek" ', '</a>')[1])
-                # get desc
-                match = re.search('class="text"[^>]*?>([^<]+?)<', videoItemData)
-                if match:
-                    desc = match.group(1)
-                # get title and url
-                match = re.search('<a href="([^"]+?)" class="title"[^>]*?>([^<]+?)</a>', videoItemData)
-                if match:
-                    url = self.MAIN_URL + match.group(1)
-                    title = match.group(2)
-                    params = {'good_for_fav': True, 'url': url, 'title': title, 'icon': icon, 'desc': ' | '.join([duration, gatunek]) + '[/br]' + desc}
-                    self.addVideo(params)
+    def listVods(self, cItem):
+        first = self._first(cItem)
+        query = 'firstResult=%d&maxResults=%d' % (first, self.PAGE_SIZE)
+        if cItem.get('cat_id'):
+            query += '&categoryId%%5B%%5D=%s' % cItem['cat_id']
+        data = self._json(self._api('products/vods', query))
+        if not isinstance(data, dict):
+            return
+        items = data.get('items') or []
+        for item in items:
+            self._addProduct(cItem, item)
+        self._addPaging(cItem, data.get('meta') or {}, len(items))
 
-        # check next page
-        nextPageUrl = ''
-        match = re.search('href="([^"]+?)" class="nextPage"', nextPageData)
-        if match:
-            nextPageUrl = match.group(1)
-        else:
-            match = re.search('href="([^"]+?)" class="lastPage"', nextPageData)
-            if match:
-                nextPageUrl = match.group(1)
-
-        if '' != nextPageUrl:
-            params = {'name': 'sub-category', 'page': self.MAIN_URL + nextPageUrl.replace('&amp;', '&'), 'title': 'Następna strona'}
+    def listSerial(self, cItem):
+        data = self._json(self._api('products/vods/serials/%s/seasons' % cItem['serial_id']))
+        if not isinstance(data, list) or not data:
+            return
+        sTitle = cItem.get('s_title') or cItem.get('title', '')
+        if len(data) == 1:
+            params = dict(cItem)
+            params.update({'season_id': str(data[0].get('id', '')), 'season': str(data[0].get('number') or '1')})
+            self.listEpisodes(params)
+            return
+        for season in data:
+            sid = season.get('id')
+            if not sid:
+                continue
+            num = str(season.get('number') or '')
+            title = self.cleanHtmlStr(season.get('title') or '') or ('%s %s' % (_('Season'), num)).strip()
+            params = dict(cItem)
+            params.update({'category': 'list_episodes', 'title': '%s - %s' % (sTitle, title), 's_title': sTitle,
+                           'season_id': str(sid), 'season': num, 'icon': self._img(season) or cItem.get('icon', ''),
+                           'good_for_fav': True})
             self.addDir(params)
-    # end getVideosList
 
-    def getFavouriteData(self, cItem):
-        printDBG('getFavouriteData')
-        return json.dumps(cItem)
-
-    def getLinksForFavourite(self, fav_data):
-        printDBG('getLinksForFavourite')
-        links = []
-        try:
-            cItem = byteify(json.loads(fav_data))
-            links = self.getLinksForVideo(cItem)
-        except Exception:
-            printExc()
-        return links
-
-    def setInitListFromFavouriteItem(self, fav_data):
-        printDBG('setInitListFromFavouriteItem')
-        try:
-            params = byteify(json.loads(fav_data))
-        except Exception:
-            params = {}
-            printExc()
-        self.addDir(params)
-        return True
+    def listEpisodes(self, cItem):
+        data = self._json(self._api('products/vods/serials/%s/seasons/%s/episodes' % (cItem['serial_id'], cItem['season_id'])))
+        if not isinstance(data, list):
+            return
+        for item in data:
+            self._addProduct(cItem, item)
 
     def listSearchResult(self, cItem, searchPattern, searchType):
-        printDBG("listSearchResult cItem[%s], searchPattern[%s] searchType[%s]" % (cItem, searchPattern, searchType))
-        self.getVideosList(self.SEARCH_URL + urllib_quote_plus(searchPattern))
+        first = self._first(cItem)
+        data = self._json(self._api('products/vods/search', 'keyword=%s&firstResult=%d&maxResults=%d'
+                                    % (urllib_quote_plus(searchPattern), first, self.PAGE_SIZE)))
+        if not isinstance(data, dict):
+            return
+        items = data.get('items') or []
+        for item in items:
+            self._addProduct(cItem, item)
+        self._addPaging(cItem, data.get('meta') or {}, len(items))
+
+    ###################################################
+    # links
+    ###################################################
+    def getLinksForVideo(self, cItem):
+        printDBG('Ninateka.getLinksForVideo [%s]' % cItem.get('prod_id', ''))
+        pid = cItem.get('prod_id', '')
+        if not pid:
+            return []
+        data = self._json(self._api('products/%s/videos/playlist' % pid, 'videoType=MOVIE'))
+        if not isinstance(data, dict):
+            return []
+        # with a "drm" block the HLS source is FairPlay SAMPLE-AES too - only the DRM-free titles play
+        if data.get('drm'):
+            SetIPTVPlayerLastHostError(_('Video with DRM protection.'))
+            return []
+        sources = data.get('sources') or {}
+        hls = [s.get('src') for s in (sources.get('HLS') or []) if s.get('src')]
+        if not hls:
+            SetIPTVPlayerLastHostError(_('No stream available'))
+            return []
+
+        subTracks = []
+        for sub in (data.get('subtitles') or []):
+            surl = sub.get('url') or sub.get('src') or ''
+            if not surl:
+                continue
+            if surl.startswith('//'):
+                surl = 'https:' + surl
+            lang = (sub.get('language') or '').lower()
+            lang = SUB_LANGS.get(lang, lang[:2])
+            fmt = 'srt' if surl.lower().split('?', 1)[0].endswith('.srt') else 'vtt'
+            subTracks.append({'title': sub.get('label') or lang.upper() or 'PL', 'url': surl, 'lang': lang, 'format': fmt})
+
+        meta = {'User-Agent': self.HEADER['User-Agent'], 'Referer': self.MAIN_URL, 'iptv_proto': 'm3u8'}
+        if subTracks:
+            meta['external_sub_tracks'] = subTracks
+        urlTab = []
+        for src in hls:
+            if src.startswith('//'):
+                src = 'https:' + src
+            # the variant TS segments are video only - the sound is the separate AUDIO group -> merge://
+            links = getDirectM3U8Playlist(strwithmeta(src, meta), checkExt=False, checkContent=True,
+                                          sortWithMaxBitrate=999999999, mergeAltAudio=True)
+            for link in links:
+                link['need_resolve'] = 0
+                if link.get('height'):
+                    link['name'] = '%sp (%s kbps)' % (link['height'], int(link.get('bitrate', 0) or 0) // 1000)
+                urlTab.append(link)
+            if not links:
+                urlTab.append({'name': 'HLS', 'url': strwithmeta(src, meta), 'need_resolve': 0})
+        return applySidecarToLinks(urlTab, buildSidecarFromItem(cItem, IsSidecarEnabled(), self.cleanHtmlStr(cItem.get('desc', ''))))
+
+    ###################################################
+    # info / favourites
+    ###################################################
+    def getArticleContent(self, cItem):
+        printDBG('Ninateka.getArticleContent [%s]' % cItem.get('prod_id', ''))
+        pid = cItem.get('prod_id', '') or cItem.get('serial_id', '')
+        isSerial = cItem.get('prod_type') == 'SERIAL' or not cItem.get('prod_id')
+        item = self._json(self._api(('products/vods/serials/%s' if isSerial else 'products/vods/%s') % pid)) if pid else None
+        if not isinstance(item, dict):
+            item = {}
+        otherInfo = {}
+        if item.get('year'):
+            otherInfo['year'] = str(item['year'])
+        dur = self._duration(item.get('duration'))
+        if dur:
+            otherInfo['duration'] = dur
+        if item.get('originalTitle'):
+            otherInfo['original_title'] = self.cleanHtmlStr(item['originalTitle'])
+        persons = item.get('persons') or {}
+        for key, field in (('DIRECTING', 'director'), ('SCRIPT', 'writers'), ('CAST', 'actors')):
+            names = [p.get('name') for p in (persons.get(key) or []) if isinstance(p, dict) and p.get('name')]
+            if names:
+                otherInfo[field] = ', '.join(names[:8])
+        genres = [g.get('name') for g in (item.get('genres') or []) if isinstance(g, dict) and g.get('name')]
+        if genres:
+            otherInfo['genres'] = ', '.join(genres)
+        text = self.cleanHtmlStr(item.get('description') or item.get('lead') or '') or self.cleanHtmlStr(cItem.get('desc', ''))
+        icon = self._img(item) or cItem.get('icon', '')
+        if cItem.get('meta_type'):
+            try:
+                meta = getMeta(cItem['meta_type'], cItem.get('meta_title', ''), cItem.get('meta_year', ''))
+            except Exception:
+                printExc()
+                meta = {}
+            for key, val in (meta.get('info', {}) or {}).items():
+                otherInfo.setdefault(key, val)
+            text = text or meta.get('plot', '')
+            icon = icon or meta.get('poster', '')
+        return [{'title': cItem.get('title', ''), 'text': text,
+                 'images': [{'title': '', 'url': icon}] if icon else [], 'other_info': otherInfo}]
+
+    def getFavouriteData(self, cItem):
+        try:
+            if cItem.get('prod_id') or cItem.get('serial_id'):
+                return json_dumps(dict((key, cItem[key]) for key in self.FAV_FIELDS if key in cItem))
+        except Exception:
+            printExc()
+        return CBaseHostClass.getFavouriteData(self, cItem)
 
     def handleService(self, index, refresh=0, searchPattern='', searchType=''):
-        printDBG('handleService start')
-
+        printDBG('Ninateka.handleService start')
         CBaseHostClass.handleService(self, index, refresh, searchPattern, searchType)
-
-        name = self.currItem.get("name", '')
-        category = self.currItem.get("category", '')
-        mode = self.currItem.get("mode", '')
-        page = self.currItem.get("page", '')
-
-        printDBG("handleService: |||||||||||||||||||||||||||||||||||| name[%s], category[%s] " % (name, category))
+        if isJumpItem(self.currItem):
+            self.currItem = jumpTarget(self, self.currItem)
+        name = self.currItem.get('name', None)
+        category = self.currItem.get('category', '')
+        searchPattern = self.currItem.get('search_pattern', searchPattern)
+        printDBG('Ninateka.handleService: name[%s] category[%s]' % (name, category))
         self.currList = []
 
-    #MAIN MENU
-        if name == None:
-            self.listsTab(self.MAIN_CAT_TAB, {'name': 'category'})
-    #WSZYSTKIE
-        elif category == 'list_all':
-            self.getVideosList(self.currItem['url'])
-    #KATEGORIE
+        if name is None:
+            tab = [{'category': 'list_home', 'title': _('Home page')},
+                   {'category': 'list_cats', 'title': _('Categories')},
+                   {'category': 'list_vods', 'title': _('All')}] + self.searchItems()
+            self.listsTab(tab, {'name': 'category'})
+        elif category == 'list_home':
+            self.listHome(self.currItem)
+        elif category == 'list_section':
+            self.listSection(self.currItem)
         elif category == 'list_cats':
-            self.getMainCategory()
-    #SUB-KATEGORIE
-        elif name == 'main-category':
-            self.getSubCategory(page)
-        elif name == 'sub-category':
-            self.getVideosList(page)
-    #SEARCH
-        elif category in ["search", "search_next_page"]:
+            self.listCategories(self.currItem)
+        elif category == 'list_vods':
+            self.listVods(self.currItem)
+        elif category == 'list_serial':
+            self.listSerial(self.currItem)
+        elif category == 'list_episodes':
+            self.listEpisodes(self.currItem)
+        elif category in ('search', 'search_next_page'):
             cItem = dict(self.currItem)
-            cItem.update({'search_item': False, 'name': 'category'})
+            cItem.update({'search_item': False, 'name': 'category', 'category': 'search_next_page', 'search_pattern': searchPattern})
             self.listSearchResult(cItem, searchPattern, searchType)
-    #HISTORIA SEARCH
-        elif category == "search_history":
-            self.listsHistory({'name': 'history', 'category': 'search'}, 'desc', _("Type: "))
-    #WRONG WAY
+        elif category == 'search_history':
+            self.listsHistory({'name': 'history', 'category': 'search'}, 'desc', _('Type: '))
         else:
-            printDBG('handleService WRONG WAY')
+            printExc()
+        CBaseHostClass.endHandleService(self, index, refresh)
 
 
-class IPTVHost(CHostBase):
+class IPTVHost(GenericFolderWatchedHostMixin, CHostBase):
 
     def __init__(self):
         CHostBase.__init__(self, Ninateka(), True, [])
+        self.cachedRet = None
+        self.refreshAfterWatchedFlagChange = False
+        self.watchedHelper = IPTVWatchedHelper('ninateka')
+
+    def withArticleContent(self, cItem):
+        return bool(cItem.get('prod_id') or cItem.get('serial_id'))

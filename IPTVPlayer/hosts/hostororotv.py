@@ -1,251 +1,305 @@
 # -*- coding: utf-8 -*-
-###################################################
-# LOCAL import
-###################################################
-from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
-from Plugins.Extensions.IPTVPlayer.components.ihost import CHostBase, CBaseHostClass
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, byteify
-from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
-###################################################
-from Plugins.Extensions.IPTVPlayer.p2p3.UrlParse import urljoin
-from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote_plus
-###################################################
-# FOREIGN import
-###################################################
+LAST_MODIFIED = "04.10.2026"
+# 03.10.2026 - revival + rewrite for today's ororo.tv
+#   Without an account ororo.tv only offers its "Channels": ~60 YouTube channels (TED, Kurzgesagt, BBC Learning
+#   English ...) with ororo's own English subtitles. TV shows / movies need a paid subscription and are left out.
+#   /en/channels (JSON with Accept: application/json), /en/channels/<slug>?page=N&sort=published_at|views|title
+#   (20 videos per page), /en/channels/<slug>/videos/<id> = player fragment with the YouTube url + VTT <track>s.
+#   Search = /api/frontend/search?query= (matches channel names). The YouTube url goes to urlparser, ororo's
+#   subtitles are attached to every resolved link. + watched flag / downloaded flag / sidecar / favourites /
+#   paging (First / Jump / Next from total_count).
 import re
-try:
-    import json
-except Exception:
-    import simplejson as json
-###################################################
+
+from Plugins.Extensions.IPTVPlayer.components.ihost import CBaseHostClass, CHostBase
+from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, SetIPTVPlayerLastHostError
+from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import IsSidecarEnabled
+from Plugins.Extensions.IPTVPlayer.libs.e2ijson import dumps as json_dumps, loads as json_loads
+from Plugins.Extensions.IPTVPlayer.libs.urlmetahelper import buildSidecarFromItem, applySidecarToLinks, sidecarFromUrlMeta, decorateResolvedLinkItems
+from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote_plus
+from Plugins.Extensions.IPTVPlayer.tools.iptvpaging import addPagingItems, isJumpItem, jumpTarget, stripPagerKeys
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc
+from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
+from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedhelper import IPTVWatchedHelper
+from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedfoldermixin import GenericFolderWatchedScraperMixin, GenericFolderWatchedHostMixin
 
 
 def GetConfigList():
-    optionList = []
-    return optionList
+    return []
 
 
 def gettytul():
-    return 'https://ororo.tv/'
+    return "https://ororo.tv/"
 
 
-class OroroTV(CBaseHostClass):
+PAGE_SIZE = 20
+CHANNEL_RE = re.compile(r'/channels/([^/?#]+)')
+
+
+class OroroTV(GenericFolderWatchedScraperMixin, CBaseHostClass):
+    FAV_FIELDS = ("name", "category", "type", "url", "title", "slug", "sort", "page", "ch_title", "icon")
 
     def __init__(self):
-        CBaseHostClass.__init__(self, {'history': 'ororo.tv', 'cookie': 'ororo.tv.cookie'})
-        self.DEFAULT_ICON_URL = 'http://www.yourkodi.com/wp-content/uploads/2016/02/ororo.png'
-        self.USER_AGENT = 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.0'
-        self.MAIN_URL = 'https://ororo.tv/'
-        self.HEADER = {'User-Agent': self.USER_AGENT, 'DNT': '1', 'Accept': 'text/html', 'Accept-Encoding': 'gzip, deflate', 'Referer': self.getMainUrl(), 'Origin': self.getMainUrl()}
-        self.AJAX_HEADER = dict(self.HEADER)
-        self.AJAX_HEADER.update({'X-Requested-With': 'XMLHttpRequest', 'Accept-Encoding': 'gzip, deflate', 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'Accept': 'application/json, text/javascript, */*; q=0.01'})
+        CBaseHostClass.__init__(self, {"history": "ororo.tv", "cookie": "ororo.tv.cookie"})
+        self.HEADER = self.cm.getDefaultHeader(browser="chrome")
+        self.JSON_HEADER = dict(self.HEADER)
+        self.JSON_HEADER.update({"Accept": "application/json, text/plain, */*", "X-Requested-With": "XMLHttpRequest"})
+        self.defaultParams = {"header": self.HEADER, "use_cookie": True, "load_cookie": True, "save_cookie": True, "cookiefile": self.COOKIE_FILE}
+        self.MAIN_URL = gettytul()
+        self.MENU = [{"category": "list_channels", "title": _("Channels"), "url": self.getFullUrl("en/channels")}] + self.searchItems()
 
-        self.cacheFilters = {}
-        self.cacheLinks = {}
-        self.defaultParams = {'header': self.HEADER, 'use_cookie': True, 'load_cookie': True, 'save_cookie': True, 'cookiefile': self.COOKIE_FILE}
+        self.watchedHelper = IPTVWatchedHelper("ororotv")
+        self.wfInitFolderCache()
 
-        self.MAIN_CAT_TAB = [
-                             {'category': 'list_channels', 'title': _('Channels'), 'url': self.getFullUrl('/channels')},
-                             {'category': 'search', 'title': _('Search'), 'search_item': True, },
-                             {'category': 'search_history', 'title': _('Search history'), }
-                            ]
-
-    def getPage(self, baseUrl, addParams={}, post_data=None):
-        if addParams == {}:
-            addParams = dict(self.defaultParams)
-
-        origBaseUrl = baseUrl
-        baseUrl = self.cm.iriToUri(baseUrl)
-
-        def _getFullUrl(url):
-            if self.cm.isValidUrl(url):
-                return url
-            else:
-                return urljoin(baseUrl, url)
-
-        addParams['cloudflare_params'] = {'domain': self.up.getDomain(baseUrl), 'cookie_file': self.COOKIE_FILE, 'User-Agent': self.USER_AGENT, 'full_url_handle': _getFullUrl}
-        return self.cm.getPageCFProtection(baseUrl, addParams, post_data)
-
-    def listChannels(self, cItem, nextCategory):
-        printDBG("OroroTV.listChannels")
-
-        sts, data = self.getPage(cItem['url'])
-        if not sts:
-            return
-
-        data = self.cm.ph.getDataBeetwenMarkers(data, '"items":', '};', False)[1]
+    ###################################################
+    # watched flag
+    ###################################################
+    def _getWatchedKeyForItem(self, cItem):
         try:
-            data = byteify(json.loads(data), '', True)
-            for item in data:
-                url = self.getFullUrl(item.get('url', ''))
-                icon = self.getFullUrl(item.get('banner', ''))
-                if icon == '':
-                    icon = self.getFullUrl(item.get('image', ''))
-                title = self.cleanHtmlStr(item.get('title', ''))
-
-                desc = ' | '.join(item.get('parsed_tags', []))
-                if desc != '':
-                    desc += ' [/br]'
-                desc += self.cleanHtmlStr(item.get('description', ''))
-
-                params = dict(cItem)
-                params.update({'good_for_fav': True, 'category': nextCategory, 'title': title, 'desc': desc, 'url': url, 'icon': icon})
-                self.addDir(params)
+            if not isinstance(cItem, dict):
+                return ""
+            if cItem.get("type", "") in ("video", "audio"):
+                url = str(cItem.get("url", "") or "").strip()
+                return "video:%s" % url if url else ""
+            return ""
         except Exception:
             printExc()
+        return ""
 
-    def listItems(self, cItem):
-        printDBG("OroroTV.listItems [%s]" % cItem)
+    def getPage(self, url, addParams=None, post_data=None):
+        if addParams is None:
+            addParams = dict(self.defaultParams)
+        return self.cm.getPage(url, addParams, post_data)
 
-        sts, data = self.getPage(cItem['url'])
+    def _getJson(self, url):
+        params = dict(self.defaultParams)
+        params["header"] = dict(self.JSON_HEADER)
+        params["header"]["Referer"] = self.MAIN_URL
+        sts, data = self.getPage(url, params)
         if not sts:
+            return None
+        try:
+            return json_loads(data)
+        except Exception:
+            printDBG("OroroTV._getJson: no JSON from %s" % url)
+        return None
+
+    ###################################################
+    # lists
+    ###################################################
+    def _addChannel(self, cItem, item):
+        slug = item.get("slug", "")
+        if not slug:
+            m = CHANNEL_RE.search(item.get("url", "") or "")
+            slug = m.group(1) if m else ""
+        title = self.cleanHtmlStr(item.get("title", ""))
+        if not slug or not title:
             return
+        desc = []
+        if item.get("videos_count"):
+            desc.append("%s: %s" % (_("Videos"), item["videos_count"]))
+        tags = ", ".join(item.get("parsed_tags") or [])
+        if tags:
+            desc.append(tags)
+        if item.get("description"):
+            desc.append(self.cleanHtmlStr(item["description"]))
+        params = dict(cItem)
+        params.update({"good_for_fav": True, "category": "list_sort", "title": title, "slug": slug,
+                       "url": self.getFullUrl("en/channels/%s" % slug), "desc": "[/br]".join(desc),
+                       "icon": item.get("image", "") or item.get("banner", "")})
+        self.addDir(params)
 
-        #desc = []
-        #tmp = self.cm.ph.getDataBeetwenNodes(data, ('<section', '>', 'show-desc'), ('</section', '>'))[1]
-        #tmpTab = self.cm.ph.getAllItemsBeetwenMarkers(tmp, '<li', '</li>')
-        #for t in tmpTab:
-        #    t = self.cleanHtmlStr(t)
-        #    if t == '': continue
-        #    desc.append(t)
-        #desc  = '|'.join( desc )
-        #if desc != '': desc + '[/br]'
-        #desc += self.cleanHtmlStr( self.cm.ph.getDataBeetwenNodes(tmp, ('<p', '>', 'show-desc-text'), ('</p', '>'))[1] )
+    def listChannels(self, cItem):
+        printDBG("OroroTV.listChannels")
+        data = self._getJson(cItem["url"])
+        if not isinstance(data, dict):
+            return
+        for item in data.get("items") or []:
+            if isinstance(item, dict):
+                self._addChannel(cItem, item)
 
-        sp = re.compile('''<div[^>]+?js\-watched\-mark[^>]+?>''')
-        data = self.cm.ph.getDataBeetwenNodes(data, ('<div', '>', 'show-content'), ('<div', '>', 'site-footer'))[1]
-        data = sp.split(data)
-        if len(data):
-            del data[0]
-        for item in data:
-            url = self.getFullUrl(self.cm.ph.getSearchGroups(item, '''data\-href=['"]([^'^"]+?)['"]''')[0])
-            icon = self.getFullUrl(self.cm.ph.getSearchGroups(item, '''original=['"]([^'^"]+?)['"]''')[0])
-            title = self.cleanHtmlStr(self.cm.ph.getDataBeetwenNodes(item, ('<a', '>', 'series-card-title'), ('</a', '>'))[1])
-
-            desc = []
-            tmp = self.cm.ph.getAllItemsBeetwenMarkers(item, '<i', '</i>')
-            for t in tmp:
-                if 'inactive' in t:
-                    continue
-                t = self.cm.ph.getSearchGroups(t, '''class=['"]([^'^"]*?flag[^'^"]*?)['"]''')[0].replace('flag', '').replace('active-sub', '')
-                t = self.cleanHtmlStr(t)
-                if t == '':
-                    continue
-                desc.append(t)
-            desc = ' | '.join(desc)
-            if desc != '':
-                desc += '[/br]'
-
-            tmp = self.cm.ph.getAllItemsBeetwenMarkers(item, '<p', '</p>')
-            tmpTab = []
-            for t in tmp:
-                t = self.cleanHtmlStr(t)
-                if t == '':
-                    continue
-                tmpTab.insert(0, t)
-            desc += '[/br]'.join(tmpTab)
-
+    def listSort(self, cItem):
+        tab = [{"title": _("Latest"), "sort": "published_at"},
+               {"title": _("Most popular"), "sort": "views"},
+               {"title": _("Alphabetically"), "sort": "title"}]
+        for t in tab:
             params = dict(cItem)
-            params.update({'good_for_fav': True, 'title': title, 'url': url, 'desc': desc, 'icon': icon})
+            params.update({"good_for_fav": True, "category": "list_videos", "title": t["title"], "sort": t["sort"], "page": 1,
+                           "ch_title": cItem.get("title", "")})
+            self.addDir(params)
+
+    def listVideos(self, cItem):
+        printDBG("OroroTV.listVideos |%s| page %s" % (cItem.get("slug", ""), cItem.get("page", 1)))
+        page = int(cItem.get("page", 1) or 1)
+        slug = cItem["slug"]
+        tpl = self.getFullUrl("en/channels/%s?page={page}&sort=%s" % (slug, cItem.get("sort", "published_at")))
+        data = self._getJson(tpl.format(page=page))
+        if not isinstance(data, dict):
+            return
+        items = data.get("items") or []
+        chTitle = cItem.get("ch_title", "")
+        for item in items:
+            if not isinstance(item, dict) or not item.get("id"):
+                continue
+            title = self.cleanHtmlStr(item.get("title", ""))
+            if not title:
+                continue
+            desc = [t for t in (item.get("airdate", ""), chTitle) if t]
+            desc = " | ".join(desc)
+            if item.get("description"):
+                desc += "[/br]" + self.cleanHtmlStr(item["description"])
+            ytId = item.get("youtube_id", "")
+            params = stripPagerKeys(dict(cItem))
+            params.update({"good_for_fav": True, "category": "ororo_video", "title": title, "desc": desc,
+                           "url": self.getFullUrl("en/channels/%s/videos/%s" % (slug, item["id"])),
+                           "icon": "https://i.ytimg.com/vi/%s/hqdefault.jpg" % ytId if ytId else cItem.get("icon", "")})
             self.addVideo(params)
+        try:
+            total = int(data.get("total_count") or 0)
+        except (TypeError, ValueError):
+            total = 0
+        lastPage = (total + PAGE_SIZE - 1) // PAGE_SIZE if total > 0 else 0
+        addPagingItems(self, cItem, page, bool(items) and page < lastPage, lastPage, tpl)
 
     def listSearchResult(self, cItem, searchPattern, searchType):
-        printDBG("OroroTV.listSearchResult cItem[%s], searchPattern[%s] searchType[%s]" % (cItem, searchPattern, searchType))
-
-        url = self.getFullUrl('/api/frontend/search?query=') + urllib_quote_plus(searchPattern)
-
-        sts, data = self.getPage(url)
+        printDBG("OroroTV.listSearchResult [%s]" % searchPattern)
+        params = dict(self.defaultParams)
+        params["header"] = dict(self.JSON_HEADER)
+        sts, data = self.getPage(self.getFullUrl("api/frontend/search?query=%s" % urllib_quote_plus(searchPattern)), params)
         if not sts:
             return
+        # JSON (channel objects) when asked with Accept: application/json, an HTML snippet otherwise
+        if data.lstrip().startswith("["):
+            try:
+                for item in json_loads(data):
+                    if isinstance(item, dict):
+                        self._addChannel(cItem, item)
+            except Exception:
+                printExc()
+            return
+        for item in re.findall(r"<a class='search-results-item'(.*?)</a>", data, re.DOTALL):
+            href = self.cm.ph.getSearchGroups(item, r'''href=['"]([^'"]+)['"]''')[0]
+            slug = CHANNEL_RE.search(href)
+            if not slug or "/videos/" in href:
+                continue
+            texts = [self.cleanHtmlStr(t) for t in re.findall(r'<p[^>]*>(.*?)</p>', item, re.DOTALL)]
+            title = texts[0] if texts else ""
+            icon = self.cm.ph.getSearchGroups(item, r'''src=['"]([^'"]+)['"]''')[0]
+            self._addChannel(cItem, {"slug": slug.group(1), "title": title, "image": icon, "description": " ".join(texts[1:])})
 
-        data = self.cm.ph.getAllItemsBeetwenMarkers(data, '<a', '</a>')
-        for item in data:
-            url = self.getFullUrl(self.cm.ph.getSearchGroups(item, '''href=['"]([^'^"]+?)['"]''')[0])
-            icon = self.getFullUrl(self.cm.ph.getSearchGroups(item, '''src=['"]([^'^"]+?)['"]''')[0])
-            tmp = self.cm.ph.getAllItemsBeetwenMarkers(item, '<p', '</p>')
-            title = self.cleanHtmlStr(tmp[0])
-            desc = self.cleanHtmlStr(tmp[1])
-            params = dict(cItem)
-            params.update({'good_for_fav': True, 'title': title, 'url': url, 'desc': desc, 'icon': icon})
-            if '/channels/' in url and '/videos/' not in url:
-                params['category'] = 'list_items'
-                self.addDir(params)
-            else:
-                self.addVideo(params)
-
+    ###################################################
+    # links
+    ###################################################
     def getLinksForVideo(self, cItem):
-        printDBG("OroroTV.getLinksForVideo [%s]" % cItem)
-        retTab = []
-
-        sts, data = self.getPage(cItem['url'])
+        printDBG("OroroTV.getLinksForVideo [%s]" % cItem.get("url", ""))
+        url = cItem.get("url", "")
+        if not self.cm.isValidUrl(url):
+            return []
+        params = dict(self.defaultParams)
+        params["header"] = dict(self.JSON_HEADER)
+        params["header"]["Referer"] = self.getFullUrl("en/channels/%s" % cItem.get("slug", ""))
+        sts, data = self.getPage(url, params)
         if not sts:
             return []
-
-        data = self.cm.ph.getDataBeetwenMarkers(data, '<video', '</video>')[1]
-
-        tmp = self.cm.ph.getDataBeetwenMarkers(data, '<source', '>')[1]
-        videoUrl = self.cm.ph.getSearchGroups(tmp, '''src=['"](https?://[^'^"]+?)['"]''')[0]
-        type = self.cm.ph.getSearchGroups(tmp, '''type=['"]([^'^"]+?)['"]''')[0]
-
-        retTab = self.up.getVideoLinkExt(videoUrl)
-        if 0 == len(retTab):
+        if "paid_access" in data and "<source" not in data:
+            SetIPTVPlayerLastHostError(_("This video needs a paid ororo.tv subscription."))
             return []
-
-        subTracks = []
-        tmp = self.cm.ph.getAllItemsBeetwenMarkers(data, '<track', '>')
-        for item in tmp:
-            if 'subtitles' not in item:
+        video = self.cm.ph.getDataBeetwenMarkers(data, "<video", "</video>")[1]
+        subs = []
+        seen = set()
+        for track in re.findall(r'<track[^>]+>', data):
+            src = self.cm.ph.getSearchGroups(track, r'''src=['"]([^'"]+)['"]''')[0]
+            if not src or src in seen:
                 continue
+            seen.add(src)
+            lang = self.cm.ph.getSearchGroups(track, r'''srclang=['"]([^'"]+)['"]''')[0]
+            label = self.cm.ph.getSearchGroups(track, r'''label=['"]([^'"]+)['"]''')[0] or lang
+            subs.append({"title": label, "url": self.getFullUrl(src), "lang": lang, "format": "vtt" if src.lower().endswith(".vtt") else "srt"})
+        urltab = []
+        for src, mime in re.findall(r'''<source[^>]+src=['"]([^'"]+)['"][^>]*type=['"]([^'"]+)['"]''', video):
+            src = src.replace("&amp;", "&")
+            if not self.cm.isValidUrl(src):
+                continue
+            meta = {"Referer": self.MAIN_URL}
+            if subs:
+                meta["external_sub_tracks"] = subs
+            if "youtube" in mime or "youtu" in src:
+                urltab.append({"name": "YouTube", "url": strwithmeta(src, meta), "need_resolve": 1})
+            else:
+                meta["User-Agent"] = self.HEADER["User-Agent"]
+                if ".m3u8" in src:
+                    meta["iptv_proto"] = "m3u8"
+                urltab.append({"name": mime.split("/")[-1].upper() or "Video", "url": strwithmeta(src, meta), "need_resolve": 0})
+        if not urltab:
+            SetIPTVPlayerLastHostError(_("No streams are available for this title yet."))
+            return []
+        return applySidecarToLinks(urltab, buildSidecarFromItem(cItem, IsSidecarEnabled()))
 
-            url = self.cm.ph.getSearchGroups(item, '''src=['"](https?://[^'^"]+?)['"]''')[0]
-            lang = self.cm.ph.getSearchGroups(item, '''label=['"]([^'^"]+?)['"]''')[0]
-            title = self.cm.ph.getSearchGroups(item, '''title=['"]([^'^"]+?)['"]''')[0]
+    def getVideoLinks(self, videoUrl):
+        printDBG("OroroTV.getVideoLinks [%s]" % videoUrl)
+        if not self.cm.isValidUrl(videoUrl):
+            return []
+        sidecar = sidecarFromUrlMeta(videoUrl, IsSidecarEnabled())
+        subs = videoUrl.meta.get("external_sub_tracks", []) if isinstance(videoUrl, strwithmeta) else []
+        links = decorateResolvedLinkItems(self.up.getVideoLinkExt(str(videoUrl)), sidecar)
+        if subs:
+            for item in links:
+                url = item.get("url", "")
+                meta = dict(getattr(url, "meta", {}) or {})
+                tracks = list(subs)
+                tracks.extend(meta.get("external_sub_tracks", []) or [])
+                meta["external_sub_tracks"] = tracks
+                item["url"] = strwithmeta(str(url), meta)
+        return links
 
-            if url != '':
-                subTracks.append({'title': title, 'url': url, 'lang': lang, 'format': url[-3:]})
+    ###################################################
+    # info
+    ###################################################
+    def getArticleContent(self, cItem):
+        icon = cItem.get("icon", "")
+        return [{"title": cItem.get("title", ""), "text": cItem.get("desc", "").replace("[/br]", "\n"),
+                 "images": [{"title": "", "url": icon}] if icon else [], "other_info": {}}]
 
-        if len(subTracks):
-            for idx in range(len(retTab)):
-                tmp = list(subTracks)
-                tmp.extend(retTab[idx]['url'].meta.get('external_sub_tracks', []))
-                retTab[idx]['url'] = strwithmeta(retTab[idx]['url'], {'external_sub_tracks': list(tmp)})
+    def getFavouriteData(self, cItem):
+        # desc carries "4 years ago" / video counts, which change: keep only what identifies and reopens the row
+        try:
+            return json_dumps(dict((key, cItem[key]) for key in self.FAV_FIELDS if key in cItem))
+        except Exception:
+            printExc()
+        return CBaseHostClass.getFavouriteData(self, cItem)
 
-        return retTab
-
-    def handleService(self, index, refresh=0, searchPattern='', searchType=''):
-        printDBG('handleService start')
-
+    def handleService(self, index, refresh=0, searchPattern="", searchType=""):
         CBaseHostClass.handleService(self, index, refresh, searchPattern, searchType)
-
-        name = self.currItem.get("name", '')
-        category = self.currItem.get("category", '')
-        mode = self.currItem.get("mode", '')
-
-        printDBG("handleService: |||||||||||||||||||||||||||||||||||| name[%s], category[%s] " % (name, category))
+        if isJumpItem(self.currItem):
+            self.currItem = jumpTarget(self, self.currItem)
+        name = self.currItem.get("name", "")
+        category = self.currItem.get("category", "")
+        printDBG("OroroTV.handleService name[%s] category[%s]" % (name, category))
         self.currList = []
-
-    #MAIN MENU
-        if name == None:
-            self.listsTab(self.MAIN_CAT_TAB, {'name': 'category'})
-        elif category == 'list_channels':
-            self.listChannels(self.currItem, 'list_items')
-        elif category == 'list_items':
-            self.listItems(self.currItem)
-    #SEARCH
+        if name is None:
+            self.listsTab(self.MENU, {"name": "category"})
+        elif category == "list_channels":
+            self.listChannels(self.currItem)
+        elif category == "list_sort":
+            self.listSort(self.currItem)
+        elif category == "list_videos":
+            self.listVideos(self.currItem)
         elif category in ["search", "search_next_page"]:
             cItem = dict(self.currItem)
-            cItem.update({'search_item': False, 'name': 'category'})
+            cItem.update({"search_item": False, "name": "category"})
             self.listSearchResult(cItem, searchPattern, searchType)
-    #HISTORIA SEARCH
         elif category == "search_history":
-            self.listsHistory({'name': 'history', 'category': 'search'}, 'desc', _("Type: "))
+            self.listsHistory({"name": "history", "category": "search"}, "desc", _("Type: "))
         else:
             printExc()
-
         CBaseHostClass.endHandleService(self, index, refresh)
 
 
-class IPTVHost(CHostBase):
-
+class IPTVHost(GenericFolderWatchedHostMixin, CHostBase):
     def __init__(self):
         CHostBase.__init__(self, OroroTV(), True, [])
+        self.cachedRet = None
+        self.refreshAfterWatchedFlagChange = False
+        self.watchedHelper = IPTVWatchedHelper("ororotv")
+
+    def withArticleContent(self, cItem):
+        return cItem.get("category", "") == "ororo_video"

@@ -1,366 +1,433 @@
 # -*- coding: utf-8 -*-
-###################################################
-# LOCAL import
-###################################################
-from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
-from Plugins.Extensions.IPTVPlayer.components.ihost import CHostBase, CBaseHostClass
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, rm
-from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
-from Plugins.Extensions.IPTVPlayer.tools.e2ijs import js_execute
-from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads
-###################################################
-###################################################
-from Plugins.Extensions.IPTVPlayer.p2p3.UrlParse import urlparse
-from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str, ensure_binary
-from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote, urllib_quote_plus
-###################################################
-# FOREIGN import
-###################################################
+LAST_MODIFIED = "10.10.2026"
+# Completely rewritten: 19.02.2026 - Mr.X
+# Fixed Pagination for episodes: 02.05.2026 - SlyceMaster
+# 10.10.2026 - host standard:
+#   - the API answers 401 without a Referer of the site - every request sends it now
+#   - search: the answer mixes people with titles (a person without poster crashed the list) - titles only
+#   - links straight from the title / episode page (all mirrors, best quality first, version in the name:
+#     dubbing / lektor / napisy), no extra watch request; episodes without a video are left out
+#   - seasons: all of them (the title page sends 8 per page), a series with one season lists its episodes
+#   - watched flag (series -> season -> episode), favourites reopen without state (old rows too),
+#     downloaded marker on the film / episode url, "Title (Year)" / "Show - SxxExx" names, sidecar
+#   - INFO via moviemeta (IMDb id of the title) merged with the site's fields (genres, rating, cast ...)
+#   - First / Jump / Next page with the last page, TMDb posters w342 instead of the original
 import re
-import base64
-try:
-    import json
-except Exception:
-    import simplejson as json
-from Components.config import config, ConfigText
-###################################################
+
+from Plugins.Extensions.IPTVPlayer.components.ihost import CBaseHostClass, CHostBase
+from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import IsMediaNamingNormalized, IsSidecarEnabled
+from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import SetIPTVPlayerLastHostError
+from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
+from Plugins.Extensions.IPTVPlayer.libs.e2ijson import dumps as json_dumps, loads as json_loads
+from Plugins.Extensions.IPTVPlayer.libs.moviemeta import getMeta, getMetaByImdbId
+from Plugins.Extensions.IPTVPlayer.libs.urlmetahelper import applySidecarToLinks, buildSidecarFromItem, decorateResolvedLinkItems, sidecarFromUrlMeta, sidecarMetaQuery
+from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote
+from Plugins.Extensions.IPTVPlayer.tools.iptvnaming import formatSxxExx
+from Plugins.Extensions.IPTVPlayer.tools.iptvpaging import addPagingItems, isJumpItem, jumpTarget, stripPagerKeys
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc
+from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
+from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedfoldermixin import GenericFolderWatchedHostMixin, GenericFolderWatchedScraperMixin
+from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedhelper import IPTVWatchedHelper
 
 
 def GetConfigList():
-    optionList = []
-    return optionList
+    return []
 
 
 def gettytul():
-    return 'http://obejrzyj.to/'
+    return "https://obejrzyj.to/"
 
 
-class Obejrzyjto(CBaseHostClass):
+def _toInt(value, default=0):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+class Obejrzyjto(GenericFolderWatchedScraperMixin, CBaseHostClass):
+    FAV_FIELDS = ("name", "category", "type", "url", "title", "icon", "desc", "title_id", "season", "episode", "ep_title", "s_title", "s_year", "meta_type")
 
     def __init__(self):
-        CBaseHostClass.__init__(self, {'history': 'obejrzyj.to', 'cookie': 'obejrzyj.to.cookie'})
-        config.plugins.iptvplayer.cloudflare_user = ConfigText(default='Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.0', fixed_size=False)
-        self.USER_AGENT = config.plugins.iptvplayer.cloudflare_user.value
-        self.MAIN_URL = 'http://obejrzyj.to/'
-        self.API_URL = self.getFullUrl('api/v1/')
-        self.DEFAULT_ICON_URL = 'https://obejrzyj.to/storage/branding_media/cbd06244-e15a-4f95-9df0-9c6be3fb83c8.png'
-        self.HTTP_HEADER = {'User-Agent': self.USER_AGENT, 'DNT': '1', 'Accept': 'text/html', 'Accept-Encoding': 'gzip, deflate', 'Referer': self.getMainUrl(), 'Origin': self.getMainUrl(), 'Upgrade-Insecure-Requests': '1', 'Connection': 'keep-alive'}
-        self.AJAX_HEADER = dict(self.HTTP_HEADER)
-        self.AJAX_HEADER.update({'X-Requested-With': 'XMLHttpRequest', 'Accept-Encoding': 'gzip, deflate', 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'Accept': 'application/json, text/javascript, */*; q=0.01'})
+        CBaseHostClass.__init__(self, {"history": "Obejrzyjto", "cookie": "Obejrzyjto.cookie"})
+        self.HEADER = self.cm.getDefaultHeader()
+        self.MAIN_URL = gettytul()
+        # without the Referer every api/v1 request answers 401
+        self.HEADER.update({"Referer": self.MAIN_URL, "Accept": "application/json, text/plain, */*"})
+        self.defaultParams = {"header": self.HEADER, "use_cookie": True, "load_cookie": True, "save_cookie": True, "cookiefile": self.COOKIE_FILE}
+        self.DEFAULT_ICON_URL = self.getFullUrl("storage/branding_media/ead386d3-fca5-4082-8754-2a0992ae8c22.png")
+        self.API_URL = self.getFullUrl("api/v1/channel/%s?restriction=&order=%s:desc&paginate=lengthAware&returnContentOnly=true&page=")
+        self.MENU = [
+            {"category": "submenu", "title": _("Movies"), "id": "78"},
+            {"category": "list_items", "title": "Popularne polskie filmy", "url": self.API_URL % ("99", "popularity")},
+            {"category": "submenu", "title": _("Series"), "id": "79"},
+            {"category": "list_items", "title": "Polskie seriale", "url": self.API_URL % ("1994", "popularity")},
+            {"category": "list_items", "title": "Polskie programy", "url": self.API_URL % ("396", "popularity")},
+            {"category": "list_items", "title": "Seriale dokumentalne", "url": self.API_URL % ("9742", "popularity")},
+        ] + self.searchItems()
+        self.watchedHelper = IPTVWatchedHelper("obejrzyjto")
+        self.wfInitFolderCache()
 
-        self.itemsPerPage = 50
-        self.cacheMovieFilters = {'cats': [], 'sort': [], 'years': [], 'az': []}
-        self.cacheLinks = {}
-        self.defaultParams = {'header': self.HTTP_HEADER, 'with_metadata': True, 'use_cookie': True, 'load_cookie': True, 'save_cookie': True, 'cookiefile': self.COOKIE_FILE}
-
-    def getPage(self, baseUrl, addParams={}, post_data=None):
-        if addParams == {}:
+    def getPage(self, baseUrl, addParams=None, post_data=None):
+        if addParams is None:
             addParams = dict(self.defaultParams)
-        origBaseUrl = baseUrl
-        baseUrl = self.cm.iriToUri(baseUrl)
+        return self.cm.getPageCFProtection(baseUrl, addParams, post_data)
 
-        sts, data = self.cm.getPageCFProtection(baseUrl, addParams, post_data)
-        if data.meta.get('cf_user', self.USER_AGENT) != self.USER_AGENT:
-            self.__init__()
-        return sts, data
-
-    def setMainUrl(self, url):
-        if self.cm.isValidUrl(url):
-            self.MAIN_URL = self.cm.getBaseUrl(url)
-
-    def listMainMenu(self, cItem):
-        printDBG("Obejrzyjto.listMainMenu")
-
-        MAIN_CAT_TAB = [{'category': 'list_sort', 'title': _('Movies'), 'url': self.API_URL + 'channel/movies?perPage=%d' % self.itemsPerPage},
-                        {'category': 'list_sort', 'title': _('Documentaries'), 'url': self.API_URL + 'channel/dokumentalne?perPage=%d' % self.itemsPerPage},
-                        {'category': 'list_sort', 'title': _('Series'), 'url': self.API_URL + 'channel/series?perPage=%d' % self.itemsPerPage},
-#                        {'category':'list_years',     'title': _('Filter By Year'),    'url':self.MAIN_URL},
-#                        {'category': 'list_cats', 'title': _('Movies genres'), 'url': self.API_URL + '?perPage=%d' % self.itemsPerPage},
-#                        {'category':'list_az',        'title': _('Alphabetically'),    'url':self.MAIN_URL},
-                        {'category': 'search', 'title': _('Search'), 'search_item': True},
-                        {'category': 'search_history', 'title': _('Search history')},
-                        ]
-        self.listsTab(MAIN_CAT_TAB, cItem)
-
-    ###################################################
-    def _fillMovieFilters(self, cItem):
-        self.cacheMovieFilters = {'cats': [], 'sort': [], 'years': [], 'az': []}
-
-        # fill sort
-        dat = [('&order=created_at:desc', 'Data dodania'),
-               ('&order=popularity:desc', 'Popularność'),
-               ('&order=release_date:desc', 'Data wydania'),
-               ('&order=rating:desc', 'Ocena użytkowników'),
-               ('&order=revenue:desc', 'Dochód'),
-               ('&order=budget:desc', 'Budżet')
-            ]
-        for item in dat:
-            self.cacheMovieFilters['sort'].append({'title': item[1], 'sort': item[0]})
-
-        # fill cats
-        dat = [('&genre=Akcja', 'Akcja'),
-               ('&genre=Animacja', 'Animacja'),
-               ('&genre=Dokumentalny', 'Data wydania'),
-               ('&genre=Dramat', 'Dramat'),
-               ('&genre=Familijny', 'Familijny'),
-               ('&genre=Fantasy', 'Fantasy'),
-               ('&genre=Historyczny', 'Historyczny'),
-               ('&genre=Horror', 'Horror'),
-               ('&genre=Komedia', 'Komedia'),
-               ('&genre=Krymina%C5%82', 'Kryminał'),
-               ('&genre=Muzyczny', 'Muzyczny'),
-               ('&genre=Przygodowy', 'Przygodowy'),
-               ('&genre=Romans', 'Romans'),
-               ('&genre=Sci-Fi', 'Sci-Fi'),
-               ('&genre=Tajemnica', 'Tajemnica'),
-               ('&genre=Thriller', 'Thriller'),
-               ('&genre=Western', 'Western'),
-               ('&genre=Wojenny', 'Wojenny'),
-               ('&genre=film%20TV', 'Film TV'),
-               ('&genre=Sport%20LIVE', 'Sport LIVE')
-            ]
-        for item in dat:
-            self.cacheMovieFilters['cats'].append({'title': item[1], 'url': cItem['url'] + item[0]})
-
-    ###################################################
-    def listMovieFilters(self, cItem, category):
-        printDBG("Obejrzyjto.listMovieFilters")
-
-        filter = cItem['category'].split('_')[-1]
-        self._fillMovieFilters(cItem)
-        if len(self.cacheMovieFilters[filter]) > 0:
-            filterTab = []
-            filterTab.extend(self.cacheMovieFilters[filter])
-            self.listsTab(filterTab, cItem, category)
-
-    def listsTab(self, tab, cItem, category=None):
-        printDBG("Obejrzyjto.listsTab")
-        for item in tab:
-            params = dict(cItem)
-            if None != category:
-                params['category'] = category
-            params.update(item)
-            self.addDir(params)
-
-    def listItems(self, cItem):
-        printDBG("Obejrzyjto.listItems [%s]" % cItem)
-        page = cItem.get('page', 1)
-        url = cItem['url']
-
-        sort = cItem.get('sort', '')
-        if sort not in url:
-            url = url + sort
-
-        if page > 1:
-            url = url + '&page={0}'.format(page)
-
-        urlParams = dict(self.defaultParams)
-        sts, data = self.getPage(self.MAIN_URL, urlParams)
-        urlParams['header']['x-xsrf-token'] = self.cm.getCookieItem(self.COOKIE_FILE, 'XSRF-TOKEN').replace('%3D', '=')
-        sts, data = self.getPage(url, urlParams)
-        if not sts:
-            return
-        self.setMainUrl(data.meta['url'])
-#        printDBG("Obejrzyjto.listItems data [%s]" % data)
-
-        try:
-            if '/search/' in url:
-                data = json_loads(data)['results']
-                nextPage = False
-            else:
-                data = json_loads(data)['channel']['content']
-                nextPage = data['next_page']
-                data = data['data']
-        except Exception:
-            printExc()
-
-        for item in data:
-#            printDBG("Obejrzyjto.listItems item %s" % item)
-#            if item.get('type', '') == '':
-#                continue
-            try:
-                if item['is_series']:
-                    video_id = item['primary_video']['title_id']
-                else:
-                    video_id = item['primary_video']['id']
-            except Exception:
-                url = self.getFullUrl(self.API_URL + 'titles/%d?load=primaryVideo' % item['id'])
-                sts, data = self.getPage(url)
-                if not sts:
-                    continue
-                try:
-                    data = json_loads(data)['title']
-                    video_id = data['primary_video']['id']
-                except Exception:
-                    continue
-            icon = self.getFullIconUrl(item.get('poster', ''))
-            if 'original' in icon:
-                icon = icon.replace('/original/', '/w500/')
-            title = item.get('name', '')
-            desc = item.get('description', '')
-            if item['is_series']:
-                url = self.getFullUrl(self.API_URL + 'titles/%d/seasons' % video_id)
-                params = {'good_for_fav': True, 'category': 'list_seasons', 'url': url, 'title': title, 'desc': desc, 'icon': icon}
-                self.addDir(params)
-            else:
-                url = self.getFullUrl(self.API_URL + 'watch/%d' % video_id)
-                params = {'good_for_fav': True, 'url': url, 'title': title, 'desc': desc, 'icon': icon}
-                self.addVideo(params)
-
-        if nextPage:
-            params = dict(cItem)
-            params.update({'title': _('Next page'), 'page': page + 1})
-            self.addDir(params)
-
-    def listSeriesSeasons(self, cItem, nextCategory):
-        printDBG("Obejrzyjto.listSeriesSeasons")
-        sts, data = self.getPage(cItem['url'])
-        if not sts:
-            return
-
-        data = json_loads(data)
-
-        for sItem in data['pagination']['data']:
-#            printDBG("Obejrzyjto.listSeriesSeasons sItem [%s]" % sItem)
-            sts, sdata = self.getPage(self.getFullUrl(cItem['url'] + '/%d/episodes' % sItem['number']))
-            if not sts:
-                return
-            sTitle = 'Sezon %d' % sItem['number']
-            sdata = json_loads(sdata)['pagination']['data']
-            tabItems = []
-            for item in sdata:
-#                printDBG("Obejrzyjto.listSeriesSeasons item [%s]" % item)
-                try:
-                    url = self.getFullUrl(self.API_URL + 'watch/%d' % item['primary_video']['id'])
-                except Exception:
-                    continue
-                icon = self.getFullIconUrl(item.get('poster', ' '))
-                if 'original' in icon:
-                    icon = icon.replace('/original/', '/w500/')
-                title = item.get('name', '')
-                desc = item.get('description', '')
-                tabItems.append({'url': url, 'title': title, 'desc': desc, 'icon': icon})
-            if len(tabItems):
-                params = dict(cItem)
-                params.update({'good_for_fav': False, 'category': nextCategory, 'title': sTitle, 'episodes': tabItems, 'icon': cItem['icon'], 'desc': ''})
-                self.addDir(params)
-
-    def listSeriesEpisodes(self, cItem):
-        printDBG("Obejrzyjto.listSeriesEpisodes [%s]" % cItem)
-        episodes = cItem.get('episodes', [])
-        cItem = dict(cItem)
-        for item in episodes:
-            self.addVideo(item)
-
-    def listSearchResult(self, cItem, searchPattern, searchType):
-        printDBG("Obejrzyjto.listSearchResult cItem[%s], searchPattern[%s] searchType[%s]" % (cItem, searchPattern, searchType))
-        url = self.getFullUrl(self.API_URL + 'search/%s?limit=20') % urllib_quote_plus(searchPattern)
-        params = {'name': 'category', 'category': 'list_items', 'good_for_fav': False, 'url': url}
-        self.listItems(params)
-
-    def getLinksForVideo(self, cItem):
-        printDBG("Obejrzyjto.getLinksForVideo [%s]" % cItem)
-
-        cacheKey = cItem['url']
-        cacheTab = self.cacheLinks.get(cacheKey, [])
-        if len(cacheTab):
-            return cacheTab
-
-        self.cacheLinks = {}
-
-        cUrl = cItem['url']
-        url = cItem['url']
-
-        retTab = []
-
+    def _getJson(self, url):
         sts, data = self.getPage(url)
         if not sts:
-            return []
-
-        cUrl = data.meta['url']
-        self.setMainUrl(cUrl)
+            return {}
         try:
             data = json_loads(data)
         except Exception:
             printExc()
+            return {}
+        return data if isinstance(data, dict) else {}
 
-        for item in data['alternative_videos']:
-            printDBG("Obejrzyjto.getLinksForVideo item[%s]" % item)
-            playerUrl = self.getFullUrl(item.get('src', '')).replace(' ', '%20')
-            if playerUrl == '':
+    ###################################################
+    # watched flag / favourites
+    ###################################################
+    def _getWatchedKeyForItem(self, cItem):
+        try:
+            if not isinstance(cItem, dict):
+                return ""
+            if cItem.get("type", "") == "video":
+                url = str(cItem.get("url", "") or "").strip()
+                return "video:%s" % url if url else ""
+            category = cItem.get("category", "")
+            tid = self._titleId(cItem)
+            if category == "list_seasons" and tid:
+                return "series:%s" % tid
+            season = self._season(cItem)
+            if category == "list_episodes" and tid and season:
+                return "season:%s|%s" % (tid, season)
+        except Exception:
+            printExc()
+        return ""
+
+    def getFavouriteData(self, cItem):
+        try:
+            return json_dumps(dict((key, cItem[key]) for key in self.FAV_FIELDS if key in cItem))
+        except Exception:
+            printExc()
+        return CBaseHostClass.getFavouriteData(self, cItem)
+
+    ###################################################
+    # helpers
+    ###################################################
+    @staticmethod
+    def _titleId(cItem):
+        # series rows saved before 10.10.2026 carry the bare title id as url
+        tid = str(cItem.get("title_id", "") or "").strip()
+        if not tid:
+            url = str(cItem.get("url", "") or "").strip()
+            tid = (re.findall(r"titles/(\d+)", url) or re.findall(r"^(\d+)$", url) or [""])[0]
+        return tid
+
+    @staticmethod
+    def _season(cItem):
+        season = str(cItem.get("season", "") or "").strip()
+        if not season:
+            season = (re.findall(r"/seasons/(\d+)", str(cItem.get("url", "") or "")) or [""])[0]
+        return season
+
+    @staticmethod
+    def _poster(url):
+        # the TMDb original is up to 2 MB a poster - w342 is plenty for the box
+        return re.sub(r"(image\.tmdb\.org/t/p/)original/", r"\1w342/", url or "")
+
+    @staticmethod
+    def _versionLabel(languageType):
+        # "lektor_pl_napisy_pl" -> "lektor PL / napisy PL"
+        return (languageType or "").replace("_pl", " PL").replace("_en", " EN").replace("_", " / ")
+
+    def _titleUrl(self, tid):
+        return self.getFullUrl("api/v1/titles/%s?loader=titlePage" % tid)
+
+    def _seasonUrl(self, tid, season):
+        return self.getFullUrl("api/v1/titles/%s/seasons/%s?loader=seasonPage" % (tid, season))
+
+    def _episodeUrl(self, tid, season, episode):
+        return self.getFullUrl("api/v1/titles/%s/seasons/%s/episodes/%s?loader=episodePage" % (tid, season, episode))
+
+    @staticmethod
+    def _genres(js):
+        return ", ".join(g.get("display_name", "") or g.get("name", "") for g in (js.get("genres") or []) if isinstance(g, dict))
+
+    def _titleDesc(self, js):
+        tab = []
+        if js.get("year"):
+            tab.append("%s: %s" % (_("Year"), js["year"]))
+        if js.get("rating"):
+            tab.append("%s: %s" % (_("Rating"), js["rating"]))
+        genres = self._genres(js)
+        if genres:
+            tab.append(genres)
+        primary = js.get("primary_video")
+        if isinstance(primary, dict) and primary.get("language_type"):
+            tab.append(self._versionLabel(primary["language_type"]))
+        desc = self.cleanHtmlStr(js.get("description", "") or "")
+        return " | ".join(tab) + ("[/br]" + desc if desc else "")
+
+    ###################################################
+    # lists
+    ###################################################
+    def listsubMenu(self, cItem):
+        tab = [(_("Popular"), "popularity"), (_("Latest"), "created_at"), (_("Latest update"), "videos_updated_at"), (_("Rating"), "rating"),
+               ("Biggest budget", "budget"), ("Highest revenue", "revenue")]
+        for title, order in tab:
+            params = dict(cItem)
+            params.update({"category": "list_items", "title": title, "url": self.API_URL % (cItem["id"], order)})
+            self.addDir(params)
+
+    def _addTitles(self, cItem, titles):
+        normalize = IsMediaNamingNormalized()
+        for js in titles:
+            if not isinstance(js, dict) or js.get("model_type", "title") != "title" or not js.get("id"):
                 continue
-            name = item.get('name', '') + ' - ' + self.up.getHostName(playerUrl)
-            if item['category'] == 'trailer':
-                name = '[trailer] ' + name
-            retTab.append({'name': name, 'url': strwithmeta(playerUrl, {'Referer': url}), 'need_resolve': 1})
+            name = self.cleanHtmlStr(js.get("name", "") or "")
+            if not name:
+                continue
+            year = str(js.get("year", "") or "")
+            params = stripPagerKeys(dict(cItem))
+            params.update({"good_for_fav": True, "icon": self._poster(js.get("poster")), "desc": self._titleDesc(js), "title_id": str(js["id"]),
+                           "s_title": name, "s_year": year, "url": self._titleUrl(js["id"])})
+            if js.get("is_series"):
+                params.update({"category": "list_seasons", "title": name, "meta_type": "tv"})
+                self.addDir(params)
+            else:
+                params.update({"category": "video", "title": "%s (%s)" % (name, year) if (normalize and year) else name, "meta_type": "movie"})
+                self.addVideo(params)
 
-        if len(retTab):
-            self.cacheLinks[cacheKey] = retTab
-        return retTab
+    def listItems(self, cItem):
+        printDBG("Obejrzyjto.listItems |%s|" % cItem)
+        page = max(1, _toInt(cItem.get("page", 1), 1))
+        # the channel url ends in "page=" (the pager rows carry the full url of their page)
+        url = re.sub(r"page=\d*$", "page=", cItem["url"])
+        js = self._getJson(url + str(page))
+        pagination = js.get("pagination") or {}
+        self._addTitles(cItem, pagination.get("data") or [])
+        perPage = _toInt(pagination.get("per_page"), 0)
+        total = _toInt(pagination.get("total"), 0)
+        lastPage = (total + perPage - 1) // perPage if (perPage and total) else 0
+        addPagingItems(self, cItem, page, bool(pagination.get("next_page")), lastPage, url.replace("{", "{{").replace("}", "}}") + "{page}")
 
-    def getVideoLinks(self, baseUrl):
-        printDBG("Obejrzyjto.getVideoLinks [%s]" % baseUrl)
-        baseUrl = strwithmeta(baseUrl)
-        urlTab = []
+    def listSearchResult(self, cItem, searchPattern, searchType):
+        printDBG("Obejrzyjto.listSearchResult cItem[%s], searchPattern[%s] searchType[%s]" % (cItem, searchPattern, searchType))
+        # one page of up to 20 results, people included - no paging
+        js = self._getJson(self.getFullUrl("api/v1/search/%s?loader=searchPage" % urllib_quote(searchPattern)))
+        self._addTitles(cItem, js.get("results") or [])
+        if not self.currList:
+            SetIPTVPlayerLastHostError(_("No matching entries found."))
 
-        # mark requested link as used one
-        if len(self.cacheLinks.keys()):
-            for key in self.cacheLinks:
-                for idx in range(len(self.cacheLinks[key])):
-                    if baseUrl in self.cacheLinks[key][idx]['url']:
-                        if not self.cacheLinks[key][idx]['name'].startswith('*'):
-                            self.cacheLinks[key][idx]['name'] = '*' + self.cacheLinks[key][idx]['name'] + '*'
-                        break
+    def listSeasons(self, cItem):
+        printDBG("Obejrzyjto.listSeasons |%s|" % cItem)
+        tid = self._titleId(cItem)
+        if not tid:
+            return
+        js = self._getJson(self._titleUrl(tid))
+        title = js.get("title") or {}
+        seasons = js.get("seasons") or {}
+        rows = seasons.get("data") or []
+        if _toInt(seasons.get("last_page"), 1) > 1:
+            # the title page sends 8 seasons per page
+            more = self._getJson(self.getFullUrl("api/v1/titles/%s/seasons?perPage=100&page=1" % tid))
+            rows = (more.get("pagination") or {}).get("data") or rows
+        rows = sorted([r for r in rows if isinstance(r, dict) and r.get("number") is not None], key=lambda r: _toInt(r.get("number")))
+        if not rows:
+            SetIPTVPlayerLastHostError(_("No streams are available for this title yet."))
+            return
+        sTitle = self.cleanHtmlStr(title.get("name", "") or "") or cItem.get("s_title", "") or cItem.get("title", "")
+        plot = self.cleanHtmlStr(title.get("description", "") or "") or cItem.get("desc", "")
+        fields = {"title_id": tid, "s_title": sTitle, "s_year": str(title.get("year", "") or cItem.get("s_year", "")), "meta_type": "tv"}
+        if len(rows) == 1:
+            season = str(rows[0]["number"])
+            self.listEpisodes(dict(cItem, category="list_episodes", season=season, url=self._seasonUrl(tid, season), desc=plot,
+                                   episodes_count=rows[0].get("episodes_count", 0), **fields))
+            return
+        normalize = IsMediaNamingNormalized()
+        for row in rows:
+            season = str(row["number"])
+            seasonTag = formatSxxExx(season) if normalize else "%s %s" % (_("Season"), season)
+            params = stripPagerKeys(dict(cItem))
+            params.update(fields)
+            params.update({"good_for_fav": True, "category": "list_episodes", "title": "%s - %s" % (sTitle, seasonTag), "season": season,
+                           "url": self._seasonUrl(tid, season), "icon": self._poster(row.get("poster")) or cItem.get("icon", ""),
+                           "episodes_count": row.get("episodes_count", 0), "desc": "%s: %s\n%s" % (_("Episodes"), row.get("episodes_count", ""), plot)})
+            self.addDir(params)
 
-        return self.up.getVideoLinkExt(baseUrl)
+    def listEpisodes(self, cItem):
+        printDBG("Obejrzyjto.listEpisodes |%s|" % cItem)
+        tid, season = self._titleId(cItem), self._season(cItem)
+        if not (tid and season):
+            return
+        page = max(1, _toInt(cItem.get("page", 1), 1))
+        url = self._seasonUrl(tid, season)
+        js = self._getJson(url + ("&page=%d" % page if page > 1 else ""))
+        episodes = js.get("episodes") or {}
+        title = js.get("title") or {}
+        sTitle = cItem.get("s_title", "") or self.cleanHtmlStr(title.get("name", "") or "") or cItem.get("title", "")
+        normalize = IsMediaNamingNormalized()
+        for ep in episodes.get("data") or []:
+            if not isinstance(ep, dict) or not ep.get("primary_video"):
+                # announced by TMDb, no video on the site yet
+                continue
+            epNum = str(ep.get("episode_number", "") or "")
+            epName = self.cleanHtmlStr(ep.get("name", "") or "")
+            if normalize:
+                label = "%s - %s" % (sTitle, formatSxxExx(season, epNum))
+            else:
+                label = " - ".join(x for x in (sTitle, "%s %s, %s %s" % (_("Season"), season, _("Episode"), epNum), epName) if x)
+            descTab = [x for x in (str(ep.get("release_date", "") or "")[:10], self._versionLabel((ep.get("primary_video") or {}).get("language_type", ""))) if x]
+            plot = self.cleanHtmlStr(ep.get("description", "") or "")
+            text = "%s: %s" % (epName, plot) if (epName and plot) else (plot or epName)
+            params = stripPagerKeys(dict(cItem), ("episodes_count",))
+            params.update({"good_for_fav": True, "category": "video", "title": label, "url": self._episodeUrl(tid, season, epNum), "title_id": tid,
+                           "season": season, "episode": epNum, "ep_title": epName, "s_title": sTitle, "meta_type": "tv",
+                           "icon": self._poster(ep.get("poster")) or cItem.get("icon", ""),
+                           "desc": " | ".join(descTab) + ("[/br]" + text if text else "")})
+            self.addVideo(params)
+        perPage = _toInt(episodes.get("per_page"), 0)
+        count = _toInt(cItem.get("episodes_count") or (js.get("season") or {}).get("episodes_count"), 0)
+        lastPage = (count + perPage - 1) // perPage if (perPage and count) else 0
+        # the page lives in cItem["page"] - the template keeps the season url
+        addPagingItems(self, dict(cItem, category="list_episodes"), page, bool(episodes.get("next_page")), lastPage, url.replace("{", "{{").replace("}", "}}"))
 
-    def handleService(self, index, refresh=0, searchPattern='', searchType=''):
-        printDBG('handleService start')
+    ###################################################
+    # links
+    ###################################################
+    def getLinksForVideo(self, cItem):
+        printDBG("Obejrzyjto.getLinksForVideo [%s]" % cItem)
+        url = cItem.get("url", "")
+        js = self._getJson(url)
+        if "=episodePage" in url:
+            videos = (js.get("episode") or {}).get("videos") or []
+        else:
+            title = js.get("title") or {}
+            videos = title.get("videos") or []
+            primary = title.get("primary_video")
+            if not videos and isinstance(primary, dict) and primary.get("id"):
+                watch = self._getJson(self.getFullUrl("api/v1/watch/%s" % primary["id"]))
+                videos = watch.get("alternative_videos") or ([watch["video"]] if isinstance(watch.get("video"), dict) else [])
+        rows = []
+        for video in videos:
+            if not isinstance(video, dict):
+                continue
+            src = video.get("src", "") or ""
+            if src.startswith("//"):
+                src = "https:" + src
+            if not self.cm.isValidUrl(src) or src in [r[1] for r in rows]:
+                continue
+            quality = str(video.get("quality", "") or "")
+            hoster = video.get("name", "") or self.up.getHostName(src).capitalize()
+            name = " - ".join(x for x in (hoster, quality, self._versionLabel(video.get("language_type", ""))) if x)
+            rows.append((_toInt(re.sub(r"\D", "", quality), 0), src, name))
+        rows.sort(key=lambda r: -r[0])
+        urltab = [{"name": name, "url": strwithmeta(src, {"Referer": self.MAIN_URL}), "need_resolve": 1} for _q, src, name in rows]
+        if not urltab:
+            SetIPTVPlayerLastHostError(_("No streams are available for this title yet."))
+            return []
+        # moviemeta query of INFO: the title's IMDb id first, then its original title (an episode answer may lack the title block)
+        title = js.get("title") or {}
+        sTitle = self.cleanHtmlStr(title.get("name", "") or "") or cItem.get("s_title", "") or cItem.get("title", "")
+        metaQuery = sidecarMetaQuery("tv" if (title.get("is_series") or cItem.get("meta_type") == "tv") else "movie", (title.get("original_title", "") or sTitle) if sTitle else "",
+                                     str(title.get("year", "") or cItem.get("s_year", "")), title.get("imdb_id", ""), skip=())
+        return applySidecarToLinks(urltab, buildSidecarFromItem(cItem, IsSidecarEnabled(), cItem.get("desc", ""), metaQuery))
 
+    def getVideoLinks(self, videoUrl):
+        printDBG("Obejrzyjto.getVideoLinks [%s]" % videoUrl)
+        if not self.cm.isValidUrl(videoUrl):
+            return []
+        sidecar = sidecarFromUrlMeta(videoUrl, IsSidecarEnabled())
+        return decorateResolvedLinkItems(self.up.getVideoLinkExt(videoUrl), sidecar)
+
+    ###################################################
+    # INFO
+    ###################################################
+    def getArticleContent(self, cItem):
+        printDBG("Obejrzyjto.getArticleContent [%s]" % cItem)
+        tid = self._titleId(cItem)
+        js = self._getJson(self._titleUrl(tid)) if tid else {}
+        title = js.get("title") or {}
+        mediaType = "tv" if (title.get("is_series") or cItem.get("meta_type") == "tv") else "movie"
+        info = {}
+        for key, field in (("year", "year"), ("rating", "rating"), ("seasons_count", "seasons")):
+            if title.get(key) and (key != "seasons_count" or mediaType == "tv"):
+                info[field] = str(title[key])
+        if title.get("runtime"):
+            info["duration"] = "%s min" % title["runtime"]
+        if title.get("original_title") and title.get("original_title") != title.get("name"):
+            info["original_title"] = self.cleanHtmlStr(title["original_title"])
+        if title.get("certification"):
+            info["age_limit"] = str(title["certification"]).upper()
+        genres = self._genres(title)
+        if genres:
+            info["genres"] = genres
+        credits = js.get("credits") or {}
+        for field, dept in (("directors", "directing"), ("actors", "actors")):
+            names = [self.cleanHtmlStr(p.get("name", "")) for p in (credits.get(dept) or []) if isinstance(p, dict)][:5]
+            if names:
+                info[field] = ", ".join(names)
+        sTitle = self.cleanHtmlStr(title.get("name", "") or "") or cItem.get("s_title", "") or cItem.get("title", "")
+        year = str(title.get("year", "") or cItem.get("s_year", ""))
+        meta = {}
+        try:
+            if title.get("imdb_id"):
+                meta = getMetaByImdbId(mediaType, title["imdb_id"])
+            if not meta and sTitle:
+                meta = getMeta(mediaType, title.get("original_title", "") or sTitle, year)
+        except Exception:
+            printExc()
+        metaInfo = dict(meta.get("info", {}))
+        metaInfo.update(info)
+        text = self.cleanHtmlStr(title.get("description", "") or "") or cItem.get("desc", "")
+        if cItem.get("type") == "video" and cItem.get("episode"):
+            # an episode: its own text first
+            epText = cItem.get("desc", "")
+            text = "%s[/br][/br]%s" % (epText, text) if (epText and text and epText != text) else (epText or text)
+        metaPlot = meta.get("plot", "")
+        if metaPlot and text and metaPlot != text:
+            text = "%s[/br][/br]%s" % (text, metaPlot)
+        else:
+            text = text or metaPlot
+        icon = cItem.get("icon", "") or self._poster(title.get("poster")) or meta.get("poster", "") or self.DEFAULT_ICON_URL
+        return [{"title": cItem.get("title", ""), "text": text, "images": [{"title": "", "url": icon}], "other_info": metaInfo}]
+
+    def handleService(self, index, refresh=0, searchPattern="", searchType=""):
         CBaseHostClass.handleService(self, index, refresh, searchPattern, searchType)
-
-        name = self.currItem.get("name", '')
-        category = self.currItem.get("category", '')
-        mode = self.currItem.get("mode", '')
-
-        printDBG("handleService: |||| name[%s], category[%s] " % (name, category))
-        self.cacheLinks = {}
+        if isJumpItem(self.currItem):
+            self.currItem = jumpTarget(self, self.currItem)
+        name = self.currItem.get("name", "")
+        category = self.currItem.get("category", "")
+        printDBG("handleService start\nhandleService: name[%s], category[%s] " % (name, category))
         self.currList = []
-
-    #MAIN MENU
-        if name == None and category == '':
-            rm(self.COOKIE_FILE)
-            self.listMainMenu({'name': 'category'})
-        elif 'list_cats' == category:
-            self.listMovieFilters(self.currItem, 'list_sort')
-        elif 'list_years' == category:
-            self.listMovieFilters(self.currItem, 'list_items')
-        elif 'list_az' == category:
-            self.listMovieFilters(self.currItem, 'list_items')
-        elif 'list_sort' == category:
-            self.listMovieFilters(self.currItem, 'list_items')
-        elif category == 'list_items':
+        if name is None:
+            self.listsTab(self.MENU, {"name": "category"})
+        elif category == "submenu":
+            self.listsubMenu(self.currItem)
+        elif category == "list_items":
             self.listItems(self.currItem)
-        elif category == 'list_seasons':
-            self.listSeriesSeasons(self.currItem, 'list_episodes')
-        elif category == 'list_episodes':
-            self.listSeriesEpisodes(self.currItem)
-
-    #SEARCH
+        elif category == "list_seasons":
+            self.listSeasons(self.currItem)
+        elif category == "list_episodes":
+            self.listEpisodes(self.currItem)
         elif category in ["search", "search_next_page"]:
             cItem = dict(self.currItem)
-            cItem.update({'search_item': False, 'name': 'category'})
+            cItem.update({"search_item": False, "name": "category"})
             self.listSearchResult(cItem, searchPattern, searchType)
-    #HISTORIA SEARCH
         elif category == "search_history":
-            self.listsHistory({'name': 'history', 'category': 'search'}, 'desc', _("Type: "))
+            self.listsHistory({"name": "history", "category": "search"}, "desc")
         else:
             printExc()
-
         CBaseHostClass.endHandleService(self, index, refresh)
 
 
-class IPTVHost(CHostBase):
-
+class IPTVHost(GenericFolderWatchedHostMixin, CHostBase):
     def __init__(self):
         CHostBase.__init__(self, Obejrzyjto(), True, [])
+        self.cachedRet = None
+        self.refreshAfterWatchedFlagChange = False
+        self.watchedHelper = IPTVWatchedHelper("obejrzyjto")
+
+    def withArticleContent(self, cItem):
+        return cItem.get("type") == "video" or cItem.get("category", "") in ("list_seasons", "list_episodes")

@@ -578,6 +578,16 @@ def GetFavouritesDir(fileName=''):
     return GetCacheSubDir('IPTVFavourites', fileName)
 
 
+def GetWatchedDir(fileName=''):
+    # watched/started markers (<host>/.<hash>.iptvhash) live in IPTVWatched next to the favourites (same folder
+    # as iptvwatchedhelper.py of this fork); the python3 branch's hosts ask for it by this name
+    return GetFavouritesDir('IPTVWatched/' + fileName)
+
+
+def getHostsPath(fileName=''):
+    return os.path.join(resolveFilename(SCOPE_PLUGINS), 'Extensions/IPTVPlayer/hosts/', fileName)
+
+
 def GetDownloadedDir(fileName=''):
     # "downloaded" markers (<host>/.<hash>.iptvdl) of the items downloaded from a host list - next to IPTVWatched
     return GetFavouritesDir('IPTVDownloaded/' + fileName)

@@ -1,542 +1,295 @@
 # -*- coding: utf-8 -*-
-
+LAST_MODIFIED = "04.10.2026"
+# Spryciarze.pl - Polish how-to video guides (computers, cooking, DIY, hobby, sport, beauty, ...).
+# 03.10.2026 - revival + rewrite for the current site: category tree from /kategorie
+#   (www + the komputery/kulinaria/kobieta/sport sub-domains), "card" grids with "/page:N" pagination,
+#   search /szukaj/<phrase>/film/page:N, player.spryciarze.pl/embed/<slug> = own MP4 ("mediaFiles")
+#   or a YouTube embed + watched flag / downloaded flag / sidecar / favourites.
+#   NOTE: the sub-domains serve an expired TLS certificate - works with the default
+#   "https - validate SSL certificates: No".
 ###################################################
 # LOCAL import
 ###################################################
-from Plugins.Extensions.IPTVPlayer.components.ihost import IHost, CDisplayListItem, RetHost, CUrlItem, CBaseHostClass
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, GetLogoDir, byteify
-from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads
+from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, SetIPTVPlayerLastHostError
+from Plugins.Extensions.IPTVPlayer.components.ihost import CHostBase, CBaseHostClass
+from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import IsSidecarEnabled
+from Plugins.Extensions.IPTVPlayer.tools.iptvpaging import addPagingItems, isJumpItem, jumpTarget, stripPagerKeys
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc
+from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
+from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedhelper import IPTVWatchedHelper
+from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedfoldermixin import GenericFolderWatchedScraperMixin, GenericFolderWatchedHostMixin
+from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads, dumps as json_dumps
+from Plugins.Extensions.IPTVPlayer.libs.urlmetahelper import buildSidecarFromItem, applySidecarToLinks, sidecarFromUrlMeta, decorateResolvedLinkItems
+from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote_plus
 ###################################################
 # FOREIGN import
 ###################################################
 import re
-import copy
 ###################################################
 
 
 def GetConfigList():
-    optionList = []
-    return optionList
+    return []
 
 
 def gettytul():
-    return 'https://spryciarze.pl/'
+    return 'https://www.spryciarze.pl/'
 
 
-class Spryciarze(CBaseHostClass):
-    MAIN_URL = 'https://www.spryciarze.pl/'
-    MAIN_CATEGORIES_URL = MAIN_URL + 'kategorie/'
-    VIDEO_URL = MAIN_URL + 'player/player/xml_connect.php?code='
+CARD_RE = re.compile(r'<div class="card text-gray[^"]*">\s*<a href="([^"]+/zobacz/[^"]+)">\s*<img src="([^"]*)"[^>]*alt="([^"]*)"', re.DOTALL)
+SLUG_RE = re.compile(r'/zobacz/([^/?#"]+)')
 
-    NUM_PER_PAGE = 12
-    SEARCH_RES_PER_PAGE = 30
+
+class Spryciarze(GenericFolderWatchedScraperMixin, CBaseHostClass):
+    PLAYER_URL = 'https://player.spryciarze.pl/embed/%s'
+    FAV_FIELDS = ('name', 'category', 'type', 'url', 'slug', 'title', 'icon', 'desc')
 
     def __init__(self):
-        CBaseHostClass.__init__(self, {'history': 'spryciarze.org', 'cookie': 'spryciarze.cookie'})
-        self.catTree = []
-        self.currList = []
+        CBaseHostClass.__init__(self, {'history': 'spryciarze', 'cookie': 'spryciarze.cookie'})
+        self.MAIN_URL = 'https://www.spryciarze.pl/'
+        self.DEFAULT_ICON_URL = 'https://www.spryciarze.pl/img/logotypes/logo-main.png'
+        self.HEADER = self.cm.getDefaultHeader(browser='chrome')
+        self.defaultParams = {'header': self.HEADER, 'use_cookie': True, 'load_cookie': True, 'save_cookie': True, 'cookiefile': self.COOKIE_FILE}
+        self.catCache = []
+        self.watchedHelper = IPTVWatchedHelper('spryciarze')
+        self.wfInitFolderCache()
 
-    def getCurrList(self):
-        return self.currList
-
-    def setCurrList(self, list):
-        self.currList = list
-        return
-
-    def getMainCategory(self):
-        printDBG('Spryciarze.getMainCategory')
-
-        self.catTree = []
-        self.currList = []
-
-        sts, data = self.cm.getPage(self.MAIN_CATEGORIES_URL)
-        if not sts:
-            return
-
-        data = self.cm.ph.getDataBeetwenNodes(data, ('<section', '>', 'py-5 bg-light-v2'), '<div class="widget">')[1]
-
-        catTab = data.split('<div class="card-header bg-light">')
-        # free memory
-        data = ''
-        if len(catTab) > 0:
-            del catTab[0]
-
-        printDBG('catTab len %d' % len(catTab))
-
-        for i in range(len(catTab)):
-            subTab = catTab[i].split('<div class="card-body">')
-            # Free memory
-            catTab[i] = ''
-
-            if 2 == len(subTab):
-                # Get Main category data
-                pattern = '<h4>.+?<a href="(.+?)">\r\n(.+?)\r\n.+?<small>\(([0-9]+?)\)</small>'
-                match = re.compile(pattern, re.DOTALL).findall(subTab[0])
-
-                if len(match) == 1:
-                    catItem = {'type': 'main', 'url': match[0][0], 'name': " ".join(match[0][1].split()), 'ilosc': match[0][2], 'subCatList': []}
-                    self.currList.append(catItem)
-
-                else:
-                    printDBG('getMainCategory ignore wrong data for category')
-            else:
-                printDBG('getMainCategory ignore wrong data for category: 2 != len(subTab)')
-
-        catItem = {'type': 'search', 'name': 'Wyszukaj', 'subCatList': []}
-        self.currList.append(catItem)
-
-        return
-    # end getMainCategory
-
-    def getSubCategory(self, index):
-        printDBG('Spryciarze.getSubCategory')
-
-        item = self.currList[index]
-
-        self.catTree = []
-        self.currList = []
-
-        sts, data = self.cm.getPage(item['url'])
-        if not sts:
-            return
-
-        data = self.cm.ph.getDataBeetwenNodes(data, ('<section', '>', 'py-5 bg-light-v2'), '<div class="widget">')[1]
-
-        catTab = data.split('<div class="card-header bg-light">')
-        # free memory
-        data = ''
-        if len(catTab) > 0:
-            del catTab[0]
-
-        printDBG('catTab len %d' % len(catTab))
-
-        for i in range(len(catTab)):
-            subTab = catTab[i].split('<div class="card-body">')
-            # Free memory
-            catTab[i] = ''
-            if 2 == len(subTab):
-                # Get Main category data
-                pattern = '<h4>.+?<a href="(.+?)">\r\n\s+?(.+?)\r\n.+?<small>\(([0-9]+?)\)</small>'
-                match = re.compile(pattern, re.DOTALL).findall(subTab[0])
-
-                if len(match) == 1:
-                    catItem = {'type': 'sub', 'url': match[0][0], 'name': " ".join(match[0][1].split()), 'ilosc': match[0][2], 'subCatList': []}
-
-                    #Get sub-categories data
-                    pattern = '<a.+?href="(.+?)"[^>]*?>(.+?)\r\n.+?<small>\(([0-9]+?)\)</small>.+?</a>'
-                    match = re.compile(pattern, re.DOTALL).findall(subTab[1])
-                    for j in range(len(match)):
-                        subItem = {'type': 'subSub', 'url': match[j][0], 'name': match[j][1], 'ilosc': match[j][2]}
-                        catItem['subCatList'].append(subItem)
-
-                    if(len(catItem['subCatList'])):
-                        self.catTree.append(catItem)
-                    else:
-                        printDBG('getMainCategory main category ingnored because it does not have sub categories')
-
-                else:
-                    printDBG('getMainCategory ignore wrong data for category')
-            else:
-                printDBG('getMainCategory ignore wrong data for category: 2 != len(subTab)')
-
-        self.currList = self.catTree
-
-        if 1 == len(self.currList):
-            self.getSubSubCategory(0)
-
-        return
-    # end getSubCategory
-
-    def getSubSubCategory(self, index):
-        printDBG('Spryciarze.getSubSubCategory')
-        self.currList = self.catTree[index]['subCatList']
-
-        if 1 == len(self.currList):
-            self.getItemsForCat(0)
-
-        return
-    # end getSubCategory
-
-    def getItemsForCat(self, index):
-        printDBG('Spryciarze.getItemsForCat')
+    ###################################################
+    # watched flag
+    ###################################################
+    def _getWatchedKeyForItem(self, cItem):
         try:
-            item = self.currList[index]
-            self.currList = []
-            itemNum = int(item['ilosc'])
-
-            pageNum = itemNum / self.NUM_PER_PAGE
-
-            if itemNum % self.NUM_PER_PAGE > 0:
-                pageNum += 1
-
-            for i in range(pageNum):
-                tmpItem = copy.deepcopy(item)
-                tmpItem['type'] = 'subSubPage'
-                tmpItem['url'] += '/page:%d' % (i + 1)
-                tmpItem['name'] = 'Strona %d' % (i + 1)
-                tmpItem.pop("ilosc", None)
-                self.currList.append(tmpItem)
-
-            if 1 == len(self.currList):
-                self.getVideoList2(item['url'])
-
+            if not isinstance(cItem, dict):
+                return ''
+            if cItem.get('type', '') == 'video':
+                slug = str(cItem.get('slug', '') or '').strip()
+                return 'video:%s' % slug if slug else ''
+            return ''
         except Exception:
-            printDBG('Spryciarze.getItemsForCat except')
+            printExc()
+        return ''
 
-        return
-    # end getSubCategory
+    ###################################################
+    def getPage(self, url, addParams=None, post_data=None):
+        if addParams is None:
+            addParams = dict(self.defaultParams)
+        return self.cm.getPage(url, addParams, post_data)
 
-    def getSearchResut(self, pattern):
-        printDBG('Spryciarze.getSearchResut')
-        self.currList = []
-
-        SEARCH_URL = self.MAIN_URL + 'szukaj/' + pattern + '/film/page:1/sort:ocena'
-
-        sts, data = self.cm.getPage(SEARCH_URL)
-        if not sts:
-            return
-
-        match = re.compile('Wideoporadniki \(([0-9]+?)\)').findall(data)
-        if 0 == len(match):
-            return
-
-        itemNum = int(match[0])
-        pageNum = itemNum / self.SEARCH_RES_PER_PAGE
-
-        if itemNum % self.SEARCH_RES_PER_PAGE > 0:
-            pageNum += 1
-
-        for i in range(pageNum):
-            tmpItem = {}
-            tmpItem['type'] = 'subSubPage'
-            tmpItem['url'] = self.MAIN_URL + 'szukaj/' + pattern + ('/film/page:%d' % (i + 1)) + '/sort:ocena'
-            tmpItem['name'] = 'Strona %d' % (i + 1)
-
-            if (i + 1) < pageNum:
-                tmpItem['opis'] = 'Wyniki wyszukiwania od %d do %d' % (i * self.SEARCH_RES_PER_PAGE + 1, (i + 1) * self.SEARCH_RES_PER_PAGE)
-            else:
-                tmpItem['opis'] = 'Wyniki wyszukiwania od %d do %d' % (i * self.SEARCH_RES_PER_PAGE + 1, itemNum)
-
-            self.currList.append(tmpItem)
-
-        if 1 == len(self.currList):
-            self.getVideoList2(self.currList[0]['url'])
-
-    def getVideoList2(self, url):
-        printDBG('Spryciarze.getVideoList')
-        self.currList = []
-
-        if None == url or 0 == len(url):
-            return
-
-        sts, data = self.cm.getPage(url)
-        if not sts:
-            return
-
-        tab = self.cm.ph.getAllItemsBeetwenNodes(data, ('<div', '>', 'col-md-6 col-lg-6 col-xl-4 mb-4'), ('</div', '>'))
-
-        printDBG('getVideoList tab_len %d' % len(tab))
-
-        searchItems = [{'keys': ['url'], 'req': False, 'pattern': '<a href="([^"]+?)"'},
-                        {'keys': ['ico'], 'req': False, 'pattern': '<img src="([^"]+?)"'},
-#                        {'keys': ['odslony'], 'req': False, 'pattern': '<span><span class="film_odslony"></span>.+?: <span>([0-9]+?)</span></span>'},
-#                        {'keys': ['odslony'], 'req': False, 'pattern': '<span><span class="film_odslony"></span>.+?: <span>([0-9]+?)</span></span>'},
-#                        {'keys': ['data', 'godzina'], 'req': False, 'pattern': '<span><span class="film_data"></span>dodane: <span>([0-9][0-9]-[0-9][0-9]-[0-9][0-9][0-9][0-9]) ([0-9][0-9]:[0-9][0-9])</span></span>'},
-#                        {'keys': ['opis'], 'req': False, 'pattern': '<p class="film_opis">([^<]+?)</p>'},
-                        {'keys': ['url', 'name'], 'req': True, 'pattern': '<a href="([^"]+?)".+?class="h6">([^<]+?)</a>'},
-                       ]
-
-        for i in range(len(tab)):
-            videoItem = {}
-            videoItem['type'] = 'video'
-
-            ignore = False
-            for it in searchItems:
-                match = re.compile(it['pattern'], re.DOTALL).findall(tab[i].replace('&quot;', ''))
-
-                if 1 != len(match):
-                    printDBG('Brak ' + it['keys'][0])
-                    if it['req']:
-                        ignore = True
-                        break
-                    else:
-                        continue
-                else:
-                    printDBG('Znaleziono ' + it['keys'][0])
-
-                keyNums = len(it['keys'])
-                if(keyNums > 1):
-                    for j in range(keyNums):
-                        videoItem[it['keys'][j]] = match[0][j]
-                else:
-                    videoItem[it['keys'][0]] = match[0]
-
-            # Clear checked part to free memory
-            tab[i] = ''
-            if False == ignore:
-                self.currList.append(videoItem)
-
-        printDBG('Spryciarze.getVideoList len(self.currList): %d' % len(self.currList))
-        return
-    # end getVideoList
-
-    def getVideoLinks(self, url):
-        printDBG('Spryciarze.getVideoLinks: ' + url)
-
-        linkstTab = []
-        if None == url or 0 == len(url):
-            return linkstTab
-
-        post_data = None
-        tries = 2
-        while tries > 0:
-            tries -= 1
-            # get videoID
-            sts, data = self.cm.getPage(url, {'use_cookie': True, 'save_cookie': True, 'load_cookie': False, 'cookiefile': self.COOKIE_FILE}, post_data)
-            if not sts:
-                return []
-
-            sts, block = self.cm.ph.getDataBeetwenMarkers(data, '<div class="film_blokada">', '</form>', False)
-            if sts:
-                url = self.cm.ph.getSearchGroups(block, 'action="(http[^"]+?)"')[0]
-                val_s = self.cm.ph.getSearchGroups(block, 'name="s"[^>]*?value="([^"]+?)"')[0]
-                post_data = {}
-                post_data['s'] = val_s
-                post_data['yes'] = ''
+    def _parseCatCards(self, data):
+        # [{'title', 'url', 'subs': [(title, url), ...]}, ...] from the "card-header" boxes
+        cats = []
+        for block in data.split('<div class="card-header bg-light">')[1:]:
+            header, _sep, body = block.partition('<div class="card-body">')
+            url = self.cm.ph.getSearchGroups(header, r'<a href="([^"]+)"')[0]
+            title = self.cleanHtmlStr(re.sub(r'<small>.*?</small>', '', header, flags=re.DOTALL))
+            if not url or not title:
                 continue
+            body = body.split('</ul>', 1)[0]
+            subs = []
+            for surl, stitle in re.findall(r'<a class="[^"]*"\s+href="([^"]+)">(.*?)</a>', body, re.DOTALL):
+                if surl.rstrip('/') == url.rstrip('/'):
+                    continue
+                count = self.cm.ph.getSearchGroups(stitle, r'<small>\((\d+)\)</small>')[0]
+                stitle = self.cleanHtmlStr(re.sub(r'<small>.*?</small>', '', stitle, flags=re.DOTALL))
+                if stitle:
+                    subs.append((stitle, surl, count))
+            cats.append({'title': title, 'url': url, 'subs': subs})
+        return cats
 
-            player = self.cm.ph.getDataBeetwenNodes(data, ('<div', '>', 'video_container'), ('</div', '>'))[1]
-            player = self.getFullUrl(self.cm.ph.getSearchGroups(player, '''<iframe[^>]+?src=['"]([^"^']*?)['"]''', 1, True)[0])
-            if 1 == self.up.checkHostSupport(player):
-                linkstTab = self.up.getVideoLinkExt(player)
-                if len(linkstTab):
-                    break
-
-            player = self.getFullUrl(self.cm.ph.getSearchGroups(data, '''<iframe[^>]+?src=['"]([^"^']*?player\.spryciarze\.pl[^"^']+?)['"]''', 1, True)[0])
-            if '' != player:
-                sts, player = self.cm.getPage(player, {'use_cookie': True, 'save_cookie': False, 'load_cookie': True, 'cookiefile': self.COOKIE_FILE})
-                if not sts:
-                    break
-                url = self.getFullUrl(self.cm.ph.getSearchGroups(player, '''<iframe[^>]+?src=['"]([^"^']*?)['"]''', 1, True)[0])
-                if 1 == self.up.checkHostSupport(url):
-                    linkstTab = self.up.getVideoLinkExt(url)
-                player = self.cm.ph.getSearchGroups(player.replace('&quot;', ''), 'const data[^=]*?=[^\{]*?(\{[^;]+?);')[0]
-                try:
-#                    printDBG(player)
-                    player = player[:player.find('"relatedMovies"')].replace('}],', '}]}')
-                    printDBG(player)
-                    player = byteify(json_loads(player))
-                    player = player['mediaFiles']
-                    for item in player:
-                        if 'mp4' in item['type']:
-                            linkstTab.append({'name': 'Native player', 'url': item['src']})
-                except Exception:
-                    printExc()
-            else:
-                player = self.cm.ph.getSearchGroups(data, '(spryciarze.pl/player/[^"]+?\.swf?[^"]+?)"')[0]
-                videoID = self.cm.ph.getSearchGroups(player + '|', 'VideoID=([0-9]+?)[^0-9]')[0]
-                sts, data = self.cm.getPage(self.getFullUrl('/player/player/xml_connect.php?code=%s&ra=2' % videoID), {'use_cookie': True, 'save_cookie': False, 'load_cookie': True, 'cookiefile': self.COOKIE_FILE})
-                if not sts:
-                    break
-                data = re.compile('<urlMOV([^>]+?)>([^<]+?)<').findall(data)
-                tmp = []
-                for item in data:
-                    if item[1] not in tmp:
-                        tmp.append(item[1])
-                        linkstTab.append({'name': 'Native player %s' % item[0], 'url': item[1]})
-            if len(linkstTab):
-                break
-        return linkstTab
-    # end getVideoLink
-
-    def handleService(self, index, refresh=0, searchPattern=''):
-
-        if 0 == refresh:
-            if len(self.currList) <= index:
-                printDBG("Spryciarze.handleService wrong index: %s, len(self.currList): %d" % (index, len(self.currList)))
+    ###################################################
+    # lists
+    ###################################################
+    def listMainCategories(self, cItem):
+        if not self.catCache:
+            sts, data = self.getPage(self.getFullUrl('/kategorie'))
+            if not sts:
                 return
+            data = self.cm.ph.getDataBeetwenMarkers(data, 'py-5 bg-light-v2', '<footer', False)[1]
+            self.catCache = self._parseCatCards(data)
+        for cat in self.catCache:
+            params = dict(cItem)
+            params.update({'category': 'list_subcats', 'title': cat['title'], 'url': cat['url'], 'good_for_fav': True})
+            self.addDir(params)
 
-            if -1 == index:
-                self.type = None
-                printDBG("Spryciarze.handleService for first self.category")
-            else:
-                item = self.currList[index]
-                self.type = item['type']
-                self.index = index
-                self.url = ''
-                if 'url' in self.currList[index]:
-                    self.url = self.currList[index]['url']
-                self.prevList = self.currList
+    def listSubCategories(self, cItem):
+        cat = None
+        for item in self.catCache:
+            if item['url'] == cItem['url']:
+                cat = item
+        if cat is None:
+            self.listMainCategories({})
+            self.currList = []
+            for item in self.catCache:
+                if item['url'] == cItem['url']:
+                    cat = item
+        # the sub-domains (komputery, kulinaria, ...) list their videos under /film/wszystkie-filmy,
+        # their /kategorie page only holds the category boxes
+        allUrl = cItem['url']
+        if allUrl.rstrip('/').endswith('/kategorie'):
+            allUrl = allUrl.rstrip('/')[:-len('/kategorie')] + '/film/wszystkie-filmy'
+        params = dict(cItem)
+        params.update({'category': 'list_items', 'title': _('All'), 'url': allUrl})
+        self.addDir(params)
+        for title, url, count in (cat or {}).get('subs', []):
+            params = dict(cItem)
+            params.update({'category': 'list_items', 'title': title, 'url': url, 'good_for_fav': True,
+                           'desc': ('%s: %s' % (_('Videos'), count)) if count else ''})
+            self.addDir(params)
 
-                printDBG("|||||||||||||||||||||||||||||||||||| %s " % item['type'])
+    def listItems(self, cItem):
+        url = cItem['url']
+        sts, data = self.getPage(url)
+        if not sts:
+            return
+        # sub-categories of this category (side box whose header links to the same page) - first page only
+        if '/page:' not in url and not cItem.get('search_pattern'):
+            for cat in self._parseCatCards(data):
+                if cat['url'].rstrip('/') != url.rstrip('/'):
+                    continue
+                for title, surl, count in cat['subs']:
+                    params = stripPagerKeys(dict(cItem))
+                    params.update({'category': 'list_items', 'title': title, 'url': surl, 'good_for_fav': True,
+                                   'desc': ('%s: %s' % (_('Videos'), count)) if count else ''})
+                    self.addDir(params)
+        hasNext = bool(self.cm.ph.getSearchGroups(data, r'<a class="page-link" href="([^"]+)" rel="next"')[0])
+        # "Strona 2 z 2738"
+        page, lastPage = self.cm.ph.getSearchGroups(data, r'<span class="page-link">\s*\w+\s+(\d+)\s+\w+\s+(\d+)\s*</span>', 2)
+        page = int(page) if page.isdigit() else int(self.cm.ph.getSearchGroups(url, r'/page:(\d+)')[0] or 1)
+        lastPage = int(lastPage) if lastPage.isdigit() else 0
+        seen = set()
+        for vurl, icon, title in CARD_RE.findall(data):
+            slug = SLUG_RE.search(vurl)
+            title = self.cleanHtmlStr(title)
+            if not slug or not title or slug.group(1) in seen:
+                continue
+            seen.add(slug.group(1))
+            params = {'name': 'category', 'good_for_fav': True, 'title': title, 'url': vurl, 'slug': slug.group(1),
+                      'icon': icon, 'desc': ''}
+            self.addVideo(params)
+        if seen:
+            tpl = re.sub(r'/page:\d+/?$', '', url.rstrip('/')) + '/page:{page}'
+            addPagingItems(self, cItem, page, hasNext, lastPage, tpl)
 
-    #MAIN MENU
-        if self.type == None:
-            self.getMainCategory()
-    #SUB CATEGORY
-        elif self.type == 'main':
-            self.getSubCategory(self.index)
-    #SUB_SUB_CATEGORY
-        elif self.type == 'sub':
-            self.getSubSubCategory(self.index)
-    #SUB__SUB_PAGES
-        elif self.type == 'subSub':
-            self.getItemsForCat(self.index)
-    #VIDEOS
-        elif self.type == 'subSubPage':
-            self.getVideoList2(self.url)
-    #SEARCH
-        elif self.type == 'search':
-            self.getSearchResut(searchPattern)
-    # end handleService
+    def listSearchResult(self, cItem, searchPattern, searchType):
+        params = dict(cItem)
+        params.update({'url': self.getFullUrl('/szukaj/%s/film/page:1' % urllib_quote_plus(searchPattern)), 'search_pattern': searchPattern})
+        self.listItems(params)
+
+    ###################################################
+    # links
+    ###################################################
+    def getLinksForVideo(self, cItem):
+        printDBG('Spryciarze.getLinksForVideo [%s]' % cItem.get('slug', ''))
+        slug = cItem.get('slug', '')
+        if not slug:
+            return []
+        playerUrl = self.PLAYER_URL % slug
+        params = dict(self.defaultParams)
+        params['header'] = dict(self.HEADER)
+        params['header']['Referer'] = cItem.get('url', self.MAIN_URL)
+        sts, data = self.getPage(playerUrl, params)
+        if not sts:
+            return []
+        urlTab = []
+        ytId = self.cm.ph.getSearchGroups(data, r'youtube(?:-nocookie)?\.com/embed/([A-Za-z0-9_-]{11})')[0]
+        if ytId:
+            urlTab.append({'name': 'YouTube', 'url': 'https://www.youtube.com/watch?v=%s' % ytId, 'need_resolve': 1})
+        files = self.cm.ph.getSearchGroups(data, r'"mediaFiles"\s*:\s*(\[.*?\])', 1, True)[0]
+        if files:
+            try:
+                for item in json_loads(files):
+                    src = item.get('src', '')
+                    if not src:
+                        continue
+                    kind = (item.get('type', '') or '').split('/')[-1].upper() or 'MP4'
+                    if kind == 'WEBM':
+                        continue   # same video, the MP4 plays everywhere
+                    urlTab.append({'name': kind, 'url': strwithmeta(src, {'Referer': 'https://player.spryciarze.pl/', 'User-Agent': self.HEADER['User-Agent']}), 'need_resolve': 0})
+            except Exception:
+                printExc()
+        if not urlTab:
+            SetIPTVPlayerLastHostError(_('No stream available'))
+        return applySidecarToLinks(urlTab, buildSidecarFromItem(cItem, IsSidecarEnabled(), ''))
+
+    def getVideoLinks(self, videoUrl):
+        printDBG('Spryciarze.getVideoLinks [%s]' % videoUrl)
+        if self.cm.isValidUrl(videoUrl):
+            sidecar = sidecarFromUrlMeta(videoUrl, IsSidecarEnabled())
+            return decorateResolvedLinkItems(self.up.getVideoLinkExt(videoUrl), sidecar)
+        return []
+
+    ###################################################
+    # INFO: the VideoObject (ld+json) of the video page
+    ###################################################
+    def getArticleContent(self, cItem):
+        printDBG('Spryciarze.getArticleContent [%s]' % cItem.get('url', ''))
+        title, text, icon, other = cItem.get('title', ''), '', cItem.get('icon', ''), {}
+        sts, data = self.getPage(cItem.get('url', '')) if cItem.get('url') else (False, '')
+        if sts:
+            block = self.cm.ph.getDataBeetwenMarkers(data, '"@type": "VideoObject"', '</script>', False)[1]
+
+            def field(key):
+                return self.cleanHtmlStr(self.cm.ph.getSearchGroups(block, r'(?s)"%s"\s*:\s*"(.*?)",\s*\n' % key)[0].replace('&amp;', '&'))
+            title = field('name') or title
+            text = field('description')
+            icon = field('thumbnailUrl') or icon
+            uploaded = field('uploadDate')[:10]
+            if uploaded:
+                other['released'] = uploaded
+            author = self.cleanHtmlStr(self.cm.ph.getSearchGroups(block, r'"author"\s*:\s*\{[^}]*"name"\s*:\s*"([^"]+)"')[0])
+            if author:
+                other['creator'] = author
+        return [{'title': title, 'text': text, 'images': [{'title': '', 'url': icon}] if icon else [], 'other_info': other}]
+
+    ###################################################
+    # favourites
+    ###################################################
+    def getFavouriteData(self, cItem):
+        try:
+            if cItem.get('slug'):
+                return json_dumps(dict((key, cItem[key]) for key in self.FAV_FIELDS if key in cItem))
+        except Exception:
+            printExc()
+        return CBaseHostClass.getFavouriteData(self, cItem)
+
+    def handleService(self, index, refresh=0, searchPattern='', searchType=''):
+        printDBG('Spryciarze.handleService start')
+        CBaseHostClass.handleService(self, index, refresh, searchPattern, searchType)
+        if isJumpItem(self.currItem):
+            self.currItem = jumpTarget(self, self.currItem)
+        name = self.currItem.get('name', None)
+        category = self.currItem.get('category', '')
+        printDBG('Spryciarze.handleService: name[%s] category[%s]' % (name, category))
+        self.currList = []
+
+        if name is None:
+            tab = [{'category': 'list_items', 'title': _('Latest'), 'url': self.getFullUrl('/film/wszystkie-filmy')},
+                   {'category': 'list_cats', 'title': _('Categories')}] + self.searchItems()
+            self.listsTab(tab, {'name': 'category'})
+        elif category == 'list_cats':
+            self.listMainCategories(self.currItem)
+        elif category == 'list_subcats':
+            self.listSubCategories(self.currItem)
+        elif category == 'list_items':
+            self.listItems(self.currItem)
+        elif category in ('search', 'search_next_page'):
+            cItem = dict(self.currItem)
+            cItem.update({'search_item': False, 'name': 'category', 'category': 'list_items'})
+            self.listSearchResult(cItem, searchPattern, searchType)
+        elif category == 'search_history':
+            self.listsHistory({'name': 'history', 'category': 'search'}, 'desc', _('Type: '))
+        else:
+            printExc()
+        CBaseHostClass.endHandleService(self, index, refresh)
 
 
-class IPTVHost(IHost):
+class IPTVHost(GenericFolderWatchedHostMixin, CHostBase):
 
     def __init__(self):
-        self.host = None
-        self.currIndex = -1
-        self.listOfprevList = []
+        CHostBase.__init__(self, Spryciarze(), True, [])
+        self.cachedRet = None
+        self.refreshAfterWatchedFlagChange = False
+        self.watchedHelper = IPTVWatchedHelper('spryciarze')
 
-        self.searchPattern = ''
-
-    # return firs available list of item category or video or link
-    def getInitList(self):
-        self.host = Spryciarze()
-        self.currIndex = -1
-        self.listOfprevList = []
-
-        self.host.handleService(self.currIndex)
-
-        convList = self.convertList(self.host.getCurrList())
-
-        return RetHost(RetHost.OK, value=convList)
-
-    # return List of item from current List
-    # for given Index
-    # 1 == refresh - force to read data from
-    #                server if possible
-    # server instead of cache
-    def getListForItem(self, Index=0, refresh=0, selItem=None):
-        self.listOfprevList.append(self.host.getCurrList())
-
-        self.currIndex = Index
-        self.host.handleService(Index, refresh, self.searchPattern)
-        convList = self.convertList(self.host.getCurrList())
-
-        return RetHost(RetHost.OK, value=convList)
-
-    # return prev requested List of item
-    # for given Index
-    # 1 == refresh - force to read data from
-    #                server if possible
-    def getPrevList(self, refresh=0):
-        if(len(self.listOfprevList) > 0):
-            hostList = self.listOfprevList.pop()
-            self.host.setCurrList(hostList)
-            convList = self.convertList(hostList)
-            return RetHost(RetHost.OK, value=convList)
-        else:
-            return RetHost(RetHost.ERROR, value=[])
-
-    # return current List
-    # for given Index
-    # 1 == refresh - force to read data from
-    #                server if possible
-    def getCurrentList(self, refresh=0):
-        if refresh == 1:
-            if len(self.listOfprevList) > 0:
-                hostList = self.listOfprevList.pop()
-                self.host.setCurrList(hostList)
-                return self.getListForItem(self.currIndex)
-            else:
-                return self.getInitList()
-
-        convList = self.convertList(self.host.getCurrList())
-        return RetHost(RetHost.OK, value=convList)
-
-    # return list of links for VIDEO with given Index
-    # for given Index
-    def getLinksForVideo(self, Index=0, selItem=None):
-        listLen = len(self.host.currList)
-        if listLen < Index and listLen > 0:
-            print("ERROR getLinksForVideo - current list is to short len: %d, Index: %d" % (listLen, Index))
-            return RetHost(RetHost.ERROR, value=[])
-
-        selItem = self.host.currList[Index]
-        if selItem['type'] != 'video':
-            print("ERROR getLinksForVideo - current item has wrong type")
-            return RetHost(RetHost.ERROR, value=[])
-
-        retlist = []
-
-        if None != selItem and 'url' in selItem and 1 < len(selItem['url']):
-            tmpList = self.host.getVideoLinks(selItem['url'])
-
-            for item in tmpList:
-                retlist.append(CUrlItem(item['name'], item['url'], 0))
-
-        return RetHost(RetHost.OK, value=retlist)
-
-    def getSearchResults(self, searchpattern, searchType=None):
-        self.isSearch = True
-        retList = []
-        self.searchPattern = searchpattern.replace(' ', '%20')
-
-        return self.getListForItem(len(self.host.getCurrList()) - 1)
-
-    # return full path to player logo
-    def getLogoPath(self):
-        return RetHost(RetHost.OK, value=[GetLogoDir('spryciarzelogo.png')])
-
-    def convertList(self, cList):
-        hostList = []
-        possibleTypesOfSearch = []
-
-        for cItem in cList:
-            hostLinks = []
-            type = CDisplayListItem.TYPE_UNKNOWN
-
-            if cItem['type'] in ['main', 'sub', 'subSub', 'subSubPage']:
-                    type = CDisplayListItem.TYPE_CATEGORY
-            elif cItem['type'] == 'video':
-                type = CDisplayListItem.TYPE_VIDEO
-                videoID = ''
-                if 'url' in cItem:
-                    url = cItem['url']
-                hostLinks.append(CUrlItem('', url, 0))
-            elif cItem['type'] == 'search':
-                type = CDisplayListItem.TYPE_SEARCH
-
-            name = ' '
-            if 'name' in cItem:
-                name = cItem['name']
-            opis = ''
-            if 'opis' in cItem:
-                opis = cItem['opis']
-            ilosc = ''
-            if 'ilosc' in cItem:
-                ilosc = '(' + cItem['ilosc'] + ')'
-            ico = ''
-            if 'ico' in cItem:
-                ico = cItem['ico']
-            if ico == '':
-                ico = 'http://mamrodzine.pl/wp-content/uploads/2011/06/logo_transparent.png'
-
-            hostItem = CDisplayListItem(name=name + ' ' + ilosc,
-                                        description=opis,
-                                        type=type,
-                                        urlItems=hostLinks,
-                                        urlSeparateRequest=1,
-                                        iconimage=ico,
-                                        possibleTypesOfSearch=possibleTypesOfSearch)
-            hostList.append(hostItem)
-        # end for
-
-        return hostList
-
-
-#host = Spryciarze()
-#host.getMainCategory()
-#host.getVideoList('http://kulinaria.spryciarze.pl/kategorie/dania-miesne')
-#host.getVideoLinks('58763')
+    def withArticleContent(self, cItem):
+        return cItem.get('type') == 'video' and bool(cItem.get('url'))

@@ -3,10 +3,9 @@
 #e2iplayer install script - Pike_Bishop from oATV
 
 ## Variables ##
-SCRIPTVERSION=16.0.4_git-zadmario_fork
+SCRIPTVERSION=16.0.6_git-zadmario_fork
 STARTDATE="$(date +%a.%d.%b.%Y-%H:%M:%S)"
 BOXIP="http://127.0.0.1"
-WGET=/usr/bin/wget
 EXTRACT="tar -xvzf"
 # Not every Image has nice in /bin (DreamOS: /usr/bin), without nice the commands simply run without it.
 NICE="$(command -v nice)"
@@ -39,7 +38,7 @@ fi
 
 # Enigma2 GUI restart, if OpenWebif is off or needs a login restart it directly (DreamOS uses systemd).
 restart_gui() {
-	$WGET -q -O - $BOXIP/web/powerstate?newstate=3 && return
+	fetch "$BOXIP/web/powerstate?newstate=3" && return
 	if [ -d /run/systemd/system ] ; then
 		systemctl restart enigma2
 	else
@@ -58,6 +57,37 @@ ls -t $E2IPLAYER_BACKUP_DIR/*[0-9][0-9].tar.gz 2>> /dev/null | tail -n +2 | xarg
 # script Name + script Version Output + E2iPlayer Installation Start Message.
 echo -e "\nScript-Name/Version -> e2iplayer_install.sh\t  Version_$SCRIPTVERSION\n"
 echo -e "\nInstall/Update E2iPlayer ... -> $STARTDATE\n\n"
+
+
+# Download Tool: curl if it works, otherwise wget (on some Images wget is only the BusyBox Applet with limited HTTPS).
+if curl --version > /dev/null 2>&1 ; then
+	DOWNLOADER=curl
+elif command -v wget > /dev/null 2>&1 ; then
+	DOWNLOADER=wget
+else
+	echo -e "\n... ERROR ...\nNeither curl nor wget found ! \nInstall one of them with Command;\nopkg install curl\nand start again e2iplayer_install.sh.\n\n" >&2
+	exit 1
+fi
+echo -e "Download Tool = $DOWNLOADER\n"
+
+# fetch URL -> writes the Answer to stdout (quiet), fails on HTTP Errors.
+fetch() {
+	if [ "$DOWNLOADER" = "curl" ] ; then
+		curl -fsL "$1"
+	else
+		wget -q -O - "$1"
+	fi
+}
+
+# download URL FILE [insecure] -> saves the Download as FILE, fails on HTTP Errors;
+# with a third Argument the Server Certificate is not checked.
+download() {
+	if [ "$DOWNLOADER" = "curl" ] ; then
+		curl -fSL --progress-bar ${3:+-k} -o "$2" "$1"
+	else
+		wget ${3:+--no-check-certificate} -O "$2" "$1"
+	fi
+}
 
 
 # If the script was already running but ended with an Error, delete any remains.
@@ -100,7 +130,7 @@ done
 
 # Check the Image Distro (e.g: whether OpenATV or OpenPLI) because in OpenPLI when using the E2iPlayer
 # there can be a problem with ‘not found OpenSSL’, which can be fixed by installing libcrypto-compat.
-DISTROVERSION="$($WGET -O - -q $BOXIP/web/deviceinfo | grep "\(<\|</\)e2distroversion" \
+DISTROVERSION="$(fetch $BOXIP/web/deviceinfo | grep "\(<\|</\)e2distroversion" \
  | tr -d '\n' | sed "s/.*<e2distroversion>\(.*\)<\/e2distroversion>.*/\\1\n/")"
 LIBCRYPTO_COMPAT="$(opkg info libcrypto-compat* | grep "Package:" | grep -v '\(-dbg\|-dev\|-staticdev\)' | awk {'print $NF'})"
 
@@ -132,10 +162,11 @@ FILE_ADRESS=https://github.com/oe-mirrors/e2iplayer-zadmario/archive/refs/heads/
 
 # Download the E2iPlayer Source Package into the Directory (Variable TMP).
 echo -e "\n\nDownload E2iPlayer Source Package (*.tar.gz) to;\n$TMP ...\n"
-if ! $WGET -P $TMP $FILE_ADRESS ; then
-	# Remove a partial Download, otherwise wget saves the second try as master.tar.gz.1
+if ! download $FILE_ADRESS $TMP/master.tar.gz ; then
+	# Second try without Certificate Check (old Images with outdated CA Certificates).
 	rm -f $TMP/master.tar.gz
-	if ! $WGET "--no-check-certificate" $FILE_ADRESS -P $TMP ; then
+	if ! download $FILE_ADRESS $TMP/master.tar.gz insecure ; then
+		rm -f $TMP/master.tar.gz
 		echo -e "\n... ERROR ...\nDownload E2iPlayer Source Package failed ! \nCheck your Internet Connection\nand restart e2iplayer_install.sh.\n\n" >&2
 		exit 1
 	fi
@@ -166,6 +197,10 @@ if [ ! -f $EXTRACTED_SOURCE_PATH/plugin.py ] ; then
 	exit 1
 fi
 
+IPTVSUBPARSER="$TARGET_PATH/IPTVPlayer/libs/iptvsubparser"
+SUBPARSER_BACKUP="$TMP/_subparser.so"
+rm -f "$SUBPARSER_BACKUP"
+
 # Delete an already installed E2iPlayer, If BACKUP=yes is set in line 19, a Backup (*.tar.gz) of the
 # already installed E2iPlayer is first created and stored in the Directory (Variable E2IPLAYER_BACKUP_DIR).
 if [ -d $TARGET_PATH/IPTVPlayer ] ; then
@@ -182,6 +217,11 @@ if [ -d $TARGET_PATH/IPTVPlayer ] ; then
 		fi
 	fi
 
+	# keep the native subtitles parser (_subparser.so), it is not part of the source archive
+	if [ -e "$IPTVSUBPARSER/_subparser.so" ] ; then
+		$NICE $NICE_ARGS cp -f "$IPTVSUBPARSER/_subparser.so" "$SUBPARSER_BACKUP"
+	fi
+
 	echo -e "\n\nDelete the already installed E2iPlayer in;\n$TARGET_PATH/IPTVPlayer ..."
 	$NICE $NICE_ARGS rm -rf  $TARGET_PATH/IPTVPlayer
 
@@ -196,6 +236,12 @@ echo -e "\n\nCopy;\n$EXTRACTED_SOURCE_PATH\nto;\n$TARGET_PATH ...\n"
 if ! $NICE $NICE_ARGS cp -rf $EXTRACTED_SOURCE_PATH $TARGET_PATH ; then
 	echo -e "\n... ERROR ...\nCopy;\n$EXTRACTED_SOURCE_PATH failed ! \n\n"
 	exit 1
+fi
+
+# restore the native subtitles parser saved above, unless the new E2iPlayer brings its own
+if [ -e "$SUBPARSER_BACKUP" -a ! -e "$IPTVSUBPARSER/_subparser.so" ] ; then
+	mkdir -p "$IPTVSUBPARSER"
+	$NICE $NICE_ARGS cp -f "$SUBPARSER_BACKUP" "$IPTVSUBPARSER/_subparser.so"
 fi
 
 # Set link duktape, only if duk (duktape binary) exists in /usr/bin and not in the .../IPTVPlayer/bin directory, link it there.
@@ -225,7 +271,7 @@ elif [ "$PYTHON_VERSION" = "3" ] ; then
 fi
 
 echo -e "\nDownload xxx (+18 addon host) to;\n$XXX_TARGETDIR ...\n"
-if ! $WGET "--no-check-certificate" $XXX_FILE -P $XXX_TARGETDIR ; then
+if ! download $XXX_FILE "$XXX_TARGETDIR/$(basename $XXX_FILE)" insecure ; then
 	echo -e "\n... ERROR ...\nDownload xxx (+18 addon host) failed ! \nCheck your Internet connection\nand restart e2iplayer_install.sh.\n"
 else
 	echo -e "\nxxx (+18 addon host) successfully installed ! ! ! \n"
@@ -239,7 +285,7 @@ echo -e "\nE2iPlayer installed/updated successfully. -> $ENDDATE\n"
 
 # Delete the remains.
 echo -e "\nDelete remains (*.tar.gz and Directory e2iplayer-* and more) ...\n"
-$NICE $NICE_ARGS rm -rf $TMP/e2iplayer-* $TMP/python*.gz $TMP/master.* $TMP/iptv-host-xxx* $TMP/opkg-*
+$NICE $NICE_ARGS rm -rf $TMP/e2iplayer-* $TMP/python*.gz $TMP/master.* $TMP/iptv-host-xxx* $TMP/opkg-* "$SUBPARSER_BACKUP"
 rmdir $WORKDIR/tmp 2> /dev/null
 
 

@@ -120,6 +120,15 @@ class IPTVChoiceBoxWidget(Screen):
         return sel
 
 
+def openChoiceBox(session, params, callback=None):
+    # hosts of the python3 branch open their popups through this; here it is always E2iPlayer's own
+    # IPTVChoiceBoxWidget (the 'chrome' key of such params is not used by this fork's widget)
+    if callback is not None:
+        session.openWithCallback(callback, IPTVChoiceBoxWidget, params)
+    else:
+        session.open(IPTVChoiceBoxWidget, params)
+
+
 def sortOrderTitle():
     # "A-Z / Z-A": title of the sort picker and label of the key that opens it
     return _("A-Z") + " / " + _("Z-A")

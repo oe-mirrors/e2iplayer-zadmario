@@ -1,268 +1,492 @@
 # -*- coding: utf-8 -*-
-###################################################
-# LOCAL import
-###################################################
-from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
-from Plugins.Extensions.IPTVPlayer.components.ihost import CHostBase, CBaseHostClass
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, MergeDicts
-from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
-from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads
-from Plugins.Extensions.IPTVPlayer.libs import ph
-from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import getDirectM3U8Playlist
-###################################################
-from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote_plus
-###################################################
-# FOREIGN import
-###################################################
+LAST_MODIFIED = "24.10.2026"
+# bajeczki.org and bajeczki.tv (both WordPress "videonow", own databases): cartoons, series and films in
+# Polish; the players are plain <iframe>s in the post, resolved by urlparser
 import re
-###################################################
+
+from Plugins.Extensions.IPTVPlayer.components.ihost import CBaseHostClass, CHostBase
+from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, SetIPTVPlayerLastHostError
+from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import IsSidecarEnabled, IsMediaNamingNormalized
+from Plugins.Extensions.IPTVPlayer.libs.moviemeta import getMeta
+from Plugins.Extensions.IPTVPlayer.libs.urlmetahelper import buildSidecarFromItem, applySidecarToLinks, sidecarFromUrlMeta, decorateResolvedLinkItems
+from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote_plus
+from Plugins.Extensions.IPTVPlayer.p2p3.UrlParse import urljoin
+from Plugins.Extensions.IPTVPlayer.tools.iptvnaming import formatSxxExx
+from Plugins.Extensions.IPTVPlayer.tools.iptvpaging import addPagingItems, isJumpItem, jumpTarget
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc
+from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
+from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedhelper import IPTVWatchedHelper
+from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedfoldermixin import GenericFolderWatchedScraperMixin, GenericFolderWatchedHostMixin
 
 
 def GetConfigList():
-    optionList = []
-    return optionList
+    return []
 
 
 def gettytul():
-    return 'http://bajeczki.org/'
+    return "https://bajeczki.org/"
 
 
-class BajeczkiOrg(CBaseHostClass):
+# site junk in post titles: language versions, quality, "online"
+JUNK_RE = re.compile(r"(?i)(?:\b(?:lektor|napisy|dubbing)(?:\s+pl)?\b|\bpl\s*(?:dub|sub)\b|\b(?:pl)?(?:dub|sub)(?:pl)?\b|\b(?:pl|eng|online|ca\S{1,3} film|hd|full\s*hd|720p|1080p|4k)\b)")
+# plain (not u"") literals: page text is a utf-8 byte str on py2, str on py3 - the en dash matches both
+DASH = "–"
+SEP = r"(?:\s|-|:|,|/|\||" + DASH + ")"
+SXE_RE = re.compile(r"^(.*?)" + SEP + r"*\bS(\d{1,2})\s*E(\d{1,3})\b" + SEP + r"*(.*)$", re.I)
+SEZON_RE = re.compile(r"^(.*?)" + SEP + r"*\bsezon\s*(\d{1,2})\b" + SEP + r"*odcinek\s*(\d{1,3})\b" + SEP + r"*(.*)$", re.I)
+# season marker of a category name: "Rick and Morty S09", "1883 - Sezon 01", "Hawkeye S01 PLDUB"
+CAT_SEASON_RE = re.compile(SEP + r"*(?:\bS\d{1,2}\b|\bsezon\s*\d{1,2}\b).*$", re.I)
+LEAD_SEP_RE = re.compile("^" + SEP + "+")
+TRAIL_SEP_RE = re.compile(SEP + "+$")
+MULTI_DASH_RE = re.compile(r"(?:\s+(?:-|" + DASH + r")){2,}\s+")
+# a film post carries its year in the title: "[2021 PLDUB]", "(2015)"
+YEAR_TAG_RE = re.compile(r"[\[(]\s*((?:19|20)\d{2})\b")
+DEFAULT_THUMB = "thumbnail-default."
+CATS_PER_PAGE = 100
+# the two sites: same theme, own databases; bajeczki.org first (its items keep their keys)
+SITES = (("https://bajeczki.org/", {"movies": "/pelnometrazowe/", "genres": True}),
+         ("https://bajeczki.tv/", {"movies": "/filmy/", "top": "/filmy-top-20/"}))
+
+
+class BajeczkiOrg(GenericFolderWatchedScraperMixin, CBaseHostClass):
 
     def __init__(self):
-        CBaseHostClass.__init__(self, {'history': 'bajeczki.org', 'cookie': 'bajeczki.org.cookie'})
-        self.MAIN_URL = 'http://bajeczki.org/'
-        self.DEFAULT_ICON_URL = self.getFullIconUrl('/wp-content/uploads/1397134512_5b47d5c61cb3523b0ff67e3168ded910-1-640x360.jpg')
-        self.HEADER = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.0', 'DNT': '1', 'Accept': 'text/html'}
-        self.AJAX_HEADER = dict(self.HEADER)
-        self.AJAX_HEADER.update({'X-Requested-With': 'XMLHttpRequest'})
-        self.defaultParams = {'with_metadata': True, 'header': self.HEADER, 'use_cookie': True, 'load_cookie': True, 'save_cookie': True, 'cookiefile': self.COOKIE_FILE}
-        self.cacheLinks = {}
+        CBaseHostClass.__init__(self, {"history": "bajeczki.org", "cookie": "bajeczki.org.cookie"})
+        self.HEADER = self.cm.getDefaultHeader()
+        self.HEADER.update({"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "Accept-Language": "pl,en;q=0.8"})
+        self.defaultParams = {"header": self.HEADER, "use_cookie": True, "load_cookie": True, "save_cookie": True, "cookiefile": self.COOKIE_FILE}
+        self.MAIN_URL = gettytul()
+        self.DEFAULT_ICON_URL = self.getFullUrl("/wp-content/uploads/2026/06/logo.png")
+        self.allCats = {}
+        self.postCache = ("", "")
 
-    def getPage(self, url, addParams={}, post_data=None):
-        if addParams == {}:
+        self.watchedHelper = IPTVWatchedHelper("bajeczkiorg")
+        self.wfInitFolderCache()
+
+    ###################################################
+    # watched flag
+    ###################################################
+    def _getWatchedKeyForItem(self, cItem):
+        try:
+            if not isinstance(cItem, dict):
+                return ""
+            # page 2+ of a category (".../page/N/?orderby=...") is the same folder
+            url = re.sub(r"/page/\d+/", "/", str(cItem.get("url", "") or "").split("?", 1)[0].strip())
+            if not url:
+                return ""
+            if cItem.get("type", "") in ("video", "audio"):
+                return "video:%s" % url
+            if cItem.get("category", "") == "list_items" and cItem.get("is_cat"):
+                return "cat:%s" % url
+        except Exception:
+            printExc()
+        return ""
+
+    def getPage(self, baseUrl, addParams=None, post_data=None):
+        if addParams is None:
             addParams = dict(self.defaultParams)
-        return self.cm.getPage(url, addParams, post_data)
+        addParams["cloudflare_params"] = {"cookie_file": self.COOKIE_FILE, "User-Agent": self.HEADER.get("User-Agent")}
+        return self.cm.getPageCFProtection(baseUrl, addParams, post_data)
 
-    def listMainMenu(self, cItem):
-        MAIN_CAT_TAB = [{'category': 'categories', 'title': 'Wszystkie bajki', 'url': self.getFullUrl('/all-categories/')},
-                        {'category': 'list_items', 'title': 'Ostatnio dodane', 'url': self.getFullUrl('/?s=')},
-                        {'category': 'list_items', 'title': 'Filmy', 'url': self.getFullUrl('/pelnometrazowe/')},
-                        {'category': 'search', 'title': _('Search'), 'search_item': True, },
-                        {'category': 'search_history', 'title': _('Search history'), }]
-        self.listsTab(MAIN_CAT_TAB, cItem)
+    def _getPostPage(self, url):
+        # INFO and the link list read the same post page - fetch it once
+        if self.postCache[0] == url:
+            return True, self.postCache[1]
+        sts, data = self.getPage(url)
+        if sts and data:
+            self.postCache = (url, data)
+        return sts, data
 
-    def listCategories(self, cItem, nextCategory):
-        printDBG("BajeczkiOrg.listCategories")
+    def getFullIconUrl(self, url, currUrl=None):
+        if DEFAULT_THUMB in url:
+            return ""
+        url = CBaseHostClass.getFullIconUrl(self, url, currUrl)
+        if not url:
+            return ""
+        # bajeczki.tv answers 403 to pictures without its own Referer
+        return strwithmeta(url, {"Referer": self._site({"url": url}), "User-Agent": self.HEADER["User-Agent"]})
 
-        sts, data = self.getPage(cItem['url'])
-        if not sts:
-            return
+    def _site(self, cItem):
+        # site of an item: set by the site menu, else from its url (favourites of older versions)
+        site = cItem.get("site", "")
+        if site:
+            return site
+        url = cItem.get("url", "") or ""
+        for base, _cfg in SITES:
+            if url.startswith(base) or url.startswith(base.replace("https://", "https://www.")):
+                return base
+        return self.MAIN_URL
 
-        data = self.cm.ph.getAllItemsBeetwenNodes(data, ('<div', '>', 'category-bar'), ('</div', '>'))
-        for item in data:
-            url = self.getFullUrl(self.cm.ph.getSearchGroups(item, '''\shref=['"]([^"^']+?)['"]''')[0])
-            if url == '':
-                continue
-            item = item.split('</span>', 1)
-            title = ph.clean_html(item[0])
-            desc = ph.clean_html(item[-1])
-            icon = url + '?fake=need_resolve.jpeg'
+    def _siteCfg(self, site):
+        return dict(SITES).get(site, SITES[0][1])
+
+    def _isMoviePath(self, url):
+        return self._siteCfg(self._site({"url": url}))["movies"] in url
+
+    ###################################################
+    # titles
+    ###################################################
+    def _stripJunk(self, title):
+        title = JUNK_RE.sub(" ", title)
+        title = re.sub(r"[\[(]\s*[\])]", " ", title)
+        title = LEAD_SEP_RE.sub("", title)
+        title = TRAIL_SEP_RE.sub("", title)
+        title = MULTI_DASH_RE.sub(" - ", title)
+        return re.sub(r"\s{2,}", " ", title).strip()
+
+    def _parseMovieTitle(self, raw):
+        # "Psi Patrol: Film / Paw Patrol: The Movie [2021 PLDUB]", "Ratter (2015) Lektor PL" -> (title, year, lang)
+        m = YEAR_TAG_RE.search(raw)
+        year = m.group(1) if m else ""
+        low = raw.lower()
+        lang = ""
+        if "dub" in low:
+            lang = _("Polish dubbing")
+        elif "lektor" in low:
+            lang = _("Polish voice-over")
+        elif "plsub" in low or "napisy" in low:
+            lang = _("Polish subtitles")
+        elif re.search(r"\beng\b", low):
+            lang = _("English")
+        title = re.sub(r"\[[^\]]*\]", " ", raw)
+        title = re.sub(r"\(\s*(?:19|20)\d{2}\s*\)", " ", title)
+        title = self._stripJunk(title) or raw
+        return title, year, lang
+
+    def _showName(self, catName):
+        return self._stripJunk(CAT_SEASON_RE.sub("", catName)) or catName
+
+    def _buildItem(self, url, raw, catName, icon):
+        # display title + meta fields of a post row
+        params = {"url": url, "icon": icon}
+        normalize = IsMediaNamingNormalized()
+        sxe = SXE_RE.match(raw) or SEZON_RE.match(raw)
+        if not sxe and (self._isMoviePath(url) or YEAR_TAG_RE.search(raw)):
+            # films also sit in other categories ("/swiateczne/10-przykazan-2007-pldub/")
+            title, year, lang = self._parseMovieTitle(raw)
+            metaTitle = title.split(" / ")[-1].strip() if " / " in title else title
+            params.update({"meta_type": "movie", "meta_title": metaTitle, "meta_year": year, "lang": lang})
+            if normalize:
+                raw = "%s (%s)" % (title, year) if year else title
+        elif "/zwiastun/" not in url:
+            show = self._showName(catName) if catName else ""
+            if sxe:
+                show = self._stripJunk(sxe.group(1)) or show
+                season, episode, epName = sxe.group(2), sxe.group(3), self._stripJunk(sxe.group(4))
+                params.update({"season": season, "episode": episode, "ep_name": epName})
+                if normalize:
+                    raw = "%s - %s" % (show, formatSxxExx(season, episode))
+            elif normalize:
+                raw = self._stripJunk(raw.replace(DASH, "-"))
+            if show:
+                params.update({"meta_type": "tv", "meta_title": show, "s_title": show})
+        params["title"] = raw
+        return params
+
+    ###################################################
+    # lists
+    ###################################################
+    def listSites(self, cItem):
+        for site, _cfg in SITES:
             params = dict(cItem)
-            params = {'good_for_fav': True, 'category': nextCategory, 'title': title, 'url': url, 'icon': icon, 'desc': desc}
+            params.update({"good_for_fav": True, "category": "site_menu", "title": site.split("//", 1)[1].strip("/"), "site": site, "url": site})
             self.addDir(params)
 
-    def listItems(self, cItem):
-        printDBG("BajeczkiOrg.listItems")
+    def listMainMenu(self, cItem):
+        site = self._site(cItem)
+        cfg = self._siteCfg(site)
+        movies = urljoin(site, cfg["movies"])
+        menu = [{"category": "list_items", "title": _("Latest"), "url": urljoin(site, "/?s=")},
+                {"category": "list_letters", "title": _("Cartoons and series"), "url": urljoin(site, "/all-categories/")},
+                {"category": "list_items", "title": _("Movies"), "url": movies}]
+        if cfg.get("genres"):
+            menu.extend([{"category": "list_items", "title": "%s (A-Z)" % _("Movies"), "url": movies + "?orderby=name&order=asc"},
+                         {"category": "list_genres", "title": _("Genres"), "url": movies}])
+        if cfg.get("top"):
+            menu.append({"category": "list_items", "title": "Top 20", "url": urljoin(site, cfg["top"])})
+        menu.extend(self.searchItems())
+        if site != SITES[0][0]:
+            # bajeczki.org rows stay as before (no "site": the favourite identity of its folders is unchanged)
+            for item in menu:
+                item["site"] = site
+        self.listsTab(menu, {"name": "category"})
 
-        sts, data = self.getPage(cItem['url'])
+    def listGenres(self, cItem):
+        printDBG("BajeczkiOrg.listGenres")
+        sts, data = self.getPage(cItem["url"])
         if not sts:
             return
-        nextPage = ph.find(data, ('<a', '>', 'next page-'))[1]
-        nextPage = self.getFullUrl(ph.getattr(nextPage, 'href'), self.cm.meta['url'])
-
-        descObj = re.compile('''<span[^>]+?>''')
-        data = ph.find(data, '<main', '</main>', flags=0)[1]
-        printDBG(data)
-        data = re.compile('<(?:div|article)[^>]+?hentry[^>]+?>').split(data)
-        for idx in range(1, len(data), 1):
-            item = data[idx]
-
-            url = self.getFullUrl(ph.search(item, ph.A_HREF_URI_RE)[1])
-            if url == '':
-                continue
-#            icon = self.getFullUrl( ph.search(item, ph.IMAGE_SRC_URI_RE)[1] )
-            icon = self.getFullIconUrl(self.cm.ph.getSearchGroups(item, '''src=['"]([^'^"]+?)['"]''', ignoreCase=True)[0])
-            item = item.split('</h2>', 1)
-            title = ph.clean_html(item[0])
-
-            desc = []
-            tmp = descObj.split(item[-1])
-            for t in tmp:
-                t = ph.clean_html(t)
-                if t != '':
-                    desc.append(t)
+        data = self.cm.ph.getDataBeetwenMarkers(data, "Wybierz kategori", "</div>", False)[1]
+        for url, title in re.findall(r'<a[^>]+href="([^"]+/pelnometrazowe/[^"/]+/)"[^>]*>([^<]+)</a>', data):
             params = dict(cItem)
-            params = {'good_for_fav': True, 'title': title, 'url': url, 'icon': icon, 'desc': '[/br]'.join(desc)}
+            params.update({"good_for_fav": True, "category": "list_items", "title": self.cleanHtmlStr(title), "url": self.getFullUrl(url, cItem["url"])})
+            self.addDir(params)
+
+    def _getAllCats(self, url):
+        # one list per site
+        if self.allCats.get(url):
+            return self.allCats[url]
+        sts, data = self.getPage(url)
+        if not sts:
+            return []
+        cats = []
+        for item in self.cm.ph.getAllItemsBeetwenNodes(data, ("<div", ">", "category-bar"), ("</div", ">"), False):
+            catUrl = self.getFullUrl(self.cm.ph.getSearchGroups(item, r'href="([^"]+)"')[0], url)
+            title = self.cleanHtmlStr(self.cm.ph.getDataBeetwenNodes(item, ("<span", ">", "category-name"), ("</span", ">"), False)[1])
+            if not catUrl or not title:
+                continue
+            desc = self.cleanHtmlStr(self.cm.ph.getDataBeetwenNodes(item, ("<span", ">", "category-desc"), ("</span", ">"), False)[1])
+            count = self.cleanHtmlStr(self.cm.ph.getDataBeetwenNodes(item, ("<span", ">", "video-count"), ("</span", ">"), False)[1])
+            count = self.cm.ph.getSearchGroups(count, r"(\d+)")[0]
+            cats.append({"title": title, "url": catUrl, "desc": desc, "count": count})
+        self.allCats[url] = cats
+        return cats
+
+    def _letter(self, title):
+        # first character (py2: decode the utf-8 byte str, or "Ł" would be split into bytes)
+        try:
+            isText = isinstance(title, type(u""))
+            ch = (title if isText else title.decode("utf-8"))[:1].upper()
+            if not ch.isalpha():
+                return "#"
+            return ch if isText else ch.encode("utf-8")
+        except Exception:
+            printExc()
+        return "#"
+
+    def listLetters(self, cItem):
+        printDBG("BajeczkiOrg.listLetters")
+        letters = []
+        counts = {}
+        for cat in self._getAllCats(cItem["url"]):
+            letter = self._letter(cat["title"])
+            if letter not in counts:
+                letters.append(letter)
+                counts[letter] = 0
+            counts[letter] += 1
+        for letter in sorted(letters, key=lambda x: (x != "#", x)):
+            params = dict(cItem)
+            params.update({"good_for_fav": True, "category": "list_cats", "title": "%s (%d)" % (letter, counts[letter]), "letter": letter})
+            self.addDir(params)
+
+    def listCats(self, cItem):
+        printDBG("BajeczkiOrg.listCats [%s]" % cItem.get("letter"))
+        cats = [cat for cat in self._getAllCats(cItem["url"]) if self._letter(cat["title"]) == cItem.get("letter")]
+        # a letter can hold a few hundred categories: local paging
+        page = max(1, int(cItem.get("page", 1) or 1))
+        lastPage = (len(cats) + CATS_PER_PAGE - 1) // CATS_PER_PAGE
+        for cat in cats[(page - 1) * CATS_PER_PAGE:page * CATS_PER_PAGE]:
+            desc = cat["desc"]
+            if cat["count"]:
+                desc = "%s: %s[/br]%s" % (_("Videos"), cat["count"], desc)
+            url = cat["url"]
+            show = self._showName(cat["title"])
+            params = {"name": "category", "good_for_fav": True, "category": "list_items", "is_cat": True, "title": cat["title"],
+                      "url": url + ("&" if "?" in url else "?") + "orderby=name&order=asc", "desc": desc, "site_desc": cat["desc"],
+                      "cat_name": cat["title"], "meta_type": "tv", "meta_title": show, "s_title": show}
+            self.addDir(params)
+        if lastPage > 1:
+            # the whole list is in memory: the folder url is the (constant) "Jump" template
+            addPagingItems(self, cItem, page, page < lastPage, lastPage, cItem["url"].replace("{", "%7B").replace("}", "%7D"))
+
+    def listItems(self, cItem):
+        # WordPress paging: <path>/page/N/?<query>
+        page = cItem.get("page", 1)
+        baseUrl = re.sub(r"/page/\d+/", "/", cItem["url"])
+        path, sep, query = baseUrl.partition("?")
+        pageUrlTpl = path.rstrip("/") + "/page/{page}/" + sep + query
+        url = baseUrl if page <= 1 else pageUrlTpl.format(page=page)
+        printDBG("BajeczkiOrg.listItems [%s]" % url)
+        sts, data = self.getPage(url)
+        if not sts:
+            return
+        pager = " ".join(re.findall(r'<a[^>]+class="(?:next )?page-numbers[^"]*"[^>]*>', data))
+        hasNext = 'class="next ' in pager or bool(re.search(r'<link[^>]+rel="next"', data))
+        lastPage = max([int(n) for n in re.findall(r"/page/(\d+)/", pager)] + [page])
+
+        main = self.cm.ph.getDataBeetwenNodes(data, ("<main", ">"), ("</main", ">"), False)[1] or data
+        items = re.split(r'<(?:div|article)[^>]+class="hentry[^"]*"[^>]*>', main)[1:]
+        catName = cItem.get("cat_name", "")
+        seen = set()
+        for item in items:
+            url = self.getFullUrl(self.cm.ph.getSearchGroups(item, r'<h2[^>]*>\s*<a[^>]+href="([^"]+)"')[0], baseUrl)
+            if not url or url in seen:
+                continue
+            seen.add(url)
+            raw = self.cleanHtmlStr(self.cm.ph.getDataBeetwenNodes(item, ("<h2", ">"), ("</h2", ">"), False)[1])
+            if not raw:
+                continue
+            icon = self.getFullIconUrl(self.cm.ph.getSearchGroups(item, r'<img[^>]+src="([^"]+)"')[0], baseUrl)
+            cat = self.cleanHtmlStr(self.cm.ph.getDataBeetwenNodes(item, ("<span", ">", "entry-category"), ("</span", ">"), False)[1])
+            length = self.cleanHtmlStr(self.cm.ph.getDataBeetwenNodes(item, ("<span", ">", "video-length"), ("</span", ">"), False)[1])
+            date = self.cleanHtmlStr(self.cm.ph.getDataBeetwenNodes(item, ("<span", ">", "entry-date"), ("</span", ">"), False)[1])
+            params = self._buildItem(url, raw, catName or cat, icon)
+            desc = [params.pop("ep_name")] if params.get("ep_name") else []
+            if params.get("lang"):
+                desc.append(params["lang"])
+            if length:
+                desc.append("%s: %s" % (_("Duration"), length))
+            if cat:
+                desc.append(cat)
+            if date:
+                desc.append(date)
+            params.update({"name": "category", "good_for_fav": True, "category": "video", "desc": " | ".join(desc)})
             self.addVideo(params)
 
-        if nextPage:
-            self.addDir(MergeDicts(cItem, {'good_for_fav': False, 'title': _('Next page'), 'url': nextPage}))
+        listItem = dict(cItem)
+        listItem.update({"category": "list_items", "url": baseUrl})
+        addPagingItems(self, listItem, page, hasNext and bool(seen), lastPage, pageUrlTpl)
 
-    def listSubItems(self, cItem):
-        printDBG("BajeczkiOrg.listSubItems")
-        self.currList = cItem['sub_items']
+    def listSearchResult(self, cItem, searchPattern, searchType):
+        printDBG("BajeczkiOrg.listSearchResult [%s]" % searchPattern)
+        cItem = dict(cItem)
+        cItem.update({"category": "list_items", "url": urljoin(self._site(cItem), "/?s=") + urllib_quote_plus(searchPattern)})
+        self.listItems(cItem)
+
+    ###################################################
+    # links
+    ###################################################
+    def _postContent(self, data):
+        data = self.cm.ph.getDataBeetwenNodes(data, ("<div", ">", "entry-content"), ("<div", ">", "entry-tags"), False)[1]
+        data = re.sub(r"<!--[\s\S]*?-->", "", data)
+        return re.split(r'<div[^>]+class="[^"]*\bwp-post-navigation', data, maxsplit=1)[0]
 
     def getLinksForVideo(self, cItem):
-        printDBG("BajeczkiOrg.getLinksForVideo [%s]" % cItem)
-        urlTab = self.cacheLinks.get(cItem['url'], [])
-        if urlTab:
-            return urlTab
-
-        self.cacheLinks = {}
-
-        sts, data = self.getPage(cItem['url'])
+        printDBG("BajeczkiOrg.getLinksForVideo [%s]" % cItem["url"])
+        urlTab = []
+        sts, data = self._getPostPage(cItem["url"])
         if not sts:
-            return
-
-        data = self.cm.ph.getDataBeetwenNodes(data, ('<div', '>', 'entry-content'), ('<aside', '>'))[1]
-        data = re.sub("<!--[\s\S]*?-->", "", data)
-
-        tmp = ph.find(data, '<video', '</video>', flags=ph.IGNORECASE)[1]
-        tmp = ph.findall(tmp, '<source', '>', flags=ph.IGNORECASE)
-        for item in tmp:
-            url = self.getFullUrl(self.cm.ph.getSearchGroups(item, '''src=['"]([^'^"]+?)['"]''', ignoreCase=True)[0])
-            type = self.cm.ph.getSearchGroups(item, '''type=['"]([^'^"]+?)['"]''', ignoreCase=True)[0].lower()
-            if 'mp4' in type:
-                name = self.up.getDomain(url)
-                urlTab.append({'name': name, 'url': strwithmeta(url, {'direct_link': True, 'Referer': self.cm.meta['url']}), 'need_resolve': 1})
-
-        tmp = ph.findall(data, ('<div', '>', 'data-item'), flags=ph.IGNORECASE | ph.START_E)
-        for item in tmp:
-            if 'sources' not in item:
+            return []
+        content = self._postContent(data)
+        referer = cItem["url"]
+        seen = set()
+        unsupported = []
+        frames = re.findall(r'<iframe[^>]+?(?:data-src|src)="([^"]+)"', content, re.I)
+        frames.extend(re.findall(r'<source[^>]+src="([^"]+)"', content, re.I))
+        frames.extend(re.findall(r'(https?://(?:www\.)?(?:youtube\.com/watch\?v=|youtu\.be/)[^"\'<\s]+)', content))
+        for url in frames:
+            url = url.replace("&amp;", "&").replace("&#038;", "&")
+            if url.startswith("//"):
+                url = "https:" + url
+            if not self.cm.isValidUrl(url) or url in seen:
                 continue
-            item = ph.clean_html(ph.getattr(item, 'data-item'))
-            try:
-                item = json_loads(item)
-                for it in item['sources']:
-                    it['type'] = it.get('type', it['src'].split('?', 1)[0].rsplit('.', 1)[-1]).lower()
-                    url = strwithmeta(it['src'], {'direct_link': True, 'Referer': self.cm.meta['url']})
-                    if 'mp4' in it['type']:
-                        urlTab.append({'name': it['type'], 'url': url, 'need_resolve': 1})
-                    elif 'mpeg' in it['type']:
-                        urlTab.extend(getDirectM3U8Playlist(url))
-            except Exception:
-                printExc()
-
-        tmp = self.cm.ph.getAllItemsBeetwenMarkers(data, '<iframe', '>', caseSensitive=False)
-        for item in tmp:
-            url = self.getFullUrl(self.cm.ph.getSearchGroups(item, '''src=['"]([^'^"]+?)['"]''', ignoreCase=True)[0])
-            if 1 == self.up.checkHostSupport(url):
-                name = self.up.getDomain(url)
-                urlTab.append({'name': name, 'url': strwithmeta(url, {'Referer': cItem['url']}), 'need_resolve': 1})
+            seen.add(url)
+            host = self.up.getHostName(url)
+            meta = {"Referer": referer}
+            if host.endswith("strp2p.site"):
+                # the API wants the embedding site as r= (urlparser parserSBS reads it from the Referer)
+                meta["Referer"] = self._site(cItem)
+                name = "Strp2p"
+            elif re.search(r"\.(?:mp4|m3u8)(?:\?|$)", url):
+                meta["direct_link"] = True
+                name = "Direct"
+            else:
+                name = self.up.getHostName(url, True).capitalize()
+                if self.up.checkHostSupport(url) != 1:
+                    # no resolver - the row could only fail on play
+                    printDBG("BajeczkiOrg: unsupported hoster [%s]" % url)
+                    if host not in unsupported:
+                        unsupported.append(host)
+                    continue
+            urlTab.append({"name": name, "url": strwithmeta(url, meta), "need_resolve": 1})
 
         if not urlTab:
-            unique = set()
-            data = re.compile('''['">]\s*?(https?://[^'^"^<]*?/watch\?v=[^'^"]+?)\s*?[<'"]''').findall(data)
-            for url in data:
-                if url not in unique:
-                    urlTab.append({'name': 'Youtube', 'url': strwithmeta(url, {'Referer': cItem['url']}), 'need_resolve': 1})
-                    unique.add(url)
-
-        if urlTab:
-            self.cacheLinks[cItem['url']] = urlTab
-
-        return urlTab
+            if unsupported:
+                SetIPTVPlayerLastHostError(_("Only unsupported hosters available: %s") % ", ".join(unsupported))
+            else:
+                # many older posts lost their player (removed embeds, commented-out dead hosters)
+                SetIPTVPlayerLastHostError(_("No player found for this title."))
+            return []
+        sidecarTxt = self.cleanHtmlStr(content) or cItem.get("desc", "")
+        return applySidecarToLinks(urlTab, buildSidecarFromItem(cItem, IsSidecarEnabled(), sidecarTxt))
 
     def getVideoLinks(self, videoUrl):
         printDBG("BajeczkiOrg.getVideoLinks [%s]" % videoUrl)
         videoUrl = strwithmeta(videoUrl)
-        urlTab = []
+        sidecar = sidecarFromUrlMeta(videoUrl, IsSidecarEnabled())
+        if videoUrl.meta.get("direct_link"):
+            return decorateResolvedLinkItems([{"name": "direct", "url": videoUrl}], sidecar)
+        if self.cm.isValidUrl(videoUrl):
+            return decorateResolvedLinkItems(self.up.getVideoLinkExt(videoUrl), sidecar)
+        return []
 
-        # mark requested link as used one
-        if len(list(self.cacheLinks.keys())):
-            for key in self.cacheLinks:
-                for idx in range(len(self.cacheLinks[key])):
-                    if videoUrl in self.cacheLinks[key][idx]['url']:
-                        if not self.cacheLinks[key][idx]['name'].startswith('*'):
-                            self.cacheLinks[key][idx]['name'] = '*' + self.cacheLinks[key][idx]['name']
-                        break
-        if videoUrl.meta.get('direct_link'):
-            return [{'name': 'direct', 'url': videoUrl}]
-        urlTab = self.up.getVideoLinkExt(videoUrl)
-        return urlTab
-
-    def listSearchResult(self, cItem, searchPattern, searchType):
-        printDBG("BajeczkiOrg.listSearchResult cItem[%s], searchPattern[%s] searchType[%s]" % (cItem, searchPattern, searchType))
-        cItem = dict(cItem)
-        cItem.update({'category': 'list_items', 'url': self.getFullUrl('/?s=') + urllib_quote_plus(searchPattern)})
-        self.listItems(cItem)
-
+    ###################################################
+    # INFO
+    ###################################################
     def getArticleContent(self, cItem):
-        printDBG("BajeczkiOrg.getArticleContent [%s]" % cItem)
-        itemsList = []
+        printDBG("BajeczkiOrg.getArticleContent [%s]" % cItem.get("url", ""))
+        title = cItem.get("title", "")
+        icon = cItem.get("icon", "")
+        text = cItem.get("site_desc", "")
+        other = {}
+        if cItem.get("type") == "video" and cItem.get("url"):
+            sts, data = self._getPostPage(cItem["url"])
+            if sts:
+                text = self.cleanHtmlStr(self._postContent(data)) or text
+                tags = self.cm.ph.getDataBeetwenNodes(data, ("<div", ">", "entry-tags"), ("</div", ">"), False)[1]
+                cats = [self.cleanHtmlStr(t) for t in re.findall(r'rel="category tag">([^<]+)<', tags)]
+                cats = [c for c in cats if c and not c.startswith("►")]
+                if cats:
+                    other["categories"] = ", ".join(cats)
+        meta = {}
+        if cItem.get("meta_title"):
+            try:
+                meta = getMeta(cItem.get("meta_type", ""), cItem["meta_title"], cItem.get("meta_year", ""))
+            except Exception:
+                printExc()
+        if meta:
+            other.update(meta.get("info", {}))
+            plot = meta.get("plot") or ""
+            if plot:
+                text = plot + ("[/br][/br]" + text if text and text != plot else "")
+        if cItem.get("lang"):
+            other["language"] = cItem["lang"]
+        if cItem.get("season"):
+            title = "%s - %s" % (cItem.get("s_title") or title, formatSxxExx(cItem["season"], cItem.get("episode")))
+        images = [{"title": "", "url": url} for url in (meta.get("poster"), icon) if url]
+        return [{"title": title, "text": text or cItem.get("desc", ""), "images": images[:1], "other_info": other}]
 
-        sts, data = self.getPage(cItem['url'])
-        if not sts:
-            return []
-
-        title = cItem['title']
-        icon = cItem.get('icon', '')
-        desc = cItem.get('desc', '')
-
-#        title = self.cm.ph.getDataBeetwenMarkers(data, '<title>', '</title>', True)[1]
-#        if title.endswith('Online</title>'): title = title.replace('Online', '')
-#        icon = self.getFullIconUrl(self.cm.ph.getSearchGroups(title, '''this\.src=['"]([^"^']+?)['"]''', 1, True)[0])
-        desc = self.cleanHtmlStr(self.cm.ph.getDataBeetwenNodes(data, ('<div', '>', 'entry-content'), ('</div', '>'))[1])
-#        itemsList.append((_('Duration'), self.cleanHtmlStr(self.cm.ph.getDataBeetwenMarkers(data, '<dt>Czas trwania:</dt>', '</dd>', False)[1])))
-        itemsList.append((_('Genres'), self.cleanHtmlStr(self.cm.ph.getDataBeetwenNodes(data, ('<div', '>', 'entry-tags'), ('</div', '>'))[1])))
-
-        if title == '':
-            title = cItem['title']
-        if icon == '':
-            icon = cItem.get('icon', '')
-        if desc == '':
-            desc = cItem.get('desc', '')
-
-        return [{'title': self.cleanHtmlStr(title), 'text': self.cleanHtmlStr(desc), 'images': [{'title': '', 'url': self.getFullUrl(icon)}], 'other_info': {'custom_items_list': itemsList}}]
-
-    def handleService(self, index, refresh=0, searchPattern='', searchType=''):
-        printDBG('handleService start')
-
+    def handleService(self, index, refresh=0, searchPattern="", searchType=""):
         CBaseHostClass.handleService(self, index, refresh, searchPattern, searchType)
-
-        name = self.currItem.get("name", '')
-        category = self.currItem.get("category", '')
-        mode = self.currItem.get("mode", '')
-
-        printDBG("handleService: >> name[%s], category[%s] " % (name, category))
+        if isJumpItem(self.currItem):
+            self.currItem = jumpTarget(self, self.currItem)
+        name = self.currItem.get("name", "")
+        category = self.currItem.get("category", "")
+        printDBG("BajeczkiOrg.handleService name[%s] category[%s]" % (name, category))
         self.currList = []
-
-    #MAIN MENU
-        if name == None:
-            self.listMainMenu({'name': 'category'})
-        elif category == 'categories':
-            self.listCategories(self.currItem, 'list_items')
-        elif category == 'list_items':
+        if name is None:
+            self.listSites({"name": "category"})
+        elif category == "site_menu":
+            self.listMainMenu(self.currItem)
+        elif category == "list_items":
             self.listItems(self.currItem)
-    #SEARCH
+        elif category == "list_letters":
+            self.listLetters(self.currItem)
+        elif category == "list_cats":
+            self.listCats(self.currItem)
+        elif category == "list_genres":
+            self.listGenres(self.currItem)
         elif category in ["search", "search_next_page"]:
             cItem = dict(self.currItem)
-            cItem.update({'search_item': False, 'name': 'category'})
+            cItem.update({"search_item": False, "name": "category"})
             self.listSearchResult(cItem, searchPattern, searchType)
-    #HISTORIA SEARCH
         elif category == "search_history":
-            self.listsHistory({'name': 'history', 'category': 'search'}, 'desc', _("Type: "))
+            historyItem = {"name": "history", "category": "search"}
+            if self.currItem.get("site"):
+                historyItem["site"] = self.currItem["site"]
+            self.listsHistory(historyItem, "desc", _("Type: "))
         else:
             printExc()
-
         CBaseHostClass.endHandleService(self, index, refresh)
 
 
-class IPTVHost(CHostBase):
+class IPTVHost(GenericFolderWatchedHostMixin, CHostBase):
 
     def __init__(self):
         CHostBase.__init__(self, BajeczkiOrg(), True, [])
+        self.cachedRet = None
+        self.refreshAfterWatchedFlagChange = False
+        self.watchedHelper = IPTVWatchedHelper("bajeczkiorg")
 
     def withArticleContent(self, cItem):
-        return True
+        return cItem.get("type") == "video" or bool(cItem.get("is_cat"))
