@@ -1,489 +1,475 @@
 # -*- coding: utf-8 -*-
+LAST_MODIFIED = "09.10.2026"
+# Coding: BY MOHAMED_OS
+# 08.10.2026 - revived from Backup, ported to the python3 host standard
+#   - SkStream (French movies and series, DLE site wvw.skstream.rip; the bare domain skstream.rip
+#     redirects to the current mirror, favourites of an older address are moved over)
+#   - movies, series, movie genres, series genres, series by version (VF / VOSTFR), by year
+#   - First page / Jump / Next page on every list (/page/N/, last page known)
+#   - series -> seasons -> episodes (a series with one season opens its episodes directly)
+#   - search: the site's quick search (the full search is closed for guests; at most 6 hits,
+#     accents are dropped from the pattern because the site finds nothing with them)
+#   - links: the player list of the page (getxfield.php for movies, Season.php for episodes, loaded
+#     when a link is played); embed redirectors (d000d.xyz -> doply.net) are followed -> urlparser;
+#     rows of dead hosters (fembed, uptostream, vidlox, upvid, gounlimited) are left out, a netu row
+#     without a video id answers "No stream available"
+#   - watched flag, downloaded flag, favourites, name normalisation ("Title (Year)", "Show - SxxExx"),
+#     sidecar, INFO via moviemeta + the site's fields
 ###################################################
-# LOCAL import
-###################################################
-from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
-from Plugins.Extensions.IPTVPlayer.components.ihost import CHostBase, CBaseHostClass
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, byteify
-from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
-from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import unpackJSPlayerParams, VIDEOMEGA_decryptPlayerParams
-###################################################
-from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote, urllib_quote_plus
+import re
+import unicodedata
+
+from Plugins.Extensions.IPTVPlayer.components.ihost import CBaseHostClass, CHostBase
+from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, SetIPTVPlayerLastHostError
+from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import IsSidecarEnabled, IsMediaNamingNormalized
+from Plugins.Extensions.IPTVPlayer.libs.e2ijson import dumps as json_dumps
+from Plugins.Extensions.IPTVPlayer.libs.moviemeta import getMeta
+from Plugins.Extensions.IPTVPlayer.libs.urlmetahelper import buildSidecarFromItem, applySidecarToLinks, sidecarFromUrlMeta, decorateResolvedLinkItems, sidecarMetaQuery
+from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote_plus
 from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str
-###################################################
-# FOREIGN import
-###################################################
-import random
-try:
-    import json
-except Exception:
-    import simplejson as json
-from Components.config import config, ConfigSelection, ConfigText, getConfigListEntry
-###################################################
-
-###################################################
-# Config options for HOST
-###################################################
-config.plugins.iptvplayer.skstream_proxy = ConfigSelection(default="None", choices=[("None", _("None")),
-                                                                                        ("proxy_1", _("Alternative proxy server (1)")),
-                                                                                        ("proxy_2", _("Alternative proxy server (2)"))])
-config.plugins.iptvplayer.skstream_alt_domain = ConfigText(default="", fixed_size=False)
+from Plugins.Extensions.IPTVPlayer.tools.iptvnaming import formatSxxExx
+from Plugins.Extensions.IPTVPlayer.tools.iptvpaging import addPagingItems, isJumpItem, jumpTarget, stripPagerKeys
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, GetIconDir
+from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
+from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedhelper import IPTVWatchedHelper
+from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedfoldermixin import GenericFolderWatchedScraperMixin, GenericFolderWatchedHostMixin
 
 
 def GetConfigList():
-    optionList = []
-    optionList.append(getConfigListEntry(_("Use proxy server:"), config.plugins.iptvplayer.skstream_proxy))
-    if config.plugins.iptvplayer.skstream_proxy.value == 'None':
-        optionList.append(getConfigListEntry(_("Alternative domain:"), config.plugins.iptvplayer.skstream_alt_domain))
-    return optionList
-###################################################
-
-
-def GetConfigList():
-    optionList = []
-    return optionList
+    return []
 
 
 def gettytul():
-    return 'https://skstream.info/'
+    return "https://wvw.skstream.rip/"
 
 
-class SKStream(CBaseHostClass):
+# the bare domain answers with a redirect to the current mirror (wvw.skstream.rip in 10.2026)
+ADDRESS_FINDER = "https://skstream.rip/"
+# paths of the site: urls of an older address (favourites) are moved to the current one
+SITE_PATH_RE = re.compile(r"^https?://[^/]+/((?:films-en-illimite|series-en-illimite|annee)/.*)$")
+SERIES_URL_RE = re.compile(r"/series-en-illimite/")
+SEASON_URL_RE = re.compile(r"/(\d+)-season\.html")
+EPISODE_URL_RE = re.compile(r"/(\d+)-season/(\d+)-episode\.html")
+# a player row: getxfield('<id>', '<xfield>') (movies) or playEpisode(this, '<id>', '<xfield>') (episodes)
+PLAYER_RE = re.compile(r"""(?:getxfield|playEpisode)\((?:this,\s*)?['"](\d+)['"],\s*['"]([^'"]+)['"]""")
+LINK_TAG = "#sk="
+# player rows of hosters that are gone (10.2026: fembed.one / uptostream.com do not answer, vidlox.me / upvid.co /
+# gounlimited.to are parked domains, none of them is in the urlparser) -> not listed
+DEAD_SERVERS = ("fembed", "uptostream", "vidlox", "upvid", "gounlimited")
+VIDEO_CATEGORIES = ("skm_video",)
+FOLDER_CATEGORIES = ("skm_series", "skm_season")
+
+
+def _foldAccents(text):
+    # "fièvre" -> "fievre": the site's quick search finds nothing for accented letters
+    try:
+        if not isinstance(text, type(u"")):
+            text = text.decode("utf-8")
+        text = u"".join(c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c))
+    except Exception:
+        printExc()
+    return ensure_str(text)
+
+
+class SKStream(GenericFolderWatchedScraperMixin, CBaseHostClass):
+
+    FAV_FIELDS = ("name", "category", "type", "url", "title", "icon", "desc", "s_title", "s_season", "s_episode", "s_year",
+                  "nav", "meta_type", "meta_title", "meta_year")
 
     def __init__(self):
-        CBaseHostClass.__init__(self, {'history': 'skstream.co', 'cookie': 'skstream.co.cookie'})
-        self.USER_AGENT = 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.0'
-        self.HEADER = {'User-Agent': self.USER_AGENT, 'DNT': '1', 'Accept': 'text/html'}
-        self.AJAX_HEADER = dict(self.HEADER)
-        self.AJAX_HEADER.update({'X-Requested-With': 'XMLHttpRequest'})
-
+        CBaseHostClass.__init__(self, {"history": "skstream", "cookie": "skstream.cookie"})
         self.MAIN_URL = None
-        self.cacheCategories = []
-        self.episodesCache = []
+        self.DEFAULT_ICON_URL = "file://" + GetIconDir("PlayerSelector/skstream135.png")
+        self.HEADER = self.cm.getDefaultHeader(browser="chrome")
+        self.AJAX_HEADER = dict(self.HEADER)
+        self.AJAX_HEADER.update({"X-Requested-With": "XMLHttpRequest", "Accept": "text/html, */*; q=0.01"})
+        self.defaultParams = {"header": self.HEADER, "use_cookie": True, "load_cookie": True, "save_cookie": True, "cookiefile": self.COOKIE_FILE}
         self.cacheLinks = {}
+        self.watchedHelper = IPTVWatchedHelper("skstream")
+        self.wfInitFolderCache()
 
-        self.defaultParams = {'header': self.HEADER, 'use_cookie': True, 'load_cookie': True, 'save_cookie': True, 'cookiefile': self.COOKIE_FILE}
-        self._getHeaders = None
-
-    def getPage(self, baseUrl, addParams={}, post_data=None):
-        if addParams == {}:
-            addParams = dict(self.defaultParams)
-
-        proxy = config.plugins.iptvplayer.skstream_proxy.value
-        if proxy != 'None':
-            if proxy == 'proxy_1':
-                proxy = config.plugins.iptvplayer.alternative_proxy1.value
-            else:
-                proxy = config.plugins.iptvplayer.alternative_proxy2.value
-            addParams = dict(addParams)
-            addParams.update({'http_proxy': proxy})
-
-        addParams['cloudflare_params'] = {'cookie_file': self.COOKIE_FILE, 'User-Agent': self.USER_AGENT}
-        return self.cm.getPageCFProtection(baseUrl, addParams, post_data)
-
-    def getFullIconUrl(self, url):
-        url = self.getFullUrl(url)
-        proxy = config.plugins.iptvplayer.skstream_proxy.value
-        if proxy != 'None':
-            if proxy == 'proxy_1':
-                proxy = config.plugins.iptvplayer.alternative_proxy1.value
-            else:
-                proxy = config.plugins.iptvplayer.alternative_proxy2.value
-            url = strwithmeta(url, {'iptv_http_proxy': proxy})
-        return url
-
-    def getFullUrl(self, url):
-        url = CBaseHostClass.getFullUrl(self, url)
-        try:
-            url.encode('ascii')
-        except Exception:
-            url = urllib_quote(url, safe="/:&?%@[]()*$!+-=|<>;")
-        url = url.replace(' ', '%20')
-        return url
-
+    ###################################################
+    # helpers
+    ###################################################
     def selectDomain(self):
-        if self.MAIN_URL == None:
-            domains = ['https://ww1.skstream.info/']
-            domain = config.plugins.iptvplayer.skstream_alt_domain.value.strip()
-            if self.cm.isValidUrl(domain):
-                if domain[-1] != '/':
-                    domain += '/'
-                domains.insert(0, domain)
+        url = ""
+        sts, data = self.cm.getPage(ADDRESS_FINDER, dict(self.defaultParams))
+        if sts and "skstream" in data.lower():
+            url = self.cm.meta.get("url", "")
+        if not self.setMainUrl(self.cm.getBaseUrl(url) if url else ""):
+            self.MAIN_URL = gettytul()
+        printDBG("SKStream.selectDomain [%s]" % self.MAIN_URL)
 
-            for domain in domains:
-                sts, data = self.getPage(domain)
-                if not sts:
-                    continue
-                if '/series' in data:
-                    self.setMainUrl(self.cm.meta['url'])
-                    break
+    def getPage(self, baseUrl, addParams=None, post_data=None):
+        if self.MAIN_URL is None:
+            self.selectDomain()
+        if addParams is None:
+            addParams = dict(self.defaultParams)
+        match = SITE_PATH_RE.match(baseUrl or "")
+        if match:
+            baseUrl = self.getMainUrl() + match.group(1)
+        return self.cm.getPage(baseUrl.split("#")[0], addParams, post_data)
 
-        if self.MAIN_URL == None:
-            self.MAIN_URL = domains[0]
+    def _key(self, url):
+        return re.sub(r"^https?://[^/]+", "", (url or "").split("#")[0]).rstrip("/")
 
-        self.DEFAULT_ICON_URL = self.getFullIconUrl('/apple-touch-icon.png')
+    def getFavouriteData(self, cItem):
+        try:
+            if cItem.get("category") in VIDEO_CATEGORIES + FOLDER_CATEGORIES + ("skm_list",):
+                return json_dumps({key: cItem[key] for key in self.FAV_FIELDS if key in cItem})
+        except Exception:
+            printExc()
+        return CBaseHostClass.getFavouriteData(self, cItem)
 
-    def listMainMenu(self, cItem):
-        MAIN_CAT_TAB = [{'category': 'list_categories', 'title': 'Films', 'url': self.getFullUrl('/films')},
-                        {'category': 'list_categories', 'title': 'Séries', 'url': self.getFullUrl('/series')},
-                        {'category': 'list_categories', 'title': 'Mangas', 'url': self.getFullUrl('/mangas')},
+    def _getWatchedKeyForItem(self, cItem):
+        try:
+            if not isinstance(cItem, dict):
+                return ""
+            key = self._key(cItem.get("url", ""))
+            if not key:
+                return ""
+            category = cItem.get("category", "")
+            if category in VIDEO_CATEGORIES:
+                return "video:%s" % key
+            if category in FOLDER_CATEGORIES:
+                return "%s:%s" % (category[4:], key)
+        except Exception:
+            printExc()
+        return ""
 
-                        {'category': 'search', 'title': _('Search'), 'search_item': True, },
-                        {'category': 'search_history', 'title': _('Search history'), }
-                       ]
-        self.listsTab(MAIN_CAT_TAB, cItem)
+    ###################################################
+    # lists
+    ###################################################
+    def listMainMenu(self):
+        films = self.getFullUrl("films-en-illimite/")
+        series = self.getFullUrl("series-en-illimite/")
+        menu = [
+            {"category": "skm_list", "title": _("Movies"), "url": films},
+            {"category": "skm_list", "title": _("Series"), "url": series},
+            {"category": "skm_cats", "title": _("Genres"), "url": films, "nav": "Films"},
+            {"category": "skm_cats", "title": _("Series genres"), "url": series, "nav": "gories S"},
+            {"category": "skm_cats", "title": _("Version"), "url": series, "nav": "Version"},
+            {"category": "skm_cats", "title": _("Year"), "url": films, "nav": "Par Ann"},
+        ]
+        self.listsTab(menu + self.searchItems(), {"name": "category"})
 
-    def listCategories(self, cItem, nextCategory):
-        printDBG("SKStream.listCategories")
-        self.cacheCategories = []
-
-        sts, data = self.getPage(cItem['url'])
+    def listCategories(self, cItem):
+        # one menu box of the side bar ("Catégories Films", "Catégories Séries", "Par Version", "Par Année")
+        sts, data = self.getPage(cItem["url"])
         if not sts:
             return
-
-        params = dict(cItem)
-        params.update({'good_for_fav': False, 'category': 'list_items', 'title': _('--All--')})
-        self.addDir(params)
-
-        data = self.cm.ph.getDataBeetwenMarkers(data, '<nav ', '</nav>')[1]
-        data = data.split('<div class="panel panel-default">')
-        if len(data) > 2:
-            data = data[2:]
-        for section in data:
-            sectionTitle = self.cleanHtmlStr(self.cm.ph.getDataBeetwenMarkers(section, '<div class="panel-heading">', '</div>')[1])
-
-            groupsTitles = self.cm.ph.getAllItemsBeetwenMarkers(section, '<span data-target="md-tab', '</span>')
-            groupsDataTab = self.cm.ph.getAllItemsBeetwenMarkers(section, '<div class="list-group', '</div>')
-            for idx in range(len(groupsDataTab)):
-                groupTitle = sectionTitle + ' '
-                if idx < len(groupsTitles):
-                    groupTitle += self.cleanHtmlStr(groupsTitles[idx])
-                tmp = self.cm.ph.getAllItemsBeetwenMarkers(groupsDataTab[idx], '<a', '</a>')
-                tab = []
-                for item in tmp:
-                    title = self.cleanHtmlStr(item)
-                    url = self.getFullUrl(self.cm.ph.getSearchGroups(item, '''href=['"]([^'^"]+?)['"]''')[0])
-                    if not self.cm.isValidUrl(url):
-                        continue
-                    tab.append({'title': title, 'url': url})
-                if len(tab):
-                    params = dict(cItem)
-                    params.update({'good_for_fav': False, 'category': nextCategory, 'title': groupTitle, 'c_idx': len(self.cacheCategories)})
-                    self.addDir(params)
-                    self.cacheCategories.append(tab)
-
-    def listCatsItems(self, cItem, nextCategory):
-        printDBG("SKStream.listCatsItems")
-        cIdx = cItem.get('c_idx', 0)
-        if cIdx < len(self.cacheCategories):
-            tab = self.cacheCategories[cIdx]
-            for item in tab:
-                params = dict(cItem)
-                params.update(item)
-                params.update({'good_for_fav': False, 'category': nextCategory})
-                self.addDir(params)
-
-    def listItems(self, cItem, nextCategory):
-        printDBG("SKStream.listItems")
-
-        page = cItem.get('page', 1)
-
-        sts, data = self.getPage(cItem['url'])
-        if not sts:
-            return
-
-        nextPage = self.getFullUrl(self.cm.ph.getSearchGroups(data, '''<a[^>]+?href=['"]([^"^']+?)['"][^>]*?>Suivant''', ignoreCase=True)[0])
-
-        data = self.cm.ph.getDataBeetwenMarkers(data, '<div class="panel-body">', '<div class="text-center">')[1]
-        data = self.cm.ph.getAllItemsBeetwenMarkers(data, '<a', '</a>')
-        printDBG(data)
-        for item in data:
-            url = self.getFullUrl(self.cm.ph.getSearchGroups(item, '''href=['"]([^'^"]+?)['"]''', ignoreCase=True)[0])
-            if not self.cm.isValidUrl(url):
+        marker = cItem.get("nav", "")
+        for navTitle, block in re.findall(r'(?s)<div class="nav-title">(.*?)</div>\s*<ul class="nav-menu">(.*?)</ul>', data):
+            if marker not in self.cleanHtmlStr(navTitle):
                 continue
-            title = self.cleanHtmlStr(item)
-            icon = self.getFullUrl(self.cm.ph.getSearchGroups(item, '''<img[^>]+?src=['"]([^'^"]+?)['"]''', ignoreCase=True)[0])
+            for url, label in re.findall(r'<a href="([^"]+)"[^>]*>(.*?)</a>', block):
+                label = self.cleanHtmlStr(label)
+                if not label:
+                    continue
+                params = {"name": "category", "category": "skm_list", "title": label, "url": self.getFullUrl(url), "good_for_fav": True}
+                if marker == "Par Ann":
+                    params["s_year"] = label
+                self.addDir(params)
+            break
 
-            params = dict(cItem)
-            params.update({'good_for_fav': True, 'category': nextCategory, 'title': title, 'url': url, 'icon': icon})
-            self.addDir(params)
+    def _addTiles(self, data, year=""):
+        normalize = IsMediaNamingNormalized()
+        seen = set()
+        for block in data.split('<div class="th-item">')[1:]:
+            url = self.cm.ph.getSearchGroups(block, r'class="th-in[^"]*" href="([^"]+)"')[0]
+            title = self.cleanHtmlStr(self.cm.ph.getSearchGroups(block, r'(?s)<div class="th-title[^"]*">(.*?)</div>')[0])
+            if not url or not title or url in seen:
+                continue
+            seen.add(url)
+            url = self.getFullUrl(url)
+            icon = self.cm.ph.getSearchGroups(block, r'<img[^>]+src="([^"]+)"')[0]
+            voice = self.cleanHtmlStr(self.cm.ph.getSearchGroups(block, r'<div class="th-meta th-voice">(.*?)</div>')[0])
+            quality = self.cleanHtmlStr(self.cm.ph.getSearchGroups(block, r'<div class="th-meta th-quality">(.*?)</div>')[0])
+            params = {"name": "category", "good_for_fav": True, "url": url, "icon": self.getFullIconUrl(icon) if icon else ""}
+            if SERIES_URL_RE.search(url):
+                # series tiles show "Séries" instead of a version on most lists
+                desc = " | ".join("%s: %s" % (label, value) for label, value in ((_("Version"), voice if voice in ("VF", "VOSTFR") else ""), (_("Quality"), quality)) if value)
+                params.update({"category": "skm_series", "title": title, "desc": desc, "s_title": title,
+                               "meta_type": "tv", "meta_title": title, "meta_year": ""})
+                self.addDir(params)
+            else:
+                desc = " | ".join("%s: %s" % (label, value) for label, value in ((_("Year"), year), (_("Version"), voice), (_("Quality"), quality)) if value)
+                withYear = year and normalize and not title.endswith("(%s)" % year)
+                params.update({"category": "skm_video", "title": "%s (%s)" % (title, year) if withYear else title, "desc": desc,
+                               "meta_type": "movie", "meta_title": title, "meta_year": year})
+                self.addVideo(params)
+        return len(seen)
 
-        if self.cm.isValidUrl(nextPage):
-            params = dict(cItem)
-            params.update({'good_for_fav': False, 'title': _('Next page'), 'url': nextPage, 'page': page + 1})
-            self.addDir(params)
+    def _lastPage(self, data):
+        nav = self.cm.ph.getDataBeetwenMarkers(data, '<div class="navigation">', "</div>", False)[1]
+        pages = [int(x) for x in re.findall(r"/page/(\d+)/", nav)]
+        return max(pages) if pages else 0
 
-    def exploreItem(self, cItem, nextCategory):
-        printDBG("SKStream.exploreItem")
-
-        sts, data = self.getPage(cItem['url'])
+    def listItems(self, cItem):
+        page = cItem.get("page", 1)
+        baseUrl = cItem.get("base_url") or cItem["url"]
+        url = baseUrl if page <= 1 else "%spage/%d/" % (baseUrl, page)
+        printDBG("SKStream.listItems [%s]" % url)
+        sts, data = self.getPage(url)
         if not sts:
             return
-
-        desc = self.cleanHtmlStr(self.cm.ph.getDataBeetwenMarkers(data, '<div class="more-info">', '</div>')[1])
-
-        if 'data-embedlien' in data:
-            params = dict(cItem)
-            params.update({'desc': desc})
-            self.addVideo(params)
-        elif 'class="episode-' in data:
-            self.episodesCache = []
-            data = self.cm.ph.getDataBeetwenMarkers(data, 'season-block"', '<div class="jumbotron">')[1]
-            data = data.split('<div class="panel-heading">')
-            for season in data:
-                seasonTitle = self.cleanHtmlStr(self.cm.ph.getDataBeetwenMarkers(season, '<h4', '</h4>')[1])
-                season = self.cm.ph.getAllItemsBeetwenMarkers(season, '<a', '</a>')
-                tab = []
-                for item in season:
-                    title = self.cleanHtmlStr(self.cm.ph.getSearchGroups(item, '''title=['"]([^'^"]+?)['"]''')[0])
-                    url = self.getFullUrl(self.cm.ph.getSearchGroups(item, '''href=['"]([^'^"]+?)['"]''')[0])
-                    if not self.cm.isValidUrl(url):
-                        continue
-                    tab.append({'title': title, 'url': url})
-                if len(tab):
-                    params = dict(cItem)
-                    params.update({'good_for_fav': False, 'category': nextCategory, 'title': seasonTitle, 'desc': desc, 's_idx': len(self.episodesCache)})
-                    self.addDir(params)
-                    self.episodesCache.append(tab)
-
-    def listEpisodes(self, cItem):
-        printDBG("SKStream.listEpisodes")
-        cIdx = cItem.get('s_idx', 0)
-        if cIdx < len(self.episodesCache):
-            tab = self.episodesCache[cIdx]
-            for item in tab:
-                params = dict(cItem)
-                params.update(item)
-                params.update({'good_for_fav': True})
-                self.addVideo(params)
+        content = self.cm.ph.getDataBeetwenMarkers(data, "id='dle-content'", "</main", False)[1] or data
+        count = self._addTiles(content, cItem.get("s_year", ""))
+        lastPage = self._lastPage(data)
+        listItem = dict(cItem, base_url=baseUrl, url=baseUrl)
+        addPagingItems(self, listItem, page, bool(count) and lastPage > page, lastPage, baseUrl.replace("{", "{{").replace("}", "}}") + "page/{page}/")
 
     def listSearchResult(self, cItem, searchPattern, searchType):
-        printDBG("SKStream.listSearchResult cItem[%s], searchPattern[%s] searchType[%s]" % (cItem, searchPattern, searchType))
-        self.selectDomain()
-        page = cItem.get('page', 1)
+        pattern = _foldAccents(searchPattern.strip())
+        printDBG("SKStream.listSearchResult [%s]" % pattern)
+        params = dict(self.defaultParams, header=dict(self.AJAX_HEADER, Referer=self.getMainUrl()))
+        sts, data = self.getPage(self.getFullUrl("engine/ajax/controller.php?mod=search"), params, {"query": pattern})
+        if not sts:
+            return
+        seen = set()
+        for url, title in re.findall(r'(?s)<a href="([^"]+)"><span class="searchheading">(.*?)</span>', data):
+            title = self.cleanHtmlStr(title)
+            if not title or url in seen or "do=search" in url:
+                continue
+            seen.add(url)
+            params = {"name": "category", "good_for_fav": True, "url": self.getFullUrl(url), "title": title, "desc": ""}
+            if SERIES_URL_RE.search(url):
+                params.update({"category": "skm_series", "s_title": title, "meta_type": "tv", "meta_title": title, "meta_year": ""})
+                self.addDir(params)
+            else:
+                params.update({"category": "skm_video", "meta_type": "movie", "meta_title": title, "meta_year": ""})
+                self.addVideo(params)
 
-        cItem = dict(cItem)
-        cItem['url'] = self.getFullUrl('recherche?s=%s' % urllib_quote_plus(searchPattern))
-        self.listItems(cItem, 'explore_item')
+    def _seasons(self, data):
+        # [(season, url, icon)] of a series page, ascending
+        block = self.cm.ph.getDataBeetwenMarkers(data, '<div class="seasontab">', '<div class="g-buttons">', False)[1]
+        seasons, seen = [], set()
+        for url, inner in re.findall(r'(?s)<a class="th-hover" href="([^"]+)">(.*?)</a>', block):
+            match = SEASON_URL_RE.search(url)
+            if not match or int(match.group(1)) in seen:
+                continue
+            seen.add(int(match.group(1)))
+            icon = self.cm.ph.getSearchGroups(inner, r'<img[^>]+src="([^"]+)"')[0]
+            seasons.append((int(match.group(1)), self.getFullUrl(url), self.getFullIconUrl(icon) if icon else ""))
+        return sorted(seasons)
+
+    def listSeasons(self, cItem):
+        sts, data = self.getPage(cItem["url"])
+        if not sts:
+            return
+        seasons = self._seasons(data)
+        if not seasons:
+            SetIPTVPlayerLastHostError(_("No stream available"))
+            return
+        show = cItem.get("s_title") or cItem.get("title", "")
+        story = self._siteInfo(data)[0]
+        if len(seasons) == 1:
+            season, url, icon = seasons[0]
+            self.listEpisodes(dict(cItem, url=url, s_title=show, s_season=season, icon=icon or cItem.get("icon", ""), category="skm_season"))
+            return
+        normalize = IsMediaNamingNormalized()
+        for season, url, icon in seasons:
+            params = stripPagerKeys(dict(cItem))
+            params.update({"name": "category", "category": "skm_season", "good_for_fav": True, "url": url, "s_title": show, "s_season": season,
+                           "title": "%s - %s" % (show, formatSxxExx(season)) if normalize else "%s - %s %d" % (show, _("Season"), season),
+                           "icon": icon or cItem.get("icon", ""), "desc": story or cItem.get("desc", ""), "meta_type": "tv"})
+            self.addDir(params)
+
+    def listEpisodes(self, cItem):
+        sts, data = self.getPage(cItem["url"])
+        if not sts:
+            return
+        block = self.cm.ph.getDataBeetwenMarkers(data, '<div class="saisontab">', '<div class="g-buttons">', False)[1]
+        episodes = {}
+        for url in re.findall(r'<a href="([^"]+-episode\.html)"', block):
+            match = EPISODE_URL_RE.search(url)
+            if match:
+                episodes.setdefault(int(match.group(2)), self.getFullUrl(url))
+        if not episodes:
+            SetIPTVPlayerLastHostError(_("No stream available"))
+            return
+        normalize = IsMediaNamingNormalized()
+        show = cItem.get("s_title") or cItem.get("title", "")
+        season = cItem.get("s_season") or int(self.cm.ph.getSearchGroups(cItem["url"], SEASON_URL_RE.pattern)[0] or 1)
+        for episode in sorted(episodes):
+            if normalize:
+                title = "%s - %s" % (show, formatSxxExx(season, episode))
+            else:
+                title = "%s - %s %d - %s %d" % (show, _("Season"), season, _("Episode"), episode)
+            params = stripPagerKeys(dict(cItem))
+            params.update({"name": "category", "category": "skm_video", "good_for_fav": True, "title": title, "url": episodes[episode],
+                           "s_title": show, "s_season": season, "s_episode": episode, "meta_type": "tv", "meta_title": show})
+            self.addVideo(params)
+
+    ###################################################
+    # links
+    ###################################################
+    def _siteInfo(self, data):
+        # (story, poster, {INFO fields}) of a movie / series / season / episode page
+        story = self.cleanHtmlStr(self.cm.ph.getSearchGroups(data, r'(?s)<div class="fdesc[^"]*">(.*?)</div>')[0])
+        poster = self.cm.ph.getSearchGroups(data, r'(?s)<div class="fposter[^"]*">\s*<img[^>]+src="([^"]+)"')[0]
+        fields = {}
+        flist = self.cm.ph.getDataBeetwenMarkers(data, '<ul class="flist">', "</ul>", False)[1]
+        for label, value in re.findall(r"(?s)<li><span>(.*?)</span>(.*?)</li>", flist):
+            fields[self.cleanHtmlStr(label).rstrip(":").strip().lower()] = re.sub(r"\s*,\s*", ", ", self.cleanHtmlStr(value)).strip(" ,")
+        info = {}
+        # ASCII parts of the labels ("Année de production", "Durée", "Réalisé par")
+        for key, label in (("year", "de production"), ("duration", "dur"), ("director", "par"), ("actors", "acteurs"), ("genres", "genre")):
+            for name, value in fields.items():
+                if label in name and value and value != "N/A":
+                    info[key] = value
+        rating = self.cm.ph.getSearchGroups(data, r'(?s)class="frate-in[^"]*"[^>]*>\s*<span>([^<]+)</span>')[0].strip()
+        if rating:
+            info["rating"] = "%s/5 (Allocine)" % rating
+        return story, poster, info
+
+    def _metaArgs(self, cItem, info):
+        # type, title and year of the moviemeta lookup (type from the url, the show name, the page's
+        # production year) - INFO and the download sidecar ask the same
+        mediaType = cItem.get("meta_type") or ("tv" if SERIES_URL_RE.search(cItem.get("url", "")) else "movie")
+        metaTitle = cItem.get("s_title") or cItem.get("meta_title") or cItem.get("title", "")
+        year = cItem.get("meta_year") or self.cm.ph.getSearchGroups(info.get("year", ""), r"((?:19|20)\d{2})")[0]
+        return mediaType, metaTitle, year
 
     def getLinksForVideo(self, cItem):
-        printDBG("SKStream.getLinksForVideo [%s]" % cItem)
-        self.selectDomain()
-
-        urlTab = self.cacheLinks.get(cItem['url'], [])
-        if len(urlTab):
-            return urlTab
-
-        sts, data = self.getPage(cItem['url'])
+        url = cItem.get("url", "")
+        printDBG("SKStream.getLinksForVideo [%s]" % url)
+        if self.cacheLinks.get(url):
+            return self.cacheLinks[url]
+        sts, data = self.getPage(url)
         if not sts:
             return []
-
-        urlTab = []
-        data = self.cm.ph.getDataBeetwenMarkers(data, '<tbody>', '</tbody>')[1]
-        data = self.cm.ph.getAllItemsBeetwenMarkers(data, '<tr', '</tr>')
-        for item in data:
-            linksTab = []
-            playerUrl = self.getFullUrl(self.cm.ph.getSearchGroups(item, '''data-embedlien=['"]([^'^"]+?)['"]''')[0])
-            if self.cm.isValidUrl(playerUrl):
-                linksTab.append(playerUrl)
-            playerUrl = self.getFullUrl(self.cm.ph.getSearchGroups(item, '''data-basicurl=['"]([^'^"]+?)['"]''')[0])
-            if self.cm.isValidUrl(playerUrl):
-                linksTab.append(playerUrl)
-
-            if 0 == len(linksTab):
+        pageUrl = self.cm.meta.get("url") or url
+        block = self.cm.ph.getDataBeetwenMarkers(data, '<ul class="player-list">', "</ul>", False)[1]
+        urltab, seen = [], set()
+        for item in self.cm.ph.getAllItemsBeetwenMarkers(block, "<li", "</li>"):
+            match = PLAYER_RE.search(item)
+            if not match or match.group(2) in seen or match.group(2).split("-")[0].lower() in DEAD_SERVERS:
                 continue
+            seen.add(match.group(2))
+            server = self.cleanHtmlStr(self.cm.ph.getSearchGroups(item, r'<span class="serv">(.*?)</span>')[0]) or match.group(2)
+            lang = self.cm.ph.getSearchGroups(item, r"images/(VF|VOSTFR)\.png")[0]
+            quality = self.cleanHtmlStr(self.cm.ph.getSearchGroups(item, r'<span class="pl-5">(.*?)</span>')[0])
+            name = " ".join(x for x in (server, "[%s]" % lang if lang else "", quality) if x)
+            linkUrl = "%s%s%s:%s" % (pageUrl.split("#")[0], LINK_TAG, match.group(1), match.group(2))
+            urltab.append({"name": name, "url": strwithmeta(linkUrl, {"Referer": pageUrl}), "need_resolve": 1})
+        if not urltab:
+            SetIPTVPlayerLastHostError(_("No stream available"))
+            return []
+        story, _poster, info = self._siteInfo(data)
+        mediaType, metaTitle, year = self._metaArgs(cItem, info)
+        metaQuery = sidecarMetaQuery(mediaType, metaTitle, year, skip=())
+        urltab = applySidecarToLinks(urltab, buildSidecarFromItem(cItem, IsSidecarEnabled(), story, metaQuery))
+        self.cacheLinks[url] = urltab
+        return urltab
 
-            nameTab = []
-            tmp = self.cm.ph.getAllItemsBeetwenMarkers(item, '<td', '</td>')
-            for n in tmp:
-                n = self.cleanHtmlStr(n)
-                if n != '':
-                    nameTab.append(n)
-
-            url = strwithmeta('|><|'.join(linksTab), {'Referer': cItem['url']})
-            urlTab.append({'name': ' | '.join(nameTab), 'url': url, 'need_resolve': 1})
-
-        if len(urlTab):
-            self.cacheLinks[cItem['url']] = urlTab
-        return urlTab
-
-    def _generatePass(self, nb):
-        chars = 'azertyupqsdfghjkmwxcvbn23456789AZERTYUPQSDFGHJKMWXCVBN_-#@'
-        password = ''
-        for idx in range(nb):
-            wpos = random.randrange(0, len(chars))
-            password += chars[wpos]
-        return password
+    def _embedUrl(self, linkUrl):
+        # the hoster embed url of a player row: the site's ajax answers with an iframe whose src is the url
+        # or javascript:window.location.replace("https://'d000d.xyz'/e/<id>")
+        pageUrl, _sep, tag = linkUrl.partition(LINK_TAG)
+        videoId, _sep, xfield = tag.partition(":")
+        params = dict(self.defaultParams, header=dict(self.AJAX_HEADER, Referer=pageUrl))
+        if EPISODE_URL_RE.search(pageUrl):
+            sts, data = self.getPage(self.getFullUrl("engine/ajax/Season.php"), params, {"id": videoId, "xfield": xfield, "action": "playEpisode"})
+        else:
+            sts, data = self.getPage(self.getFullUrl("engine/ajax/getxfield.php?id=%s&xfield=%s&token=undefined" % (videoId, urllib_quote_plus(xfield))), params)
+        if not sts:
+            return ""
+        src = self.cm.ph.getSearchGroups(data, r"""location\.replace\("([^"]+)"\)""")[0] or \
+            self.cm.ph.getSearchGroups(data, r"""<iframe[^>]+src=['"]((?:https?:)?//[^'"]+)""")[0]
+        src = src.replace("'", "").strip()
+        if src.startswith("//"):
+            src = "https:" + src
+        # some netu rows carry no video id (embed_player.php?vid=&autoplay=no) -> nothing to play
+        if re.search(r"[?&]vid=(?:&|$)", src):
+            printDBG("SKStream._embedUrl: player row without a video id [%s]" % src)
+            return ""
+        return src
 
     def getVideoLinks(self, videoUrl):
         printDBG("SKStream.getVideoLinks [%s]" % videoUrl)
-        urlTab = []
-
-        # mark requested link as used one
-        if len(self.cacheLinks.keys()):
-            for key in self.cacheLinks:
-                for idx in range(len(self.cacheLinks[key])):
-                    if videoUrl in self.cacheLinks[key][idx]['url']:
-                        if not self.cacheLinks[key][idx]['name'].startswith('*'):
-                            self.cacheLinks[key][idx]['name'] = '*' + self.cacheLinks[key][idx]['name']
-                        break
-
-        linksTab = videoUrl.split('|><|')
-        for url in linksTab:
-            printDBG("> url[%s]" % url)
-            if not self.cm.isValidUrl(url):
-                continue
-
-            if 1 != self.up.checkHostSupport(url):
-                params = dict(self.defaultParams)
-                try:
-                    maxAttempt = 3
-                    attempt = 0
-                    params['header'] = dict(params['header'])
-                    params['header']['Referer'] = videoUrl.meta['Referer']
-                    params['max_data_size'] = 1024 * 1024 * 1024
-                    post_data = None
-                    while attempt < maxAttempt:
-                        attempt += 1
-                        sts, data = self.getPage(url, params, post_data)
-                        url = self.cm.meta['url']
-                        if 'dl-protect.co' in self.up.getDomain(url):
-
-                            # get JS player script code from confirmation page
-                            sts, tmpData = self.cm.ph.getDataBeetwenMarkers(data, ">eval(", '</script>', False)
-                            if sts:
-                                data += unpackJSPlayerParams(tmpData, VIDEOMEGA_decryptPlayerParams, 0, r2=True) #YOUWATCH_decryptPlayerParams == VIDUPME_decryptPlayerParams
-
-                            printDBG(data)
-                            url = self.getFullUrl(self.cm.ph.getSearchGroups(data, '''<iframe[^>]+?src=['"]([^"^']+?)['"]''', 1, True)[0])
-                            if url == '':
-                                url = self.getFullUrl(self.cm.ph.getSearchGroups(data, '''iframe.src\s*=\s*['"]([^"^']+?)['"]''', 1, True)[0])
-                            if not self.cm.isValidUrl(url):
-                                data = self.cm.ph.getDataBeetwenMarkers(data, 'sources:', '],', False)[1] + ']'
-                                data = byteify(json.loads(data))
-                                for item in data:
-                                    if "mp4" == item['type']:
-                                        urlTab.append({'name': str(item.get('label', 'default')), 'url': item['file']})
-                            break
-                        else:
-                            if 1 != self.up.checkHostSupport(url):
-
-                                scriptUrl = self.cm.ph.getSearchGroups(data, '''<script[^>]+?src=['"]([^"^']*?QapTcha.jquery[^"^']*?\.js)['"]''', 1, True)[0]
-                                if scriptUrl != '' and not self.cm.isValidUrl(scriptUrl):
-                                    scriptUrl = self.getFullUrl('/dl/' + scriptUrl)
-                                if not self.cm.isValidUrl(scriptUrl):
-                                    printDBG(">> scriptUrl not valid")
-                                    break
-
-                                sts, data = self.getPage(scriptUrl)
-                                if not sts:
-                                    break
-
-                                formUrl = self.cm.ph.getSearchGroups(data, '''['"]([^"^']*?QapTcha.jquery[^"^']*?\.php)['"]''', 1, True)[0]
-                                if formUrl != '' and not self.cm.isValidUrl(formUrl):
-                                    formUrl = self.getFullUrl('/dl/' + formUrl)
-                                if not self.cm.isValidUrl(formUrl):
-                                    printDBG(">> formUrl not valid")
-                                    break
-
-                                qaptchaKey = self._generatePass(37)
-                                post_data2 = {'action': 'qaptcha', 'qaptcha_key': qaptchaKey}
-                                params2 = dict(self.defaultParams)
-                                params2['header'] = dict(self.AJAX_HEADER)
-                                params2['header']['Referer'] = url
-                                sts, data = self.getPage(formUrl, params2, post_data2)
-                                if not sts:
-                                    break
-                                printDBG(">>>>>>\n%s\n<<<<<<" % data)
-
-                                post_data2 = {'submit': 'Valider', qaptchaKey: ''}
-                                sts, data = self.getPage(url, params2, post_data2)
-                                if not sts:
-                                    break
-                                printDBG(">>>>>>\n%s\n<<<<<<" % data)
-
-                                url = self.cm.ph.getSearchGroups(data, '''['"](https?://[^"^"]*?dl\-protect\.co[^'^"]+?)['"]''', 1, True)[0]
-                                if self.cm.isValidUrl(url):
-                                    continue
-                                break
-                except Exception:
-                    printExc()
-                    continue
-
-            if len(urlTab):
+        sidecar = sidecarFromUrlMeta(videoUrl, IsSidecarEnabled())
+        if self.MAIN_URL is None:
+            self.selectDomain()
+        url = self._embedUrl(videoUrl) if LINK_TAG in videoUrl else videoUrl
+        if not self.cm.isValidUrl(url):
+            SetIPTVPlayerLastHostError(_("No stream available"))
+            return []
+        # redirector domains of a hoster (d000d.xyz -> 302 doply.net): follow the redirects up to a known hoster
+        params = dict(self.defaultParams, header=dict(self.HEADER, Referer=self.getMainUrl()), no_redirection=True)
+        for _hop in range(3):
+            if 1 == self.up.checkHostSupport(url):
                 break
-
-            urlTab = self.up.getVideoLinkExt(url)
-            if len(urlTab):
+            sts, _data = self.cm.getPage(url, params)
+            location = self.cm.meta.get("location", "") if sts else ""
+            if not location:
                 break
+            url = self.cm.getFullUrl(location, url)
+        return decorateResolvedLinkItems(self.up.getVideoLinkExt(strwithmeta(url, {"Referer": self.getMainUrl()})), sidecar)
 
-        return urlTab
-
-    def getFavouriteData(self, cItem):
-        printDBG('SKStream.getFavouriteData')
-        return json.dumps(cItem)
-
-    def getLinksForFavourite(self, fav_data):
-        printDBG('SKStream.getLinksForFavourite')
-        links = []
+    ###################################################
+    # INFO
+    ###################################################
+    def getArticleContent(self, cItem):
+        printDBG("SKStream.getArticleContent [%s]" % cItem.get("url", ""))
+        story, poster, info = "", "", {}
+        sts, data = self.getPage(cItem.get("url", ""))
+        if sts:
+            story, poster, info = self._siteInfo(data)
+        meta = {}
         try:
-            cItem = byteify(json.loads(fav_data))
-            links = self.getLinksForVideo(cItem)
+            meta = getMeta(*self._metaArgs(cItem, info))
         except Exception:
             printExc()
-        return links
+        info.update(meta.get("info", {}))
+        plot = meta.get("plot", "")
+        text = story or plot or cItem.get("desc", "")
+        if plot and story and plot != story:
+            text = "%s[/br][/br]%s" % (story, plot)
+        icon = meta.get("poster") or (self.getFullIconUrl(poster) if poster else cItem.get("icon", ""))
+        return [{"title": cItem.get("title", ""), "text": text, "images": [{"title": "", "url": icon}] if icon else [], "other_info": info}]
 
-    def setInitListFromFavouriteItem(self, fav_data):
-        printDBG('SKStream.setInitListFromFavouriteItem')
-        try:
-            params = byteify(json.loads(fav_data))
-        except Exception:
-            params = {}
-            printExc()
-        self.addDir(params)
-        return True
-
-    def handleService(self, index, refresh=0, searchPattern='', searchType=''):
-        printDBG('handleService start')
-
+    ###################################################
+    # service
+    ###################################################
+    def handleService(self, index, refresh=0, searchPattern="", searchType=""):
         CBaseHostClass.handleService(self, index, refresh, searchPattern, searchType)
-        self.selectDomain()
-
-        name = self.currItem.get("name", '')
-        category = self.currItem.get("category", '')
-        mode = self.currItem.get("mode", '')
-
-        printDBG("handleService: |||||||||||||||||||||||||||||||||||| name[%s], category[%s] " % (name, category))
+        if self.MAIN_URL is None:
+            self.selectDomain()
+        if isJumpItem(self.currItem):
+            self.currItem = jumpTarget(self, self.currItem)
+        name = self.currItem.get("name", "")
+        category = self.currItem.get("category", "")
+        printDBG("SKStream.handleService name[%s] category[%s]" % (name, category))
         self.currList = []
-
-    #MAIN MENU
-        if name == None:
-            self.listMainMenu({'name': 'category'})
-        elif category == 'list_categories':
-            self.listCategories(self.currItem, 'list_cats_items')
-        elif category == 'list_cats_items':
-            self.listCatsItems(self.currItem, 'list_items')
-        elif category == 'list_items':
-            self.listItems(self.currItem, 'explore_item')
-        elif category == 'explore_item':
-            self.exploreItem(self.currItem, 'list_episodes')
-        elif category == 'list_episodes':
+        if name is None:
+            self.listMainMenu()
+        elif category == "skm_cats":
+            self.listCategories(self.currItem)
+        elif category == "skm_list":
+            self.listItems(self.currItem)
+        elif category == "skm_series":
+            self.listSeasons(self.currItem)
+        elif category == "skm_season":
             self.listEpisodes(self.currItem)
-    #SEARCH
         elif category in ["search", "search_next_page"]:
             cItem = dict(self.currItem)
-            cItem.update({'search_item': False, 'name': 'category'})
+            cItem.update({"search_item": False, "name": "category"})
             self.listSearchResult(cItem, searchPattern, searchType)
-    #HISTORIA SEARCH
         elif category == "search_history":
-            self.listsHistory({'name': 'history', 'category': 'search'}, 'desc', _("Type: "))
+            self.listsHistory({"name": "history", "category": "search"}, "desc")
         else:
             printExc()
-
         CBaseHostClass.endHandleService(self, index, refresh)
 
 
-class IPTVHost(CHostBase):
+class IPTVHost(GenericFolderWatchedHostMixin, CHostBase):
 
     def __init__(self):
         CHostBase.__init__(self, SKStream(), True, [])
+        self.cachedRet = None
+        self.refreshAfterWatchedFlagChange = False
+        self.watchedHelper = IPTVWatchedHelper("skstream")
+
+    def withArticleContent(self, cItem):
+        return cItem.get("type") == "video" or cItem.get("category", "") in FOLDER_CATEGORIES

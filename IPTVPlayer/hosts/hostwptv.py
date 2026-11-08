@@ -1,343 +1,304 @@
 # -*- coding: utf-8 -*-
+LAST_MODIFIED = "28.10.2026"
+# WP Wideo (wideo.wp.pl, formerly wp.tv) - video programmes of Wirtualna Polska
+# Programmes: the "/<slug>-<id>vc" cycles of the site navigation; their episodes come from
+#   /frontendparts/video-cycle-episodes-load-more?cycleId=<id>&offset=N&limit=24 (HTML teasers + hasMore).
+# Episode page (kobieta.wp.pl/..., wiadomosci.wp.pl/... "-<id>v"): WPP_VIDEO_EMBED -> get.wp.tv/?mid=<mid>
+#   -> https://wideo.wp.pl/player/mid,<mid>,embed.json -> MP4 HQ/LQ + HLS.
+# Search: /szukaj?q=<words>&s=newest&p=<page>.
+# 03.10.2026 - rewrite for wideo.wp.pl: programmes, search, watched flag, naming, sidecar, INFO
+# 28.10.2026 - newer episode pages embed wideo.wp.pl/mid,<mid>,klip.html
 ###################################################
 # LOCAL import
 ###################################################
-from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
+from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, SetIPTVPlayerLastHostError
 from Plugins.Extensions.IPTVPlayer.components.ihost import CHostBase, CBaseHostClass
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, byteify, rm, CSelOneLink
-###################################################
-from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote
+from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import IsSidecarEnabled, IsMediaNamingNormalized
+from Plugins.Extensions.IPTVPlayer.tools.iptvpaging import addPagingItems, isJumpItem, jumpTarget
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc
+from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
+from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedhelper import IPTVWatchedHelper
+from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedfoldermixin import GenericFolderWatchedScraperMixin, GenericFolderWatchedHostMixin
+from Plugins.Extensions.IPTVPlayer.libs.urlmetahelper import buildSidecarFromItem, applySidecarToLinks
+from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import getDirectM3U8Playlist
+from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads, dumps as json_dumps
+from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote_plus
 ###################################################
 # FOREIGN import
 ###################################################
-try:
-    import json
-except Exception:
-    import simplejson as json
-from Components.config import config, ConfigSelection, ConfigYesNo, getConfigListEntry
+from Components.config import config, ConfigYesNo, getConfigListEntry
+import re
 ###################################################
 
-###################################################
-# Config options for HOST
-###################################################
-config.plugins.iptvplayer.wpDefaultformat = ConfigSelection(default="2", choices=[("1", "Niska"), ("2", "Wysoka")])
-config.plugins.iptvplayer.wpUseDF = ConfigYesNo(default=False)
+config.plugins.iptvplayer.wptv_mp4_first = ConfigYesNo(default=True)
 
 
 def GetConfigList():
-    optionList = []
-    optionList.append(getConfigListEntry("Domyślny jakość video:", config.plugins.iptvplayer.wpDefaultformat))
-    optionList.append(getConfigListEntry("Używaj domyślnej jakości video:", config.plugins.iptvplayer.wpUseDF))
-    return optionList
-###################################################
+    return [getConfigListEntry(_("Prefer MP4 over HLS:"), config.plugins.iptvplayer.wptv_mp4_first)]
 
 
 def gettytul():
-    return 'http://wp.tv/'
+    return 'https://wideo.wp.pl/'
 
 
-class WpTV(CBaseHostClass):
+class WpTV(GenericFolderWatchedScraperMixin, CBaseHostClass):
+
+    FAV_FIELDS = ('name', 'category', 'type', 'url', 'title', 'raw_title', 'icon', 'desc', 'mid', 'series', 'cycle_id')
+    PAGE_SIZE = 24
 
     def __init__(self):
-        CBaseHostClass.__init__(self, {'history': 'WpTV.tv', 'cookie': 'WpTV.cookie'})
-        self.HEADER = {'User-Agent': 'Mozilla/5.0', 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 'Accept-Encoding': 'gzip, deflate'}
-        self.AJAX_HEADER = dict(self.HEADER)
-        self.AJAX_HEADER.update({'X-Requested-With': 'XMLHttpRequest'})
-        self.cm.HEADER = self.HEADER # default header
-        self.defaultParams = {'header': self.HEADER, 'use_cookie': True, 'load_cookie': True, 'save_cookie': True, 'cookiefile': self.COOKIE_FILE}
+        CBaseHostClass.__init__(self, {'history': 'wptv', 'cookie': 'wptv.cookie'})
+        self.MAIN_URL = gettytul()
+        self.DEFAULT_ICON_URL = 'https://wideo.wp.pl/staticfiles/icons/icon.png'
+        self.HEADER = self.cm.getDefaultHeader(browser='chrome')
+        self.defaultParams = {'header': self.HEADER, 'with_metadata': True, 'use_cookie': True, 'load_cookie': True, 'save_cookie': True, 'cookiefile': self.COOKIE_FILE}
+        self.watchedHelper = IPTVWatchedHelper('wptv')
+        self.wfInitFolderCache()
 
-        self.MAIN_URL = 'http://wp.tv/'
-        self.DEFAULT_ICON_URL = 'http://static.wirtualnemedia.pl/media/top/wp-kanaltv-logo655ciemne.png'
-
-        self.MAIN_CAT_TAB = [{'category': 'list_sections', 'title': _('Main'), 'url': self.MAIN_URL},
-                             {'category': 'list_sections', 'title': _('Series'), 'url': self.getFullUrl('seriale')},
-                             {'category': 'list_sections', 'title': _('Programs'), 'url': self.getFullUrl('programy')},
-                             {'category': 'list_groups', 'title': _('Others'), 'url': self.getFullUrl('inne')},
-                             {'category': 'search', 'title': _('Search'), 'search_item': True},
-                             {'category': 'search_history', 'title': _('Search history')}
-                            ]
-
-        self.cacheSections = {}
-        self.cacheGroups = {}
-
-    def _getAttrVal(self, data, attr):
-        val = self.cm.ph.getSearchGroups(data, '[<\s][^>]*' + attr + '=([^\s^>]+?)[\s>]')[0].strip()
-        if len(val) > 2:
-            if val[0] in ['"', "'"]:
-                val = val[1:]
-            if val[-1] in ['"', "'"]:
-                val = val[:-1]
-            return val
+    ###################################################
+    # watched flag
+    ###################################################
+    def _getWatchedKeyForItem(self, cItem):
+        try:
+            if not isinstance(cItem, dict):
+                return ''
+            if cItem.get('type') == 'video':
+                vid = self._videoId(cItem.get('url', ''))
+                if vid:
+                    return 'video:%s' % vid
+                return 'video:mid:%s' % cItem['mid'] if cItem.get('mid') else ''
+            if cItem.get('category') == 'list_episodes' and cItem.get('cycle_id'):
+                return 'folder:%s' % cItem['cycle_id']
+        except Exception:
+            printExc()
         return ''
 
-    def getSectionItems(self, section):
-        sectionItemsTab = []
-        tmp = self.cm.ph.rgetAllItemsBeetwenNodes(section, ('</div', '>'), ('<div', '>', 'teaser teaser'))
-        if 0 == len(tmp):
-            tmp = self.cm.ph.getAllItemsBeetwenNodes(section, ('<a', '>', 'teaser teaser'), ('</a', '>'))
-        for item in tmp:
-            cat = self.cleanHtmlStr(self.cm.ph.getDataBeetwenMarkers(item, '<em', '</em>')[1])
-            dur = self.cleanHtmlStr(self.cm.ph.getDataBeetwenMarkers(item, '<time', '</time>')[1])
-            des = self.cleanHtmlStr(self.cm.ph.getDataBeetwenNodes(item, ('<div', '>', 'description'), ('</div', '>'))[1])
+    def _videoId(self, url):
+        return self.cm.ph.getSearchGroups(str(url or ''), r'-(\d{12,})v$')[0]
 
-            url = self.getFullUrl(self._getAttrVal(item, 'href'))
-            icon = self._getAttrVal(item, 'src')
-            if icon == '' or icon.startswith('data:image'):
-                icon = self._getAttrVal(item, 'data-src')
-            title = self.cleanHtmlStr(self.cm.ph.getDataBeetwenMarkers(item, '<h3', '</h3>')[1])
-            if title == '':
-                title = self.cleanHtmlStr(self.cm.ph.getDataBeetwenMarkers(item, '<h2', '</h2>')[1])
-            if title == '':
-                title = self.cleanHtmlStr(self._getAttrVal(item, 'alt'))
-            if 'odcinek' in cat.lower():
-                title += ' - ' + cat
-
-            if cat != '' and dur != '' and des != '':
-                desc = '%s | %s [/br]%s' % (dur, cat, des)
-            else:
-                desc = self.cleanHtmlStr(item)
-            if not self.cm.isValidUrl(url):
-                continue
-            params = {'title': title, 'url': url, 'icon': self.getFullUrl(icon), 'desc': desc}
-            if ',klip.html' in url:
-                params['type'] = 'video'
-            else:
-                params.update({'type': 'category'})
-            sectionItemsTab.append(params)
-        return sectionItemsTab
-
-    def listSections(self, cItem, nextCategory):
-        printDBG("WpTV.listSections cItem[%s] nextCategory[%s]" % (cItem, nextCategory))
-
-        self.cacheSections = {}
-        page = cItem.get('page', 1)
-        sts, data = self.cm.getPage(cItem['url'])
-        if not sts:
-            return
-
-        nextPage = self.getFullUrl(self.cm.ph.getSearchGroups(data, '''href=['"]([^'^"]+?\,page\,%d\,[^'^"]+?)['"]''' % (page + 1))[0])
-
-        titlesTab = []
-        data = self.cm.ph.getAllItemsBeetwenMarkers(data, '<section', '</section>')
-        for section in data:
-            title = self.cm.ph.getDataBeetwenMarkers(section, '<header', '</header>')[1].split('<span')[0]
-            title = self.cleanHtmlStr(title)
-            itemsTab = self.getSectionItems(section)
-            if len(itemsTab):
-                self.cacheSections[title] = itemsTab
-                titlesTab.append(title)
-
-        if len(titlesTab) > 1:
-            for title in titlesTab:
-                params = dict(cItem)
-                params.update({'title': title, 'category': nextCategory})
-                self.addDir(params)
-        elif len(titlesTab) == 1:
-            params = dict(cItem)
-            params.update({'title': titlesTab[0]})
-            self.listSectionItems(params, 'list_episodes')
-
-        if self.cm.isValidUrl(nextPage):
-            params = dict(cItem)
-            params.pop('good_for_fav', None)
-            params.update({'title': _('Next page'), 'url': nextPage, 'page': page + 1})
-            self.addDir(params)
-
-    def listSectionItems(self, cItem, nextCategory):
-        printDBG("WpTV.listSectionItems cItem[%s] nextCategory[%s]" % (cItem, nextCategory))
-
-        key = cItem['title']
-        tab = self.cacheSections.get(key, [])
-        for params in tab:
-            params = dict(params)
-            params.update({'good_for_fav': True})
-            if params['type'] != 'video':
-                params.update({'category': nextCategory})
-                self.addDir(params)
-            else:
-                self.addVideo(params)
-
-    def listGroups(self, cItem, nextCategory):
-        printDBG("WpTV.listGroups cItem[%s] nextCategory[%s]" % (cItem, nextCategory))
-
-        self.cacheGroups = {}
-
-        sts, data = self.cm.getPage(cItem['url'])
-        if not sts:
-            return
-
-        titlesTab = []
-        data = self.cm.ph.getAllItemsBeetwenMarkers(data, '<div class="others__cols', '</ul>')
-        for group in data:
-            groupTitle = self.cm.ph.getDataBeetwenMarkers(group, '<header', '</header>')[1].split('<span')[0]
-            groupTitle = self.cleanHtmlStr(groupTitle)
-            itemTab = []
-            group = self.cm.ph.getAllItemsBeetwenMarkers(group, '<li', '</li>')
-            for item in group:
-                url = self.getFullUrl(self._getAttrVal(item, 'href'))
-                title = self.cleanHtmlStr(item)
-                itemTab.append({'title': title, 'url': url})
-
-            if len(itemTab):
-                self.cacheGroups[groupTitle] = itemTab
-                params = dict(cItem)
-                params.update({'title': groupTitle, 'category': nextCategory})
-                self.addDir(params)
-
-    def listGroupItems(self, cItem, nextCategory):
-        printDBG("WpTV.listGroupItems cItem[%s] nextCategory[%s]" % (cItem, nextCategory))
-        key = cItem['title']
-        tab = self.cacheGroups.get(key, [])
-
-        cItem = dict(cItem)
-        cItem.update({'good_for_fav': True, 'category': nextCategory})
-        self.listsTab(tab, cItem)
-
-    def listEpisodes(self, cItem):
-        printDBG("WpTV.listEpisodes")
-
-        page = cItem.get('page', 1)
-        sts, data = self.cm.getPage(cItem['url'])
-        if not sts:
-            return
-
-        nextPage = self.getFullUrl(self.cm.ph.getSearchGroups(data, '''href=['"]([^'^"]+?\,page\,%d\,[^'^"]+?)['"]''' % (page + 1))[0])
-        mainDesc = self.cleanHtmlStr(self.cm.ph.getDataBeetwenMarkers(data, '<main class="main-content"', '</p>')[1])
-
-        if page == 1:
-            trailerData = self.cm.ph.getDataBeetwenMarkers(data, '<a class="see-trailer"', '</a>', withMarkers=True)[1]
-            trailerTitle = '{0} - {1}'.format(cItem['title'], self.cleanHtmlStr(trailerData))
-            trailerUrl = self.getFullUrl(self._getAttrVal(trailerData, 'href'))
-            if self.cm.isValidUrl(trailerUrl) and ',klip.html' in trailerUrl:
-                params = {'good_for_fav': True, 'url': trailerUrl, 'title': trailerTitle, 'icon': cItem.get('icon', ''), 'desc': mainDesc}
-                self.addVideo(params)
-
-        data = self.cm.ph.getAllItemsBeetwenMarkers(data, '<section', '</section>')
-        for section in data:
-            if 'Zobacz także' in section:
-                continue
-            itemsTab = self.getSectionItems(section)
-            for item in itemsTab:
-                item.update({'good_for_fav': True, 'desc': item['desc'] + '[/br]' + mainDesc}) #, 'title':item['desc']
-                self.addVideo(item)
-
-        if self.cm.isValidUrl(nextPage):
-            params = dict(cItem)
-            params.pop('good_for_fav', None)
-            params.update({'title': _('Next page'), 'url': nextPage, 'page': page + 1})
-            self.addDir(params)
-
-    def listSearchResult(self, cItem, searchPattern, searchType):
-        printDBG("WpTV.listSearchResult cItem[%s], searchPattern[%s] searchType[%s]" % (cItem, searchPattern, searchType))
-
-        cItem = dict(cItem)
-        page = cItem.get('page', 1)
-        if page == 1:
-            cItem['url'] = self.getFullUrl('/query,%s,szukaj.html?' % urllib_quote(searchPattern))
-        self.listEpisodes(cItem)
-
-    def getLinksForVideo(self, cItem):
-        printDBG("WpTV.getLinksForVideo [%s]" % cItem)
-        urlTab = []
-
-        rm(self.COOKIE_FILE)
-        sts, data = self.cm.getPage(cItem['url'], self.defaultParams)
-        if not sts:
-            return []
-
-        vidId = self.cm.ph.getSearchGroups(data, 'data-mid="([^"]+?)"')[0]
-        vidUrl = self.MAIN_URL + "player/mid,%s,embed.json" % vidId
-        try:
-            sts, data = self.cm.getPage(vidUrl, self.defaultParams)
-            if not sts:
-                return []
-
-            tmpTab = []
-            qMap = {"HQ": '2', "LQ": '1'}
-            data = byteify(json.loads(data))
-            for item in data['clip']['url']:
-                if 'mp4' not in item['type']:
-                    continue
-                urlTab.append({'name': item['quality'] + ' ' + item['type'], 'url': self.getFullUrl(item['url']), 'quality': qMap.get(item['quality'], '3'), 'need_resolve': 0})
-
-            if 0 < len(urlTab):
-                max_bitrate = int(config.plugins.iptvplayer.wpDefaultformat.value)
-
-                def __getLinkQuality(itemLink):
-                    if 'mobile' in itemLink['name']:
-                        return 0
-                    return int(itemLink['quality'])
-                urlTab = CSelOneLink(urlTab, __getLinkQuality, max_bitrate).getSortedLinks()
-                if config.plugins.iptvplayer.wpUseDF.value:
-                    urlTab = [urlTab[0]]
-        except Exception:
-            printExc()
-        return urlTab
+    ###################################################
+    def getPage(self, url, addParams=None, post_data=None):
+        if addParams is None:
+            addParams = dict(self.defaultParams)
+        return self.cm.getPage(url, addParams, post_data)
 
     def getFavouriteData(self, cItem):
-        printDBG('WpTV.getFavouriteData')
-        return json.dumps(cItem)
-
-    def getLinksForFavourite(self, fav_data):
-        printDBG('WpTV.getLinksForFavourite')
-        links = []
         try:
-            cItem = byteify(json.loads(fav_data))
-            links = self.getLinksForVideo(cItem)
+            if cItem.get('type') == 'video' or cItem.get('category') == 'list_episodes':
+                return json_dumps(dict((key, cItem[key]) for key in self.FAV_FIELDS if key in cItem))
         except Exception:
             printExc()
-        return links
+        return CBaseHostClass.getFavouriteData(self, cItem)
 
-    def setInitListFromFavouriteItem(self, fav_data):
-        printDBG('WpTV.setInitListFromFavouriteItem')
-        try:
-            params = byteify(json.loads(fav_data))
-        except Exception:
-            params = {}
-            printExc()
-        self.addDir(params)
+    def _episodeTitle(self, series, title):
+        if IsMediaNamingNormalized() and series and series.lower() not in title.lower():
+            return '%s - %s' % (series, title)
+        return title
+
+    ###################################################
+    # listing
+    ###################################################
+    def listMain(self, cItem):
+        sts, data = self.getPage(self.getMainUrl())
+        if sts:
+            seen = set()
+            for url, title in re.findall(r'<a [^>]*href="(/[a-z0-9-]+-\d+vc)"[^>]*>(.*?)</a>', data, re.S):
+                title = self.cleanHtmlStr(title)
+                if not title or url in seen:
+                    continue
+                seen.add(url)
+                params = dict(cItem)
+                params.update({'category': 'list_episodes', 'title': title, 'url': self.getFullUrl(url),
+                               'cycle_id': self.cm.ph.getSearchGroups(url, r'-(\d+)vc$')[0], 'series': title, 'good_for_fav': True})
+                self.addDir(params)
+        self.listsTab(self.searchItems(), cItem)
+
+    def _addTeaser(self, cItem, html, series=''):
+        url = self.cm.ph.getSearchGroups(html, r'''href="(https?://[^"]+-\d{12,}v)"''')[0]
+        if not url:
+            return False
+        title = self.cleanHtmlStr(self.cm.ph.getDataBeetwenNodes(html, ('<a', '>', 'wp-video-episode-link'), ('</a', '>'), False)[1])
+        if not title:
+            title = self.cleanHtmlStr(self.cm.ph.getDataBeetwenNodes(html, ('<h2', '>'), ('</h2', '>'), False)[1])
+        if not title:
+            title = self.cleanHtmlStr(self.cm.ph.getSearchGroups(html, r'''alt="([^"]+)"''')[0])
+        if not title:
+            return False
+        icon = self.cm.ph.getSearchGroups(html, r'''<img[^>]+src="(https?://[^"]+)"''')[0]
+        duration = self.cleanHtmlStr(self.cm.ph.getSearchGroups(html, r'''duration[^"]*"[^>]*>(?:\s*<[^>]+>)*\s*<span>([^<]+)</span>''')[0])
+        desc = (_('Duration: %s') % duration) if duration else ''
+        params = {'name': 'category', 'type': 'video', 'title': self._episodeTitle(series, title), 'raw_title': title,
+                  'url': url, 'icon': icon, 'desc': desc, 'series': series, 'good_for_fav': True}
+        self.addVideo(params)
         return True
 
+    def listEpisodes(self, cItem):
+        cycleId = cItem.get('cycle_id') or self.cm.ph.getSearchGroups(cItem.get('url', ''), r'-(\d+)vc$')[0]
+        if not cycleId:
+            return
+        page = int(cItem.get('page', 1) or 1)
+        url = self.getFullUrl('/frontendparts/video-cycle-episodes-load-more?cycleId=%s&offset=%d&limit=%d' % (cycleId, (page - 1) * self.PAGE_SIZE, self.PAGE_SIZE))
+        sts, data = self.getPage(url)
+        if not sts:
+            return
+        try:
+            data = json_loads(data)
+        except Exception:
+            printExc()
+            return
+        series = cItem.get('series', '')
+        episodes = data.get('episodes') or []
+        for html in episodes:
+            self._addTeaser(cItem, html, series)
+        try:
+            lastPage = (int(data.get('totalCount') or 0) + self.PAGE_SIZE - 1) // self.PAGE_SIZE
+        except (TypeError, ValueError):
+            lastPage = 0
+        # offset paging: the list is read by 'page', the template only enables "Jump" (the url stays the programme page)
+        listItem = dict(cItem, cycle_id=cycleId, base_url=cItem.get('base_url') or cItem.get('url', ''))
+        addPagingItems(self, listItem, page, bool(episodes) and bool(data.get('hasMore')), lastPage, listItem['base_url'] + '#page={page}')
+
+    def listSearchResult(self, cItem, searchPattern, searchType):
+        page = int(cItem.get('page', 1) or 1)
+        base = self.getFullUrl('/szukaj?q=%s&s=newest' % urllib_quote_plus(searchPattern))
+        tpl = base + '&p={page}'
+        sts, data = self.getPage(base if page <= 1 else tpl.format(page=page))
+        if not sts:
+            return
+        count = 0
+        for html in re.findall(r'<a id="\d+" href="[^"]+" class="wp-teaserlisting-link">.*?</a>', data, re.S):
+            if self._addTeaser(cItem, html):
+                count += 1
+        pages = [int(n) for n in re.findall(r'[?&;]p=(\d+)&amp;q=', data)]
+        if count:
+            addPagingItems(self, cItem, page, (page + 1) in pages, max(pages + [page]), tpl)
+
+    ###################################################
+    # links
+    ###################################################
+    def _getClip(self, cItem):
+        mid = cItem.get('mid', '')
+        data = ''
+        if not mid:
+            sts, data = self.getPage(cItem['url'])
+            if not sts:
+                return None, ''
+            # the player embed: get.wp.tv/?mid=<mid> or (newer pages) wideo.wp.pl/mid,<mid>,klip.html
+            mid = self.cm.ph.getSearchGroups(data, r'(?:get\.wp\.tv/\?mid=|wideo\.wp\.pl/mid,)(\d+)')[0]
+            if not mid:
+                mid = self.cm.ph.getSearchGroups(data, r'"mid"\s*:\s*"?(\d{4,9})"?[,}]')[0]
+        if not mid:
+            if self.cm.ph.getSearchGroups(data, r'wideo\.wp\.pl/lid,(\d+),klip')[0]:
+                # the live broadcast's page: no clip until WP adds the recording
+                printDBG("WpTV._getClip: live embed (lid), no clip yet")
+            return None, data
+        sts, raw = self.getPage(self.getFullUrl('/player/mid,%s,embed.json' % mid))
+        if not sts:
+            return None, data
+        try:
+            return json_loads(raw).get('clip'), data
+        except Exception:
+            printExc()
+        return None, data
+
+    def getLinksForVideo(self, cItem):
+        printDBG("WpTV.getLinksForVideo [%s]" % cItem.get('url', ''))
+        clip, data = self._getClip(cItem)
+        if not isinstance(clip, dict):
+            if data:
+                SetIPTVPlayerLastHostError(_("No stream available"))
+            return []
+        meta = {'User-Agent': self.HEADER['User-Agent'], 'Referer': self.getMainUrl()}
+        mp4Tab = []
+        hlsTab = []
+        for item in clip.get('url') or []:
+            url = item.get('url') or ''
+            vtype = item.get('type') or ''
+            if not self.cm.isValidUrl(url):
+                continue
+            if vtype.startswith('mp4'):
+                name = 'MP4 %s %s' % (item.get('quality', ''), item.get('resolution', ''))
+                mp4Tab.append({'name': name.strip(), 'url': strwithmeta(url, meta), 'need_resolve': 0, 'q': 2 if item.get('quality') == 'HQ' else 1})
+            elif vtype.startswith('hls'):
+                for it in getDirectM3U8Playlist(strwithmeta(url, meta), checkExt=False, checkContent=True, sortWithMaxBitrate=999999999):
+                    it['need_resolve'] = 0
+                    it['name'] = 'HLS %s' % it.get('name', '')
+                    hlsTab.append(it)
+        mp4Tab.sort(key=lambda x: -x.pop('q'))
+        urlTab = (mp4Tab + hlsTab) if config.plugins.iptvplayer.wptv_mp4_first.value else (hlsTab + mp4Tab)
+        if not urlTab:
+            SetIPTVPlayerLastHostError(_("No stream available"))
+            return []
+        synopsis = self.cleanHtmlStr(self.cm.ph.getSearchGroups(data, r'''<meta property="og:description" content="([^"]*)"''')[0]) if data else ''
+        return applySidecarToLinks(urlTab, buildSidecarFromItem(cItem, IsSidecarEnabled(), synopsis or cItem.get('desc', '')))
+
+    ###################################################
+    # INFO
+    ###################################################
+    def getArticleContent(self, cItem):
+        printDBG("WpTV.getArticleContent [%s]" % cItem.get('url', ''))
+        title = self.cleanHtmlStr(cItem.get('raw_title') or cItem.get('title', ''))
+        icon = cItem.get('icon', '')
+        text = ''
+        other = {}
+        if cItem.get('type') == 'video':
+            clip, data = self._getClip(cItem)
+            if data:
+                text = self.cleanHtmlStr(self.cm.ph.getSearchGroups(data, r'''<meta property="og:description" content="([^"]*)"''')[0])
+                icon = self.cm.ph.getSearchGroups(data, r'''<meta property="og:image" content="([^"]+)"''')[0] or icon
+            if isinstance(clip, dict):
+                try:
+                    secs = int(clip.get('duration') or 0)
+                    if secs:
+                        other['duration'] = '%d:%02d:%02d' % (secs // 3600, (secs % 3600) // 60, secs % 60)
+                except Exception:
+                    pass
+                created = (clip.get('media') or {}).get('createDate') or ''
+                if created:
+                    other['released'] = created
+                if clip.get('tags'):
+                    other['genre'] = self.cleanHtmlStr(clip['tags'])
+        else:
+            sts, data = self.getPage(cItem['url'])
+            if sts:
+                text = self.cleanHtmlStr(self.cm.ph.getDataBeetwenNodes(data, ('<p', '>', 'wp-video-series-banner-description'), ('</p', '>'), False)[1])
+                if not text:
+                    text = self.cleanHtmlStr(self.cm.ph.getSearchGroups(data, r'''<meta property="og:description" content="([^"]*)"''')[0])
+        if cItem.get('series'):
+            other['station'] = cItem['series']
+        return [{'title': title, 'text': text or cItem.get('desc', ''), 'images': [{'title': '', 'url': icon}] if icon else [], 'other_info': other}]
+
+    ###################################################
     def handleService(self, index, refresh=0, searchPattern='', searchType=''):
-        printDBG('handleService start')
-
         CBaseHostClass.handleService(self, index, refresh, searchPattern, searchType)
-
+        if isJumpItem(self.currItem):
+            self.currItem = jumpTarget(self, self.currItem)
         name = self.currItem.get("name", '')
         category = self.currItem.get("category", '')
-        mode = self.currItem.get("mode", '')
-
-        printDBG("handleService: |||||||||||||||||||||||||||||||||||| name[%s], category[%s] " % (name, category))
+        printDBG("WpTV.handleService name[%s] category[%s]" % (name, category))
         self.currList = []
-
-    #MAIN MENU
-        if name == None:
-            self.listsTab(self.MAIN_CAT_TAB, {'name': 'category'})
-        elif 'list_sections' == category:
-            self.listSections(self.currItem, 'list_section_items')
-        elif 'list_section_items' == category:
-            self.listSectionItems(self.currItem, 'list_episodes')
-        elif 'list_groups' == category:
-            self.listGroups(self.currItem, 'list_group_items')
-        elif 'list_group_items' == category:
-            self.listGroupItems(self.currItem, 'list_episodes')
+        if name is None:
+            self.listMain({'name': 'category'})
         elif category == 'list_episodes':
             self.listEpisodes(self.currItem)
-    #SEARCH
-        elif category in ["search", "search_next_page"]:
+        elif category in ('search', 'search_next_page'):
             cItem = dict(self.currItem)
-            cItem.update({'search_item': False, 'name': 'category'})
+            cItem.update({'search_item': False, 'name': 'category', 'category': 'search_next_page'})
             self.listSearchResult(cItem, searchPattern, searchType)
-    #HISTORIA SEARCH
-        elif category == "search_history":
+        elif category == 'search_history':
             self.listsHistory({'name': 'history', 'category': 'search'}, 'desc', _("Type: "))
         else:
             printExc()
-
         CBaseHostClass.endHandleService(self, index, refresh)
 
 
-class IPTVHost(CHostBase):
+class IPTVHost(GenericFolderWatchedHostMixin, CHostBase):
 
     def __init__(self):
         CHostBase.__init__(self, WpTV(), True, [])
+        self.cachedRet = None
+        self.refreshAfterWatchedFlagChange = False
+        self.watchedHelper = IPTVWatchedHelper('wptv')
+
+    def withArticleContent(self, cItem):
+        return cItem.get('type') == 'video' or cItem.get('category') == 'list_episodes'

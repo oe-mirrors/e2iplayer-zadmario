@@ -1,406 +1,363 @@
 # -*- coding: utf-8 -*-
-###################################################
-# LOCAL import
-###################################################
-from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
-from Plugins.Extensions.IPTVPlayer.components.ihost import CHostBase, CBaseHostClass
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc
-from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
-###################################################
-
-###################################################
-# FOREIGN import
-###################################################
+LAST_MODIFIED = "29.10.2026"
+# 29.10.2026 - rewritten for altadefinizionex.vip (alta-definizione.beer is gone; Next.js site, ~30000 movies and
+#   ~6400 series in Italian):
+#   - lists from the site's archive api (/api/v1/web/archive: tipo / genere / sort / q, 30 per page, the total
+#     count gives the last page): Movies, Series, Recently added, Most viewed, Top rated, genres, search
+#   - seasons and episodes (with their plot) from the series page's Next.js data
+#   - links: VixSrc by the IMDb id and the site's own player vidxgo
+#   - watched flag (series -> season -> episode), favourites, downloaded marker, "Title (Year)" / "Show - SxxExx"
+#     names, sidecar, INFO via moviemeta merged with the site's fields
+import json
 import re
-try:
-    import json
-except Exception:
-    import simplejson as json
-###################################################
+
+from Plugins.Extensions.IPTVPlayer.components.ihost import CBaseHostClass, CHostBase
+from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import IsMediaNamingNormalized, IsSidecarEnabled
+from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import SetIPTVPlayerLastHostError
+from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
+from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads
+from Plugins.Extensions.IPTVPlayer.libs.moviemeta import getMeta, getMetaByImdbId
+from Plugins.Extensions.IPTVPlayer.libs.urlmetahelper import applySidecarToLinks, buildSidecarFromItem, decorateResolvedLinkItems, sidecarFromUrlMeta, sidecarMetaQuery
+from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote, urllib_urlencode
+from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str
+from Plugins.Extensions.IPTVPlayer.tools.iptvnaming import formatSxxExx
+from Plugins.Extensions.IPTVPlayer.tools.iptvpaging import addPagingItems, isJumpItem, jumpTarget, stripPagerKeys
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, GetIconDir
+from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
+from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedfoldermixin import GenericFolderWatchedHostMixin, GenericFolderWatchedScraperMixin
+from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedhelper import IPTVWatchedHelper
 
 
 def GetConfigList():
-    optionList = []
-    return optionList
+    return []
 
 
 def gettytul():
-    return 'https://altadefinizione01.doctor/'
+    return "https://altadefinizionex.vip/"
 
 
-class Altadefinizione(CBaseHostClass):
+VIXSRC_URL = "https://vixsrc.to/"
+VIDXGO_URL = "https://v.vidxgo.co/"
+PAGE_SIZE = 30
+
+
+class Altadefinizione(GenericFolderWatchedScraperMixin, CBaseHostClass):
 
     def __init__(self):
-        CBaseHostClass.__init__(self, {'history': 'altadefinizione01.zone', 'cookie': 'altadefinizione01.zone.cookie'})
+        # named after the host, not the domain: search history and cookies survive the next domain move
+        CBaseHostClass.__init__(self, {"history": "altadefinizione01", "cookie": "altadefinizione01.cookie"})
+        self.HEADER = self.cm.getDefaultHeader(browser="chrome")
+        self.USER_AGENT = self.HEADER.get("User-Agent", "")
+        self.defaultParams = {"header": self.HEADER, "use_cookie": True, "load_cookie": True, "save_cookie": True, "cookiefile": self.COOKIE_FILE}
+        self.MAIN_URL = gettytul()
+        self.DEFAULT_ICON_URL = "file://" + GetIconDir("PlayerSelector/altadefinizione01135.png")
+        # filters of the archive api: the site's labels
+        self.MENU = [{"category": "list_items", "title": _("Movies"), "filters": {"tipo": "Film"}},
+                     {"category": "list_items", "title": _("Series"), "filters": {"tipo": "Serie TV"}},
+                     {"category": "list_items", "title": _("Recently added"), "filters": {"sort": "Data di aggiunta"}},
+                     {"category": "list_items", "title": _("Most viewed"), "filters": {"sort": "Views"}},
+                     {"category": "list_items", "title": _("Top rated"), "filters": {"sort": "Valutazione"}},
+                     {"category": "list_genres", "title": _("Genres")}] + self.searchItems()
+        self.watchedHelper = IPTVWatchedHelper("altadefinizione01")
+        self.wfInitFolderCache()
 
-        self.USER_AGENT = 'Mozilla/5.0'
-        self.HEADER = {'User-Agent': self.USER_AGENT, 'Accept': 'text/html'}
-        self.AJAX_HEADER = dict(self.HEADER)
-        self.AJAX_HEADER.update({'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'})
-
-        self.MAIN_URL = 'https://www.altadefinizione01.doctor/'
-        self.DEFAULT_ICON_URL = 'http://www.sabinacornovac.ro/wp-content/uploads/2017/04/42557652-Cinema-Camera-icon-Movie-Lover-Series-Icon-Stock-Vector-585x355.jpg'
-
-        self.defaultParams = {'header': self.HEADER, 'use_cookie': True, 'load_cookie': True, 'save_cookie': True, 'cookiefile': self.COOKIE_FILE}
-
-    def getPage(self, baseUrl, addParams={}, post_data=None):
-        if addParams == {}:
+    def getPage(self, baseUrl, addParams=None, post_data=None):
+        if addParams is None:
             addParams = dict(self.defaultParams)
+        addParams["cloudflare_params"] = {"cookie_file": self.COOKIE_FILE, "User-Agent": self.USER_AGENT}
+        return self.cm.getPageCFProtection(baseUrl.split("#", 1)[0], addParams, post_data)
 
-        def _getFullUrl(url):
-            if self.cm.isValidUrl(url):
-                return url
-            else:
-                return urljoin(baseUrl, url)
-        addParams['cloudflare_params'] = {'domain': self.up.getDomain(baseUrl), 'cookie_file': self.COOKIE_FILE, 'User-Agent': self.USER_AGENT, 'full_url_handle': _getFullUrl}
-        return self.cm.getPageCFProtection(baseUrl, addParams, post_data)
+    ###################################################
+    # watched flag
+    ###################################################
+    def _getWatchedKeyForItem(self, cItem):
+        try:
+            if not isinstance(cItem, dict):
+                return ""
+            prefix = {"list_seasons": "series", "list_episodes": "season"}.get(cItem.get("category", ""), "")
+            if cItem.get("type", "") == "video":
+                prefix = "video"
+            url = re.sub(r"^https?://[^/]+", "", str(cItem.get("url", "") or "").strip())
+            return "%s:%s" % (prefix, url) if (prefix and url) else ""
+        except Exception:
+            printExc()
+        return ""
 
-    def listMainMenu(self, cItem):
-        printDBG("Altadefinizione.listMainMenu")
+    ###################################################
+    # helpers
+    ###################################################
+    @staticmethod
+    def _jsonArray(text, start):
+        # the JSON array that begins at text[start] ("[") - brackets inside strings do not count
+        depth, inString, escape = 0, False, False
+        for pos in range(start, len(text)):
+            char = text[pos]
+            if inString:
+                if escape:
+                    escape = False
+                elif char == "\\":
+                    escape = True
+                elif char == '"':
+                    inString = False
+            elif char == '"':
+                inString = True
+            elif char == "[":
+                depth += 1
+            elif char == "]":
+                depth -= 1
+                if depth == 0:
+                    return text[start:pos + 1]
+        return ""
 
-        sts, data = self.getPage(self.getMainUrl())
+    def _pageData(self, url):
+        # the Next.js data of a title page (self.__next_f.push chunks, JSON-escaped strings)
+        sts, data = self.getPage(url)
         if not sts:
-            return
-        self.setMainUrl(self.cm.meta['url'])
-
-        tmp = self.cm.ph.getDataBeetwenNodes(data, ('<div', '>', 'before_widget'), ('<div', '>', 'before_widget'), False)[1]
-        tmp = re.compile('''<div[^>]+?tab\-content[^>]*?>''').split(data)
-        if len(tmp) == 2:
-            tabs = []
-            mainTitle = self.cleanHtmlStr(self.cm.ph.getDataBeetwenNodes(tmp[0], ('<div', '>', 'widget-title'), ('</div', '>'))[1])
-            tmp[0] = self.cm.ph.getAllItemsBeetwenMarkers(tmp[0], '<li', '</li>')
-            for tabItem in tmp[0]:
-                tabTitle = self.cleanHtmlStr(tabItem)
-                key = self.cm.ph.getSearchGroups(tabItem, '''href=['"]\#([^"^']+?)['"]''')[0]
-                if key == '':
-                    continue
-                categories = []
-                tmp[1] = self.cm.ph.getDataBeetwenNodes(data, ('<div', '>', key), ('</ul', '>'), False)[1]
-                tmp[1] = self.cm.ph.getAllItemsBeetwenMarkers(tmp[1], '<li', '</li>')
-                for item in tmp[1]:
-                    url = self.getFullUrl(self.cm.ph.getSearchGroups(item, '''href=['"]([^"^']+?)['"]''')[0])
-                    title = self.cleanHtmlStr(item)
-                    params = dict(cItem)
-                    params.update({'name': 'category', 'category': 'list_items', 'title': title, 'url': url})
-                    categories.append(params)
-
-                if len(categories):
-                    params = dict(cItem)
-                    params.update({'name': 'category', 'category': 'sub_items', 'title': tabTitle, 'sub_items': categories})
-                    tabs.append(params)
-
-            if len(tabs):
-                params = dict(cItem)
-                params.update({'name': 'category', 'category': 'sub_items', 'title': mainTitle, 'sub_items': tabs})
-                self.addDir(params)
-
-        data = self.cm.ph.getDataBeetwenNodes(data, ('<ul', '>', 'menu-menu'), ('</ul', '>'), False)[1]
-        data = self.cm.ph.getAllItemsBeetwenMarkers(data, '<a', '</a>')
-        for item in data:
-            url = self.cm.ph.getSearchGroups(item, '''href=['"]([^"^']+?)['"]''')[0]
-            if 'attori' in url or '/domande' in url or '/richiedi' in url or '/player' in url:
+            return ""
+        chunks = []
+        for raw in re.findall(r'self\.__next_f\.push\(\[1,"(.*?)"\]\)', data, re.S):
+            try:
+                chunks.append(ensure_str(json.loads('"%s"' % raw)))
+            except Exception:
                 continue
-            title = self.cleanHtmlStr(item)
-            params = dict(cItem)
-            params.update({'name': 'category', 'title': title, 'url': self.getFullUrl(url)})
-            if '/catalog' in url:
-                params['category'] = 'list_abc'
-            else:
-                params['category'] = 'list_items'
-            self.addDir(params)
+        return "".join(chunks)
 
-        MAIN_CAT_TAB = [{'category': 'search', 'title': _('Search'), 'search_item': True},
-                        {'category': 'search_history', 'title': _('Search history')}]
-        self.listsTab(MAIN_CAT_TAB, cItem)
+    def _titleInfo(self, text):
+        # (imdb id, vidxgo token, seasons [{number, episodes: [{number, title, plot}]}], info dict) of a title page
+        imdb = self.cm.ph.getSearchGroups(text, r'"imdbId":"(tt\d+)"')[0]
+        token = self.cm.ph.getSearchGroups(text, r'"token":"(\d+)"')[0] or imdb[2:]
+        seasons = []
+        pos = text.find('"seasons":[')
+        if pos > -1:
+            try:
+                seasons = json_loads(self._jsonArray(text, pos + len('"seasons":'))) or []
+            except Exception:
+                printExc()
+        info = {}
+        for key, field in (("rating", "rating"), ("duration", "durationMin"), ("country", "country"), ("director", "director"), ("cast", "cast")):
+            # a JSON string ("Robert Carlyle (Ray), Ray Winstone (Dave)") or a number
+            value = self.cm.ph.getSearchGroups(text, r'"%s":(?:"((?:[^"\\]|\\.)*)"|(\d+))' % field, 2)
+            value = value[0] or value[1]
+            if key == "cast":
+                value = ", ".join(value.split(", ")[:6])
+            if value:
+                info[key] = value + (" min" if key == "duration" else "")
+        return imdb, token, [s for s in seasons if isinstance(s, dict) and s.get("number")], info
 
-    def listItems(self, cItem, nextCategory):
-        printDBG("Altadefinizione.listItems")
-        page = cItem.get('page', 1)
-        postData = cItem.get('post_data')
+    ###################################################
+    # lists
+    ###################################################
+    def _archiveUrl(self, filters):
+        return self.getFullUrl("api/v1/web/archive?" + urllib_urlencode(filters))
 
-        sts, data = self.getPage(cItem['url'], post_data=postData)
+    def _archive(self, filters, page):
+        # one page of the archive api: (items, total count)
+        sts, data = self.getPage("%s&offset=%d&limit=%d&count=1" % (self._archiveUrl(filters), (page - 1) * PAGE_SIZE, PAGE_SIZE))
         if not sts:
-            return
-        self.setMainUrl(self.cm.meta['url'])
+            return [], 0
+        try:
+            res = json_loads(data)
+            return res.get("items") or [], int(res.get("count") or 0)
+        except Exception:
+            printExc()
+            return [], 0
 
-        nextPage = self.cm.ph.getDataBeetwenNodes(data, ('<div', '>', 'page_nav'), ('</div', '>'), False)[1]
-        nextPage = self.cm.ph.getSearchGroups(nextPage, '''<a[^>]+?href=['"]([^'^"]+?)['"][^>]*?>%s<''' % (page + 1))[0]
-
-        data = re.compile('''<div[^>]+?dle\-content[^>]+?>''').split(data, 1)
-        data[-1] = re.compile('''<div[^>]+?right_bar[^>]+?>''').split(data[-1], 1)[0]
-        if len(data) > 1 and page > 1:
-            del data[0]
-
-        for dataItem in data:
-            if len(self.currList):
-                self.addMarker({'title': ''})
-            dataItem = self.cm.ph.rgetAllItemsBeetwenNodes(dataItem, ('</div', '>'), ('<div', '>', 'boxgrid_shadow'), False)
-            for item in dataItem:
-                tmp = self.cm.ph.getDataBeetwenNodes(item, ('<h', '>'), ('</h', '>'), False)[1]
-
-                icon = self.getFullIconUrl(self.cm.ph.getSearchGroups(item, '''<img[^>]+?src=['"]([^"^']+?)['"]''')[0])
-                url = self.getFullUrl(self.cm.ph.getSearchGroups(tmp, '''href=['"]([^"^']+?)['"]''')[0])
-                title = self.cleanHtmlStr(tmp)
-
-                desc = []
-                t = self.cleanHtmlStr(self.cm.ph.getDataBeetwenNodes(item, ('<div', '>', 'trdublaj'), ('</div', '>'), False)[1])
-                if t != '':
-                    desc.append(t)
-                item = item.split('list-inline', 1)[-1]
-                tmp = self.cm.ph.getAllItemsBeetwenNodes(item, ('<li', '>'), ('</li', '>'), False)
-                for t in tmp:
-                    t = self.cleanHtmlStr(t)
-                    if t != '':
-                        desc.append(t)
-
-                desc = [' | '.join(desc)]
-                tmp = self.cm.ph.getAllItemsBeetwenNodes(item, ('<p', '>'), ('</p', '>'), False)
-                for t in tmp:
-                    t = self.cleanHtmlStr(t)
-                    if t != '':
-                        desc.append(t)
-
-                params = dict(cItem)
-                params.update({'good_for_fav': True, 'category': nextCategory, 'title': title, 'url': url, 'icon': icon, 'desc': '[/br]'.join(desc)})
-                self.addDir(params)
-
-        if nextPage != '':
-            params = dict(cItem)
-            params.update({'title': _("Next page"), 'page': page + 1})
-            if nextPage != '#':
-                params['url'] = self.getFullUrl(nextPage)
-                self.addDir(params)
-            elif postData != {}:
-                postData = dict(postData)
-                postData.pop('titleonly', None)
-                postData.update({'search_start': page + 1, 'full_search': '0', 'result_from': 10 * page + 1})
-                params['post_data'] = postData
+    def listItems(self, cItem):
+        printDBG("Altadefinizione.listItems |%s|" % cItem)
+        page = max(1, int(cItem.get("page", 1) or 1))
+        items, count = self._archive(cItem.get("filters", {}), page)
+        normalize = IsMediaNamingNormalized()
+        for item in items:
+            title, slug, itemId = ensure_str(item.get("title", "")), ensure_str(item.get("slug", "")), item.get("id")
+            if not title or not itemId:
+                continue
+            series = item.get("kind") == "series"
+            year = str(item.get("year") or "")
+            plot = ensure_str(item.get("plot") or "")
+            genres = ", ".join(ensure_str(g) for g in item.get("genres") or [])
+            desc = " | ".join("%s: %s" % (k, v) for k, v in ((_("Year"), year), (_("Genre"), genres), (_("Rating"), item.get("rating") or "")) if v)
+            params = stripPagerKeys(dict(cItem))
+            params.pop("filters", None)
+            params.update({"good_for_fav": True, "url": self.getFullUrl("%s/%s-%s-streaming.html" % ("serie-tv" if series else "film", itemId, urllib_quote(slug))),
+                           "icon": ensure_str(item.get("posterUrl") or "") or self.DEFAULT_ICON_URL, "desc": "%s[/br]%s" % (desc, plot) if plot else desc,
+                           "imdb": ensure_str(item.get("imdbId") or ""), "s_year": year, "plot": plot, "s_title": title})
+            if series:
+                params.update({"category": "list_seasons", "title": title, "meta_type": "tv"})
                 self.addDir(params)
             else:
-                printDBG("NextPage [%s] not handled!!!" % nextPage)
+                withYear = year and normalize and not title.endswith("(%s)" % year)
+                params.update({"category": "video", "title": "%s (%s)" % (title, year) if withYear else title, "meta_type": "movie"})
+                self.addVideo(params)
+        lastPage = (count + PAGE_SIZE - 1) // PAGE_SIZE
+        # the list reads its page from cItem["page"]; the template only gives the pager rows a url and the Jump row
+        url = self._archiveUrl(cItem.get("filters", {}))
+        addPagingItems(self, dict(cItem, url=url), page, lastPage > page, lastPage, url.replace("{", "{{").replace("}", "}}") + "&page={page}")
 
-    def listABC(self, cItem, nextCategory):
-        printDBG("Altadefinizione.listABC")
-
-        sts, data = self.getPage(cItem['url'])
+    def listGenres(self, cItem):
+        sts, data = self.getPage(self.MAIN_URL)
         if not sts:
             return
-        self.setMainUrl(self.cm.meta['url'])
-
-        data = self.cm.ph.getDataBeetwenNodes(data, ('<div', '>', 'alphabet'), ('</div', '>'), False)[1]
-        data = self.cm.ph.getAllItemsBeetwenMarkers(data, '<a', '</a>')
-        for item in data:
-            title = self.cleanHtmlStr(item)
-            url = self.getFullUrl(self.cm.ph.getSearchGroups(item, '''href=['"]([^"^']+?)['"]''', 1, True)[0])
-            params = dict(cItem)
-            params.update({'good_for_fav': False, 'category': nextCategory, 'title': title, 'url': url})
-            self.addDir(params)
-
-    def listABCItems(self, cItem, nextCategory):
-        printDBG("Altadefinizione.listABCItems")
-        page = cItem.get('page', 1)
-
-        sts, data = self.getPage(cItem['url'])
-        if not sts:
-            return
-        self.setMainUrl(self.cm.meta['url'])
-
-        nextPage = self.cm.ph.getDataBeetwenNodes(data, ('<div', '>', 'page_nav'), ('</div', '>'), False)[1]
-        nextPage = self.cm.ph.getSearchGroups(nextPage, '''<a[^>]+?href=['"]([^'^"]+?)['"][^>]*?>%s<''' % (page + 1))[0]
-
-        data = self.cm.ph.getAllItemsBeetwenNodes(data, ('<tr', '>', 'mlnew'), ('</tr', '>'), False)
-        for item in data:
-            tmp = self.cm.ph.getDataBeetwenNodes(item, ('<h', '>'), ('</h', '>'), False)[1]
-
-            icon = self.getFullIconUrl(self.cm.ph.getSearchGroups(item, '''<img[^>]+?src=['"]([^"^']+?)['"]''')[0].replace('/40x59-', '/203x293-'))
-            url = self.getFullUrl(self.cm.ph.getSearchGroups(tmp, '''href=['"]([^"^']+?)['"]''')[0])
-            title = self.cleanHtmlStr(tmp)
-            if url == '':
-                continue
-
-            desc = []
-            tmp = self.cm.ph.getAllItemsBeetwenNodes(item, ('<td', '>'), ('</td', '>'), False)[3:]
-            for t in tmp:
-                t = self.cleanHtmlStr(t)
-                if t != '':
-                    desc.append(t)
-
-            params = dict(cItem)
-            params.update({'good_for_fav': True, 'category': nextCategory, 'title': title, 'url': url, 'icon': icon, 'desc': ' | '.join(desc)})
-            self.addDir(params)
-
-        if nextPage != '':
-            params = dict(cItem)
-            params.update({'title': _("Next page"), 'url': self.getFullUrl(nextPage), 'page': page + 1})
-            self.addDir(params)
-
-    def exploreItem(self, cItem):
-        printDBG("Altadefinizione.exploreItem")
-
-        sts, data = self.getPage(cItem['url'])
-        if not sts:
-            return
-        self.setMainUrl(self.cm.meta['url'])
-
-        cItem = dict(cItem)
-        cItem['prev_url'] = cItem['url']
-
-        trailer = self.cm.ph.getDataBeetwenNodes(data, ('<div', '>', 'btn_trailer'), ('</div', '>'), False)[1]
-        url = self.getFullUrl(self.cm.ph.getSearchGroups(trailer, '''href=['"]([^"^']+?)['"]''', 1, True)[0])
-        if self.cm.isValidUrl(url):
-            title = self.cleanHtmlStr(trailer)
-            params = dict(cItem)
-            params.update({'good_for_fav': False, 'url': url, 'title': '%s %s' % (title, cItem['title'])})
-            self.addVideo(params)
-
-        urlTab = []
-        tmp = self.cm.ph.getAllItemsBeetwenMarkers(data, '<iframe', '</iframe>')
-        data = self.cm.ph.getAllItemsBeetwenNodes(data, ('<a', '>', 'data-link'), ('</a', '>'))
-        for item in tmp:
-            url = self.getFullUrl(self.cm.ph.getSearchGroups(item, '''src=['"]([^"^']+?)['"]''', 1, True)[0])
-            if 'http' not in url:
-                continue
-            sts, data = self.getPage(url)
-            if not sts:
-                return
-            data = self.cm.ph.getAllItemsBeetwenNodes(data, ('<li', '>', 'data-link'), ('</li', '>'))
-
-        for item in data:
-            printDBG("Altadefinizione.exploreItem item [%s]" % item)
-            url = self.getFullUrl(self.cm.ph.getSearchGroups(item, '''data\-link=['"]([^"^']+?)['"]''', 1, True)[0])
-            if url.startswith('//'):
-                url = 'https:' + url
-            if 1 == self.up.checkHostSupport(url):
-                name = self.cleanHtmlStr(item)
-                url = strwithmeta(url, {'Referer': cItem['url']})
-                urlTab.append({'name': name, 'url': url, 'need_resolve': 1})
-
-        if len(urlTab):
-            params = dict(cItem)
-            params.update({'good_for_fav': False, 'urls_tab': urlTab})
-            self.addVideo(params)
+        menu = self.cm.ph.getDataBeetwenMarkers(data, '<div class="dropdown-menu p-3">', "</nav>", False)[1]
+        for title in re.findall(r'class="nav-link">([^<]+)</a>', menu):
+            title = self.cleanHtmlStr(title)
+            self.addDir(dict(cItem, good_for_fav=True, category="list_items", title=title, filters={"genere": title}))
 
     def listSearchResult(self, cItem, searchPattern, searchType):
-        printDBG("Altadefinizione.listSearchResult cItem[%s], searchPattern[%s] searchType[%s]" % (cItem, searchPattern, searchType))
-        cItem = dict(cItem)
-        cItem['url'] = self.getFullUrl('index.php?do=search')
-        cItem['post_data'] = {'do': 'search', 'subaction': 'search', 'titleonly': '3', 'story': searchPattern}
-        cItem['category'] = 'list_items'
-        self.listItems(cItem, 'explore_item')
+        printDBG("Altadefinizione.listSearchResult [%s]" % searchPattern)
+        pattern = cItem.get("s_pattern") or searchPattern.strip()
+        self.listItems(dict(cItem, category="search_next_page", s_pattern=pattern, filters={"q": pattern}))
 
+    def listSeasons(self, cItem):
+        printDBG("Altadefinizione.listSeasons |%s|" % cItem)
+        url = cItem["url"].split("#", 1)[0]
+        imdb, token, seasons, _info = self._titleInfo(self._pageData(url))
+        if not seasons:
+            SetIPTVPlayerLastHostError(_("No streams are available for this title yet."))
+            return
+        sTitle = cItem.get("s_title", "") or cItem["title"]
+        fields = {"s_title": sTitle, "imdb": imdb or cItem.get("imdb", ""), "token": token}
+        if len(seasons) == 1:
+            self.listEpisodes(dict(cItem, category="list_episodes", season=str(seasons[0]["number"]), url="%s#s%s" % (url, seasons[0]["number"]), **fields), seasons)
+            return
+        normalize = IsMediaNamingNormalized()
+        for season in seasons:
+            number = season["number"]
+            seasonTag = formatSxxExx(number) if normalize else "%s %s" % (_("Season"), number)
+            params = stripPagerKeys(dict(cItem))
+            params.update(fields)
+            params.update({"good_for_fav": True, "category": "list_episodes", "title": "%s - %s" % (sTitle, seasonTag), "season": str(number),
+                           "url": "%s#s%s" % (url, number), "desc": "%s: %d[/br]%s" % (_("Episodes"), len(season.get("episodes") or []), cItem.get("plot", ""))})
+            self.addDir(params)
+
+    def listEpisodes(self, cItem, seasons=None):
+        printDBG("Altadefinizione.listEpisodes |%s|" % cItem)
+        url = cItem["url"].split("#", 1)[0]
+        season = str(cItem.get("season", "") or self.cm.ph.getSearchGroups(cItem["url"], r"#s(\d+)")[0])
+        if seasons is None:
+            imdb, token, seasons, _info = self._titleInfo(self._pageData(url))
+            cItem = dict(cItem, imdb=imdb or cItem.get("imdb", ""), token=token)
+        episodes = []
+        for item in seasons:
+            if str(item["number"]) == season:
+                episodes = [e for e in item.get("episodes") or [] if isinstance(e, dict) and e.get("number")]
+        if not episodes:
+            SetIPTVPlayerLastHostError(_("No streams are available for this title yet."))
+            return
+        sTitle = cItem.get("s_title", "") or cItem["title"]
+        normalize = IsMediaNamingNormalized()
+        for item in episodes:
+            episode, name = item["number"], ensure_str(item.get("title") or "")
+            if normalize:
+                title = "%s - %s" % (sTitle, formatSxxExx(season, episode))
+            else:
+                title = "%s - %s %s - %s %s" % (sTitle, _("Season"), season, _("Episode"), episode)
+            if name and not re.match(r"^Episodio\s*\d+$", name, re.I):
+                title = "%s - %s" % (title, name)
+            params = stripPagerKeys(dict(cItem))
+            params.update({"good_for_fav": True, "category": "video", "title": title, "s_title": sTitle, "url": "%s#s%se%s" % (url, season, episode),
+                           "season": season, "episode": str(episode), "desc": ensure_str(item.get("plot") or "") or cItem.get("plot", ""), "meta_type": "tv"})
+            self.addVideo(params)
+
+    ###################################################
+    # links
+    ###################################################
     def getLinksForVideo(self, cItem):
-        printDBG("Altadefinizione.getLinksForVideo [%s]" % cItem)
-        if 1 == self.up.checkHostSupport(cItem['url']):
-            return self.up.getVideoLinkExt(cItem['url'])
-        return cItem.get('urls_tab', [])
+        printDBG("Altadefinizione.getLinksForVideo [%s]" % cItem.get("url", ""))
+        imdb, token = cItem.get("imdb", ""), cItem.get("token", "")
+        if not imdb:
+            imdb, token, _seasons, _info = self._titleInfo(self._pageData(cItem["url"]))
+        token = token or imdb[2:]
+        if not token:
+            SetIPTVPlayerLastHostError(_("No streams are available for this title yet."))
+            return []
+        season, episode = str(cItem.get("season", "") or ""), str(cItem.get("episode", "") or "")
+        path = "/%s/%s" % (season, episode) if (season and episode) else ""
+        urltab = []
+        if imdb:
+            vixsrc = "%stv/%s%s?lang=it" % (VIXSRC_URL, imdb, path) if path else "%smovie/%s?lang=it" % (VIXSRC_URL, imdb)
+            urltab.append({"name": "VixSrc", "url": strwithmeta(vixsrc, {"Referer": self.MAIN_URL}), "need_resolve": 1})
+        urltab.append({"name": "vidxgo", "url": strwithmeta(VIDXGO_URL + token + path, {"Referer": self.MAIN_URL}), "need_resolve": 1})
+        return applySidecarToLinks(urltab, buildSidecarFromItem(cItem, IsSidecarEnabled(), cItem.get("plot", ""), metaQuery=self._metaQuery(cItem, imdb)))
 
     def getVideoLinks(self, videoUrl):
         printDBG("Altadefinizione.getVideoLinks [%s]" % videoUrl)
-        return self.up.getVideoLinkExt(videoUrl)
+        if self.cm.isValidUrl(videoUrl):
+            sidecar = sidecarFromUrlMeta(videoUrl, IsSidecarEnabled())
+            return decorateResolvedLinkItems(self.up.getVideoLinkExt(videoUrl), sidecar)
+        return []
+
+    ###################################################
+    # INFO
+    ###################################################
+    @staticmethod
+    def _metaQuery(cItem, imdb):
+        # the lookup of the INFO view (getMetaByImdbId, else getMeta by title) for the download sidecar
+        return sidecarMetaQuery(cItem.get("meta_type", "") or "movie", cItem.get("s_title", "") or cItem.get("title", ""), cItem.get("s_year", ""), imdbId=imdb, skip=())
 
     def getArticleContent(self, cItem):
-        printDBG("Altadefinizione.getVideoLinks [%s]" % cItem)
-        retTab = []
-        itemsList = []
-
-        if 'prev_url' in cItem:
-            url = cItem['prev_url']
+        printDBG("Altadefinizione.getArticleContent [%s]" % cItem.get("url", ""))
+        imdb, _token, _seasons, info = self._titleInfo(self._pageData(cItem.get("url", "")))
+        imdb = imdb or cItem.get("imdb", "")
+        mediaType = cItem.get("meta_type", "") or "movie"
+        year = cItem.get("s_year", "")
+        if year:
+            info["year"] = year
+        meta = {}
+        try:
+            if imdb:
+                meta = getMetaByImdbId(mediaType, imdb)
+            if not meta:
+                meta = getMeta(mediaType, cItem.get("s_title", "") or cItem.get("title", ""), year)
+        except Exception:
+            printExc()
+        info.update(meta.get("info", {}))
+        if "directors" in info:
+            info.pop("director", None)
+        text = cItem.get("desc", "") if cItem.get("episode") else cItem.get("plot", "")
+        metaPlot = meta.get("plot", "")
+        if metaPlot and text and metaPlot != text:
+            text = "%s[/br][/br]%s" % (text, metaPlot)
         else:
-            url = cItem['url']
+            text = text or metaPlot
+        icon = cItem.get("icon", "") or meta.get("poster", "") or self.DEFAULT_ICON_URL
+        return [{"title": cItem.get("title", ""), "text": text, "images": [{"title": "", "url": icon}], "other_info": info}]
 
-        sts, data = self.cm.getPage(url)
-        if not sts:
-            return
-
-        data = self.cm.ph.getDataBeetwenNodes(data, ('<div', '>', 's_left'), ('<div', '>', 'comment'), False)[1]
-
-        icon = self.cm.ph.getDataBeetwenNodes(data, ('<div', '>', 'imagen'), ('</div', '>'), False)[1]
-        icon = self.getFullUrl(self.cm.ph.getSearchGroups(icon, '''<img[^>]+?src=['"]([^'^"]+?)['"]''')[0])
-        title = self.cleanHtmlStr(self.cm.ph.getDataBeetwenNodes(data, ('<p', '>', 'title'), ('</p', '>'), False)[1])
-        desc = self.cleanHtmlStr(self.cm.ph.getDataBeetwenNodes(data, ('<div', '>', 'entry-content'), ('</div', '>'), False)[1])
-
-        tmp = self.cm.ph.getAllItemsBeetwenNodes(data, ('<p', '>', 'meta_dd'), ('</p', '>'), False)
-        for item in tmp:
-            if 'title' in item:
-                item = [self.cm.ph.getSearchGroups(item, '''title=['"]([^'^"]+?)['"]''')[0], item]
-            else:
-                item = item.split('</b>', 1)
-                if len(item) < 2:
-                    continue
-            key = self.cleanHtmlStr(item[0])
-            val = self.cleanHtmlStr(item[1])
-            if key == '' or val == '':
-                continue
-            itemsList.append((key, val))
-
-        tmp = self.cleanHtmlStr(self.cm.ph.getDataBeetwenNodes(data, ('<span', '>', 'dato'), ('</span', '>'), False)[1])
-        if tmp != '':
-            itemsList.append((_('Rating'), tmp))
-
-        tmp = self.cleanHtmlStr(self.cm.ph.getDataBeetwenNodes(data, ('<p', '>', 'views'), ('</p', '>'), False)[1])
-        if tmp != '':
-            itemsList.append((_('Views'), tmp))
-        tmp = self.cleanHtmlStr(self.cm.ph.getDataBeetwenNodes(data, ('<p', '>', 'date'), ('</p', '>'), False)[1])
-        if tmp != '':
-            itemsList.append((_('Relese'), tmp))
-
-        if title == '':
-            title = cItem['title']
-        if icon == '':
-            icon = cItem.get('icon', self.DEFAULT_ICON_URL)
-        if desc == '':
-            desc = cItem.get('desc', '')
-
-        return [{'title': self.cleanHtmlStr(title), 'text': self.cleanHtmlStr(desc), 'images': [{'title': '', 'url': self.getFullUrl(icon)}], 'other_info': {'custom_items_list': itemsList}}]
-
-    def handleService(self, index, refresh=0, searchPattern='', searchType=''):
-        printDBG('handleService start')
-
+    def handleService(self, index, refresh=0, searchPattern="", searchType=""):
         CBaseHostClass.handleService(self, index, refresh, searchPattern, searchType)
-
-        name = self.currItem.get("name", '')
-        category = self.currItem.get("category", '')
-        mode = self.currItem.get("mode", '')
-
-        printDBG("handleService: || name[%s], category[%s] " % (name, category))
+        if isJumpItem(self.currItem):
+            self.currItem = jumpTarget(self, self.currItem)
+        name = self.currItem.get("name", "")
+        category = self.currItem.get("category", "")
+        printDBG("Altadefinizione.handleService name[%s], category[%s]" % (name, category))
         self.currList = []
-        self.currItem = dict(self.currItem)
-        self.currItem.pop('good_for_fav', None)
-
-    #MAIN MENU
-        if name == None:
-            self.listMainMenu({'name': 'category', 'type': 'category'})
-        elif category == 'list_items':
-            self.listItems(self.currItem, 'explore_item')
-        elif category == 'explore_item':
-            self.exploreItem(self.currItem)
-        elif category == 'list_abc':
-            self.listABC(self.currItem, 'list_abc_items')
-        elif category == 'list_abc_items':
-            self.listABCItems(self.currItem, 'explore_item')
-        elif category == 'sub_items':
-            self.currList = self.currItem.get('sub_items', [])
-    #SEARCH
-        elif category in ["search", "search_next_page"]:
+        if name is None:
+            self.listsTab(self.MENU, {"name": "category"})
+        elif category in ("list_items", "search_next_page"):
+            self.listItems(self.currItem)
+        elif category == "list_seasons":
+            self.listSeasons(self.currItem)
+        elif category == "list_episodes":
+            self.listEpisodes(self.currItem)
+        elif category == "list_genres":
+            self.listGenres(self.currItem)
+        elif category == "search":
             cItem = dict(self.currItem)
-            cItem.update({'search_item': False, 'name': 'category'})
+            cItem.update({"search_item": False, "name": "category"})
             self.listSearchResult(cItem, searchPattern, searchType)
-    #HISTORIA SEARCH
         elif category == "search_history":
-            self.listsHistory({'name': 'history', 'category': 'search'}, 'desc', _("Type: "))
+            self.listsHistory({"name": "history", "category": "search"}, "desc")
         else:
             printExc()
-
         CBaseHostClass.endHandleService(self, index, refresh)
 
 
-class IPTVHost(CHostBase):
+class IPTVHost(GenericFolderWatchedHostMixin, CHostBase):
 
     def __init__(self):
-        CHostBase.__init__(self, Altadefinizione(), True, favouriteTypes=[])
+        CHostBase.__init__(self, Altadefinizione(), True, [])
+        self.cachedRet = None
+        self.refreshAfterWatchedFlagChange = False
+        self.watchedHelper = IPTVWatchedHelper("altadefinizione01")
 
     def withArticleContent(self, cItem):
-        if 'prev_url' in cItem or cItem.get('category', '') == 'explore_item':
-            return True
-        else:
-            return False
+        return cItem.get("type") == "video" or cItem.get("category", "") in ("list_seasons", "list_episodes")

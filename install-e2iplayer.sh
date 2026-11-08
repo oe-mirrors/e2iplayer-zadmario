@@ -3,7 +3,7 @@
 #e2iplayer install script - modified by Pike_Bishop from oATV
 
 ## Variables ##
-scriptversion=16.0.4_git-zadmario_fork_for_other_images
+scriptversion=16.0.6_git-zadmario_fork_for_other_images
 startdate="$(date +%a.%d.%b.%Y-%H:%M:%S)"
 workdir=/home/root/_workdir
 target_path=/usr/lib/enigma2/python/Plugins/Extensions
@@ -25,7 +25,7 @@ fi
 
 # Enigma2 GUI restart, if OpenWebif is off or needs a login restart it directly (DreamOS uses systemd).
 restart_gui() {
-	wget -q -O - http://127.0.0.1/web/powerstate?newstate=3 && return
+	fetch "http://127.0.0.1/web/powerstate?newstate=3" && return
 	if [ -d /run/systemd/system ] ; then
 		systemctl restart enigma2
 	else
@@ -38,12 +38,45 @@ restart_gui() {
 echo -e "\nScript-Name/Version -> e2iplayer-install.sh\t  Version_$scriptversion\n"
 echo -e "\nInstall/Update E2iPlayer ... -> $startdate\n\n"
 
+# Download Tool: curl if it works, otherwise wget (on some Images wget is only the BusyBox Applet with limited HTTPS).
+if curl --version > /dev/null 2>&1 ; then
+	downloader=curl
+elif command -v wget > /dev/null 2>&1 ; then
+	downloader=wget
+else
+	echo -e "\n... ERROR ...\nNeither curl nor wget found ! \nInstall one of them with Command;\nopkg install curl\nand start again install-e2iplayer.sh.\n\n" >&2
+	exit 1
+fi
+echo -e "Download Tool = $downloader\n"
+
+# fetch URL -> writes the Answer to stdout (quiet), fails on HTTP Errors.
+fetch() {
+	if [ "$downloader" = "curl" ] ; then
+		curl -fsL "$1"
+	else
+		wget -q -O - "$1"
+	fi
+}
+
+# download URL FILE [insecure] -> saves the Download as FILE, fails on HTTP Errors;
+# with a third Argument the Server Certificate is not checked.
+download() {
+	if [ "$downloader" = "curl" ] ; then
+		curl -fSL --progress-bar ${3:+-k} -o "$2" "$1"
+	else
+		wget ${3:+--no-check-certificate} -O "$2" "$1"
+	fi
+}
+
+
 # Delete any remains of previous installations.
 rm -rf $tmp/e2iplayer-* $tmp/iptv-host-xxx* $tmp/xxx.tar.gz
 
 # Download E2iPlayer package.
-if ! wget -q $e2iplayer_downl_package -O $tmp/e2iplayer-master.tar.gz ; then
-	if ! wget -q "--no-check-certificate" $e2iplayer_downl_package -O $tmp/e2iplayer-master.tar.gz ; then
+if ! download $e2iplayer_downl_package $tmp/e2iplayer-master.tar.gz ; then
+	rm -f $tmp/e2iplayer-master.tar.gz
+	if ! download $e2iplayer_downl_package $tmp/e2iplayer-master.tar.gz insecure ; then
+		rm -f $tmp/e2iplayer-master.tar.gz
 		echo -e "\nError ! downloading archive failed, end."
 		exit 1
 	fi
@@ -65,6 +98,12 @@ if [ ! -f $tmp/e2iplayer-zadmario-master/IPTVPlayer/plugin.py ] ; then
 	exit 1
 fi
 
+# keep the native subtitles parser (_subparser.so), it is not part of the source archive
+iptvsubparser="$target_path/IPTVPlayer/libs/iptvsubparser"
+subparser_backup="$tmp/_subparser.so"
+rm -f "$subparser_backup"
+[ -e "$iptvsubparser/_subparser.so" ] && cp -f "$iptvsubparser/_subparser.so" "$subparser_backup"
+
 # Delete any existing E2iPlayer.
 if [ -e $target_path/IPTVPlayer ] ; then
 	rm  -rf $target_path/IPTVPlayer
@@ -78,6 +117,12 @@ if ! mv -f $tmp/e2iplayer-zadmario-master/IPTVPlayer $target_path/ ; then
 else
 	echo -e "\nE2iPlayer successfully installed ! ! ! \n"
 	rm -rf $tmp/e2iplayer-zadmario-master
+fi
+
+# restore the native subtitles parser saved above, unless the new E2iPlayer brings its own
+if [ -e "$subparser_backup" -a ! -e "$iptvsubparser/_subparser.so" ] ; then
+	mkdir -p "$iptvsubparser"
+	cp -f "$subparser_backup" "$iptvsubparser/_subparser.so"
 fi
 
 # Try to reinstall dependent packages from the feed, otherwise the missing packages will be installed when you start E2iPlayer for the first time.
@@ -120,7 +165,7 @@ elif [ "$python_version" = "3" ] ; then
 fi
 
 echo -e "\nDownload xxx (+18 addon host) to;\n$xxx_targetdir ...\n"
-if ! wget "--no-check-certificate" $xxx_file -P $xxx_targetdir ; then
+if ! download $xxx_file "$xxx_targetdir/$(basename $xxx_file)" insecure ; then
 	echo -e "\n... ERROR ...\nDownload xxx (+18 addon host) failed ! \nCheck your Internet connection\nand restart the Script.\n"
 else
 	echo -e "\nxxx (+18 addon host) successfully installed ! ! ! \n"
@@ -129,7 +174,7 @@ fi
 # E2iPlayer Installation/Update success Message, and delete remains.
 enddate="$(date +%a.%d.%b.%Y-%H:%M:%S)"
 echo -e "\n\nE2iPlayer installed/updated successfully. -> $enddate\n"
-rm -rf $tmp/e2iplayer-* $tmp/iptv-host-xxx* $tmp/xxx.tar.gz
+rm -rf $tmp/e2iplayer-* $tmp/iptv-host-xxx* $tmp/xxx.tar.gz "$subparser_backup"
 rmdir $workdir/tmp 2> /dev/null
 echo -e "\n\n! ! ! END -> Enigma2 GUI restart needed, either immediately or later ! ! !\n\n"
 sync

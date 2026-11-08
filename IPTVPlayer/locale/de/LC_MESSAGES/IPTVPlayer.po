@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version:  IPTVPlayer\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-11 16:15+0200\n"
+"POT-Creation-Date: 2026-11-08 12:43+0100\n"
 "PO-Revision-Date: 2019-08-27 15:39+0200\n"
 "Last-Translator: doubledip\n"
 "Language: de_DE\n"
@@ -6052,3 +6052,1905 @@ msgstr "MyE2i: Seite im Browser öffnen"
 
 msgid "Show download notification"
 msgstr "Download-Benachrichtigung anzeigen"
+
+msgid "Cover on the LCD summary screen"
+msgstr "Cover auf der LCD-Übersichtsseite"
+
+msgid "----- EXPERT OPTIONS (OK) -----"
+msgstr "----- EXPERTEN OPTIONEN (OK) -----"
+
+#, python-format
+msgid "%s path"
+msgstr "%s-Pfad"
+
+msgid "MIPS floating point architecture"
+msgstr "MIPS-Gleitkomma-Architektur"
+
+msgid "E2iPlayer auto start at Enigma2 start"
+msgstr "E2iPlayer startet automatisch beim Start von Enigma2"
+
+msgid "Auto start method"
+msgstr "Auto Start Methode"
+
+msgid "Prefer hlsdl for playlist with alt. media"
+msgstr "hlsdl für Playlists mit alternativen Medien bevorzugen"
+
+msgid "clock not set"
+msgstr "Uhrzeit nicht gestellt"
+
+msgid "not installed (urllib is used)"
+msgstr "nicht installiert (urllib wird verwendet)"
+
+msgid "bundled with the plugin"
+msgstr "im Plugin enthalten"
+
+msgid "not used"
+msgstr "nicht verwendet"
+
+msgid "not installed (no torrent playback)"
+msgstr "nicht installiert (keine Torrent-Wiedergabe)"
+
+msgid "not registered yet, run the E2iPlayer setup"
+msgstr "noch nicht registriert, führe das E2iPlayer-Setup aus"
+
+msgid "installed, does not start"
+msgstr "installiert, startet nicht"
+
+msgid "not installed (hosts that need JavaScript fail)"
+msgstr "nicht installiert (Hosts, die JavaScript brauchen, schlagen fehl)"
+
+msgid "not installed (only the Enigma2 players)"
+msgstr "nicht installiert (nur die Enigma2-Player)"
+
+msgid "not installed (no HLS downloads or buffering)"
+msgstr "nicht installiert (keine HLS-Downloads oder Pufferung)"
+
+msgid "not installed (no ffmpeg downloads)"
+msgstr "nicht installiert (keine ffmpeg-Downloads)"
+
+msgid "not installed (no local media / folder browser)"
+msgstr "nicht installiert (keine lokalen Medien / kein Ordner-Browser)"
+
+msgid "not installed (no HDS/F4M streams)"
+msgstr "nicht installiert (keine HDS/F4M-Streams)"
+
+msgid "not installed (sites with bot protection may fail)"
+msgstr "nicht installiert (Seiten mit Bot-Schutz können fehlschlagen)"
+
+msgid "not installed (no DASH / ffmpeg downloads)"
+msgstr "nicht installiert (keine DASH- / ffmpeg-Downloads)"
+
+msgid "not installed (no file, cover or subtitle downloads)"
+msgstr "nicht installiert (keine Datei-, Cover- oder Untertitel-Downloads)"
+
+msgid "not installed (wget is used)"
+msgstr "nicht installiert (wget wird verwendet)"
+
+msgid "not installed (no RTMP downloads)"
+msgstr "nicht installiert (keine RTMP-Downloads)"
+
+msgid "not installed (subtitles: code page of the language)"
+msgstr "nicht installiert (Untertitel: Codepage der Sprache)"
+
+msgid "not installed (no ZIP subtitles)"
+msgstr "nicht installiert (keine ZIP-Untertitel)"
+
+msgid "not installed (no RAR subtitles)"
+msgstr "nicht installiert (keine RAR-Untertitel)"
+
+msgid "Time"
+msgstr "Zeit"
+
+msgid "Dubbed"
+msgstr "Synchronisiert"
+
+msgid "No episodes found."
+msgstr "Keine Episoden gefunden."
+
+#, python-format
+msgid "No results found for: %s"
+msgstr "Keine Ergebnisse gefunden für: %s"
+
+msgid "Sections"
+msgstr "Rubriken"
+
+msgid "The video file of this title is not available on the server (HTTP 403)."
+msgstr ""
+"Die Videodatei dieses Titels ist auf dem Server nicht verfügbar (HTTP "
+"403)."
+
+msgid "Foreign movies"
+msgstr "Ausländische Filme"
+
+msgid "Arabic Movies"
+msgstr "Arabische Filme"
+
+msgid "Asian movies"
+msgstr "Asiatische Filme"
+
+msgid "Turkish Movies"
+msgstr "Türkische Filme"
+
+msgid "Indian Movies"
+msgstr "Indische Filme"
+
+msgid "Cartoons and anime"
+msgstr "Zeichentrickfilme und Anime"
+
+msgid "Genre"
+msgstr "Genre"
+
+msgid "TV Shows"
+msgstr "TV Serien"
+
+msgid "No items found"
+msgstr "Keine Einträge gefunden"
+
+msgid "Added"
+msgstr "Hinzugefügt"
+
+#, python-format
+msgid ""
+"%s refused the request (Cloudflare check, HTTP %s). This host needs curl-"
+"impersonate on the receiver."
+msgstr ""
+"%s hat die Anfrage abgelehnt (Cloudflare-Prüfung, HTTP %s). Dieser Host "
+"benötigt curl-impersonate auf dem Receiver."
+
+#, python-format
+msgid "%d programmes"
+msgstr "%d Sendungen"
+
+msgid "Ramadan"
+msgstr "Ramadan"
+
+msgid "Plays"
+msgstr "Theaterstücke"
+
+msgid "Programme archive:"
+msgstr "Sendungsarchiv:"
+
+msgid "Investigations"
+msgstr "Recherchen"
+
+msgid "Talk shows"
+msgstr "Talkshows"
+
+msgid "Digital programmes"
+msgstr "Digitale Sendungen"
+
+msgid "All programmes"
+msgstr "Alle Sendungen"
+
+#, python-format
+msgid "%d parts"
+msgstr "%d Teile"
+
+msgid "Part"
+msgstr "Teil"
+
+#, python-format
+msgid "Only unsupported hosters available: %s"
+msgstr "Nur nicht unterstützte Hoster verfügbar: %s"
+
+msgid "The site's browser check could not be passed."
+msgstr "Die Browserprüfung der Seite konnte nicht bestanden werden."
+
+msgid "Specials"
+msgstr "Specials"
+
+msgid "Titles"
+msgstr "Titel"
+
+msgid "Airing now"
+msgstr "Läuft gerade"
+
+msgid "Anime Movies"
+msgstr "Anime Filme"
+
+msgid "Latest episodes (airing)"
+msgstr "Neueste Episoden (laufend)"
+
+msgid "Latest episodes (finished series)"
+msgstr "Neueste Episoden (abgeschlossene Serien)"
+
+msgid "Anime series A-Z"
+msgstr "Anime-Serien A-Z"
+
+msgid "Anime movies A-Z"
+msgstr "Anime-Filme A-Z"
+
+msgid "Seasons"
+msgstr "Staffeln"
+
+msgid "Autumn"
+msgstr "Herbst"
+
+msgid "Summer"
+msgstr "Sommer"
+
+msgid "Spring"
+msgstr "Frühling"
+
+msgid "Winter"
+msgstr "Winter"
+
+msgid "anime-odcinki.pl shows this title only to logged-in users."
+msgstr "anime-odcinki.pl zeigt diesen Titel nur angemeldeten Benutzern."
+
+msgid "This video is only on hosters E2iPlayer cannot play."
+msgstr "Dieses Video liegt nur auf Hostern, die E2iPlayer nicht abspielen kann."
+
+msgid ""
+"The site's browser check (Cloudflare) could not be passed. The site may "
+"also be blocked in your country."
+msgstr ""
+"Die Browser-Prüfung der Seite (Cloudflare) konnte nicht bestanden werden."
+" Die Seite kann auch in Ihrem Land gesperrt sein."
+
+msgid "Subbed anime"
+msgstr "Anime mit Untertiteln"
+
+msgid "Related seasons and works"
+msgstr "Verwandte Staffeln und Werke"
+
+#, python-format
+msgid "Season %d"
+msgstr "Staffel %d"
+
+msgid "Country / store:"
+msgstr "Land / Store:"
+
+msgid "Browse by genre"
+msgstr "Nach Genre durchsuchen"
+
+#, python-format
+msgid ""
+"%s needs a free account. Enter login and password in the host "
+"configuration."
+msgstr ""
+"%s benötigt ein kostenloses Konto. Tragen Sie Benutzername und Passwort "
+"in der Host-Konfiguration ein."
+
+msgid "Failed to connect to host."
+msgstr "Verbindung zum Host fehlgeschlagen."
+
+msgid "Latin American movies"
+msgstr "Lateinamerikanische Filme"
+
+msgid "Dubbed anime"
+msgstr "Synchronisierte Anime"
+
+msgid "Foreign series"
+msgstr "Ausländische Serien"
+
+msgid "Arabic Series"
+msgstr "Arabische Serien"
+
+msgid "Asian TV series"
+msgstr "Asiatische TV Serien"
+
+msgid "Turkish Series"
+msgstr "Türkische Serien"
+
+msgid "Dubbed series"
+msgstr "Synchronisierte Serien"
+
+msgid "Latin American series"
+msgstr "Lateinamerikanische Serien"
+
+#, python-format
+msgid "%s posts"
+msgstr "%s Beiträge"
+
+msgid "Top 10"
+msgstr "Top 10"
+
+msgid "Featured"
+msgstr "Empfohlen"
+
+msgid "Korean"
+msgstr "Koreanisch"
+
+msgid "Chinese"
+msgstr "Chinesisch"
+
+msgid "Thai"
+msgstr "Thailändisch"
+
+msgid "Taiwanese"
+msgstr "Taiwanesisch"
+
+msgid "Japanese"
+msgstr "Japanisch"
+
+msgid "Drama"
+msgstr "Drama"
+
+msgid "Completed"
+msgstr "Abgeschlossen"
+
+msgid "Actors"
+msgstr "Darsteller"
+
+msgid "Korean dramas"
+msgstr "Koreanische Dramen"
+
+msgid "Japanese dramas"
+msgstr "Japanische Dramen"
+
+msgid "Video recitations"
+msgstr "Video-Rezitationen"
+
+msgid "Reciters"
+msgstr "Rezitatoren"
+
+msgid "Surahs"
+msgstr "Suren"
+
+msgid "Most listened recitations"
+msgstr "Meistgehörte Rezitationen"
+
+msgid "Munshids"
+msgstr "Munshids"
+
+msgid "Most listened anasheed"
+msgstr "Meistgehörte Anaschid"
+
+msgid "Adhan"
+msgstr "Adhan"
+
+msgid "Lecturers"
+msgstr "Dozenten"
+
+msgid "Cartoons"
+msgstr "Cartoons"
+
+msgid "No player found for this title."
+msgstr "Für diesen Titel wurde kein Player gefunden."
+
+msgid "Polish dubbing"
+msgstr "Polnische Synchronisation"
+
+msgid "Polish voice-over"
+msgstr "Polnisches Voice-over"
+
+msgid "Polish subtitles"
+msgstr "Polnische Untertitel"
+
+msgid "Cartoons and series"
+msgstr "Zeichentrick und Serien"
+
+msgid "News Poland"
+msgstr "Nachrichten Polen"
+
+msgid "Politics"
+msgstr "Politik"
+
+msgid "Education"
+msgstr "Bildung"
+
+msgid "Economy"
+msgstr "Wirtschaft"
+
+msgid "Law"
+msgstr "Recht"
+
+msgid "Religion"
+msgstr "Religion"
+
+msgid "Philosophy"
+msgstr "Philosophie"
+
+msgid "Patriotism"
+msgstr "Patriotismus"
+
+msgid "Military"
+msgstr "Militär"
+
+msgid "Intervention"
+msgstr "Intervention"
+
+msgid "Upbringing"
+msgstr "Erziehung"
+
+msgid "Kids"
+msgstr "Kinder"
+
+msgid "Entertainment"
+msgstr "Unterhaltung"
+
+msgid "Art"
+msgstr "Kunst"
+
+msgid "Books"
+msgstr "Bücher"
+
+msgid "Gaming"
+msgstr "Gaming"
+
+msgid "Technology"
+msgstr "Technik"
+
+msgid "Automotive"
+msgstr "Auto & Motor"
+
+msgid "Tourism"
+msgstr "Tourismus"
+
+msgid "Cooking"
+msgstr "Kochen"
+
+msgid "Lifestyle"
+msgstr "Lifestyle"
+
+msgid "Fashion"
+msgstr "Mode"
+
+msgid "Animals"
+msgstr "Tiere"
+
+msgid "Subscribers"
+msgstr "Abonnenten"
+
+msgid "Not available yet"
+msgstr "Noch nicht verfügbar"
+
+msgid "Latest videos"
+msgstr "Neueste Videos"
+
+msgid "Top-IMDB"
+msgstr "Top-IMDB"
+
+msgid "Leagues"
+msgstr "Ligen"
+
+msgid "Professionals"
+msgstr "Profis"
+
+msgid "Top scorers"
+msgstr "Torschützen"
+
+msgid "Teams"
+msgstr "Mannschaften"
+
+msgid "Squad"
+msgstr "Kader"
+
+msgid "goals"
+msgstr "Tore"
+
+msgid "This video has been deleted."
+msgstr "Dieses Video wurde gelöscht."
+
+msgid "Stadium:"
+msgstr "Stadion:"
+
+msgid "Competitions"
+msgstr "Wettbewerbe"
+
+msgid "All series"
+msgstr "Alle Serien"
+
+msgid "Ramadan series"
+msgstr "Ramadan-Serien"
+
+msgid "Server"
+msgstr "Server"
+
+msgid "Popular series"
+msgstr "Beliebte Serien"
+
+msgid "Open the page and click the video player there"
+msgstr "Die Seite öffnen und dort den Videoplayer anklicken"
+
+msgid "Football"
+msgstr "Fußball"
+
+msgid "Basketball"
+msgstr "Basketball"
+
+msgid "Tennis"
+msgstr "Tennis"
+
+msgid "Hockey"
+msgstr "Eishockey"
+
+msgid "Boxing"
+msgstr "Boxen"
+
+msgid "American football"
+msgstr "American Football"
+
+msgid "Cricket"
+msgstr "Cricket"
+
+msgid "Darts"
+msgstr "Darts"
+
+msgid "Futsal"
+msgstr "Futsal"
+
+msgid "Handball"
+msgstr "Handball"
+
+msgid "Motorsport"
+msgstr "Motorsport"
+
+msgid "Snooker"
+msgstr "Snooker"
+
+msgid "Volleyball"
+msgstr "Volleyball"
+
+msgid "Winter sports"
+msgstr "Wintersport"
+
+msgid "The live stream is not available at the moment."
+msgstr "Der Live-Stream ist derzeit nicht verfügbar."
+
+#, python-format
+msgid "Episode %d"
+msgstr "Episode %d"
+
+msgid "Version"
+msgstr "Version"
+
+msgid "MyE2i captcha: solve it, then Job (no CONTINUE)"
+msgstr "MyE2i-Captcha: lösen, dann Job (kein CONTINUE)"
+
+msgid ""
+"MaxStream (uprot.net) asks for its image captcha: solve it in MyE2i, then"
+" open the video again."
+msgstr ""
+"MaxStream (uprot.net) verlangt sein Bild-Captcha: Lösen Sie es in MyE2i "
+"und öffnen Sie das Video dann erneut."
+
+msgid "Aired"
+msgstr "Ausgestrahlt"
+
+msgid ""
+"Vimeo live event: the live transmission (while on air) and the past "
+"transmissions."
+msgstr ""
+"Vimeo-Live-Event: die Live-Übertragung (während der Sendung) und die "
+"vergangenen Übertragungen."
+
+msgid "Vimeo playlist with the recordings of this page."
+msgstr "Vimeo-Playlist mit den Aufnahmen dieser Seite."
+
+msgid "Articles"
+msgstr "Artikel"
+
+msgid "This section is no longer on the main page."
+msgstr "Diese Rubrik ist nicht mehr auf der Hauptseite."
+
+msgid ""
+"The recordings of this page were on the site's old media server, which is"
+" offline."
+msgstr ""
+"Die Aufnahmen dieser Seite lagen auf dem alten Medienserver der Seite, "
+"der offline ist."
+
+msgid "Other seasons"
+msgstr "Andere Staffeln"
+
+msgid "All movies"
+msgstr "Alle Filme"
+
+msgid "Korean movies"
+msgstr "Koreanische Filme"
+
+msgid "Documentary Movies"
+msgstr "Dokumentarfilme"
+
+msgid "Short Movies"
+msgstr "Kurzfilme"
+
+msgid "Korean TV series"
+msgstr "Koreanische TV Serien"
+
+msgid "Anime Series"
+msgstr "Anime Serien"
+
+msgid "Short films"
+msgstr "Kurzfilme"
+
+msgid "Top IMDb"
+msgstr "Top IMDb"
+
+msgid "Updates"
+msgstr "Updates"
+
+msgid "Popular movies"
+msgstr "Beliebte Filme"
+
+msgid "Torrent"
+msgstr "Torrent"
+
+msgid "Most voted"
+msgstr "Meiste Stimmen"
+
+#, python-format
+msgid "Episodes: %s"
+msgstr "Episoden: %s"
+
+msgid "Dramas (Asian)"
+msgstr "Dramen (asiatisch)"
+
+msgid "Captcha was not entered."
+msgstr "Das Captcha wurde nicht eingegeben."
+
+msgid "Popular episodes"
+msgstr "Beliebte Episoden"
+
+msgid "Most commented"
+msgstr "Am meisten kommentiert"
+
+msgid "Latest updates"
+msgstr "Neueste Aktualisierungen"
+
+msgid "With subtitles"
+msgstr "Mit Untertiteln"
+
+msgid "Original version"
+msgstr "Originalfassung"
+
+msgid "Anime A-Z"
+msgstr "Anime A-Z"
+
+msgid "Anime movies"
+msgstr "Anime Filme"
+
+msgid "Type"
+msgstr "Typ"
+
+#, python-format
+msgid "Translator: %s"
+msgstr "Übersetzer: %s"
+
+msgid "Other dramas (Chinese, Thai, ...)"
+msgstr "Andere Dramen (chinesisch, thailändisch, ...)"
+
+msgid "Korean films"
+msgstr "Koreanische Filme"
+
+msgid "Japanese films"
+msgstr "Japanische Filme"
+
+msgid "Other films"
+msgstr "Andere Filme"
+
+msgid "All titles A-Z"
+msgstr "Alle Titel A-Z"
+
+#, python-format
+msgid "Only available in %s"
+msgstr "Nur verfügbar in %s"
+
+msgid "Denmark"
+msgstr "Dänemark"
+
+msgid "HLS with subtitles"
+msgstr "HLS mit Untertiteln"
+
+msgid "Audio description"
+msgstr "Audiodeskription"
+
+msgid "Spoken subtitles"
+msgstr "Gesprochene Untertitel"
+
+msgid "Combine pull request merges with their commit"
+msgstr "Pull-Request-Merges mit ihrem Commit zusammenfassen"
+
+msgid "New since installed version"
+msgstr "Neu seit der installierten Version"
+
+msgid "Releases"
+msgstr "Releases"
+
+msgid "Open issues"
+msgstr "Offene Issues"
+
+msgid "Open pull requests"
+msgstr "Offene Pull-Requests"
+
+msgid "Wiki"
+msgstr "Wiki"
+
+msgid "Install E2iPlayer"
+msgstr "E2iPlayer installieren"
+
+msgid "Create debug logs"
+msgstr "Debug-Logs erstellen"
+
+msgid "Solve Cloudflare, hCaptcha and reCAPTCHA with MyE2i"
+msgstr "Cloudflare, hCaptcha und reCAPTCHA mit MyE2i lösen"
+
+msgid "Solve Google reCAPTCHA v2 with My JDownloader"
+msgstr "Google reCAPTCHA v2 mit My JDownloader lösen"
+
+msgid "For developers"
+msgstr "Für Entwickler"
+
+msgid "GitHub API error"
+msgstr "GitHub-API-Fehler"
+
+#, python-format
+msgid "Installed: v%s - up to date"
+msgstr "Installiert: v%s - aktuell"
+
+#, python-format
+msgid "Installed: v%s - %d commits behind %s"
+msgstr "Installiert: v%s - %d Commits hinter %s"
+
+#, python-format
+msgid "Installed: v%s"
+msgstr "Installiert: v%s"
+
+#, python-format
+msgid "Installed: v%s - no matching release tag (local build?)"
+msgstr "Installiert: v%s - kein passender Release-Tag (lokaler Build?)"
+
+msgid "Installed version"
+msgstr "Installierte Version"
+
+#, python-format
+msgid "Only the %d oldest new commits are shown"
+msgstr "Es werden nur die %d ältesten neuen Commits angezeigt"
+
+msgid "Draft"
+msgstr "Entwurf"
+
+msgid "Comments"
+msgstr "Kommentare"
+
+msgid "Nothing open"
+msgstr "Nichts offen"
+
+msgid "Could not load the wiki page."
+msgstr "Die Wiki-Seite konnte nicht geladen werden."
+
+msgid "Indian TV series"
+msgstr "Indische TV Serien"
+
+msgid "Turkish series (dubbed)"
+msgstr "Türkische Serien (synchronisiert)"
+
+msgid "Indian series (dubbed)"
+msgstr "Indische Serien (synchronisiert)"
+
+msgid "Action"
+msgstr "Action"
+
+msgid "Adventure"
+msgstr "Abenteuer"
+
+msgid "Comedy"
+msgstr "Komödie"
+
+msgid "Crime"
+msgstr "Krimi"
+
+msgid "Fantasy"
+msgstr "Fantasy"
+
+msgid "Sci-Fi"
+msgstr "Sci-Fi"
+
+msgid "Horror"
+msgstr "Horror"
+
+msgid "Mystery"
+msgstr "Mystery"
+
+msgid "Romance"
+msgstr "Romantik"
+
+msgid "Thriller"
+msgstr "Thriller"
+
+msgid "War"
+msgstr "Krieg"
+
+msgid "Sci-Fi & Fantasy"
+msgstr "Sci-Fi & Fantasy"
+
+msgid "English movies"
+msgstr "Englische Filme"
+
+msgid "Arabic movies"
+msgstr "Arabische Filme"
+
+msgid "Indian movies"
+msgstr "Indische Filme"
+
+msgid "English movies (dubbed)"
+msgstr "Englische Filme (synchronisiert)"
+
+msgid "Turkish movies (dubbed)"
+msgstr "Türkische Filme (synchronisiert)"
+
+msgid "Indian movies (dubbed)"
+msgstr "Indische Filme (synchronisiert)"
+
+msgid "Subtitles by Islam El-Gizawy"
+msgstr "Untertitel von Islam El-Gizawy"
+
+msgid "Animated movies"
+msgstr "Animationsfilme"
+
+msgid "Disney cartoon movies (Egyptian dub)"
+msgstr "Disney-Zeichentrickfilme (ägyptische Synchronisation)"
+
+msgid "Movie collections"
+msgstr "Filmsammlungen"
+
+msgid "English TV series"
+msgstr "Englische TV Serien"
+
+msgid "Turkish TV series"
+msgstr "Türkische TV Serien"
+
+msgid "African series"
+msgstr "Afrikanische Serien"
+
+msgid "Documentary series"
+msgstr "Dokuserien"
+
+msgid "English series (dubbed)"
+msgstr "Englische Serien (synchronisiert)"
+
+msgid "Latin American series (dubbed)"
+msgstr "Lateinamerikanische Serien (synchronisiert)"
+
+msgid "Asian series (dubbed)"
+msgstr "Asiatische Serien (synchronisiert)"
+
+msgid "All seasons"
+msgstr "Alle Staffeln"
+
+msgid "Chinese anime"
+msgstr "Chinesische Anime"
+
+msgid "Korean anime"
+msgstr "Koreanische Anime"
+
+msgid "Anime TV series"
+msgstr "Anime TV Serien"
+
+msgid "Anime series (dubbed)"
+msgstr "Anime-Serien (synchronisiert)"
+
+msgid "Animated series"
+msgstr "Zeichentrickserien"
+
+msgid "Cartoon series (dubbed)"
+msgstr "Zeichentrickserien (synchronisiert)"
+
+msgid "Shows and concerts"
+msgstr "Shows und Konzerte"
+
+msgid "Filter"
+msgstr "Filter"
+
+msgid "Voice-over"
+msgstr "Voice-over"
+
+msgid "Polish films"
+msgstr "Polnische Filme"
+
+msgid "This player is not available any more - reload the links."
+msgstr "Dieser Player ist nicht mehr verfügbar - laden Sie die Links neu."
+
+msgid "Biography"
+msgstr "Biografie"
+
+msgid "Western"
+msgstr "Western"
+
+msgid "Detective"
+msgstr "Detektiv"
+
+msgid ""
+"The video player of this site (hdvbua.pro) does not offer this title in "
+"your country (licence area, mainly Ukraine)."
+msgstr ""
+"Der Videoplayer dieser Seite (hdvbua.pro) bietet diesen Titel in Ihrem "
+"Land nicht an (Lizenzgebiet, hauptsächlich Ukraine)."
+
+msgid "Released:"
+msgstr "Veröffentlicht:"
+
+msgid "Season pack"
+msgstr "Staffelpaket"
+
+msgid "Asian"
+msgstr "Asiatisch"
+
+msgid "Shows with new episodes"
+msgstr "Shows mit neuen Episoden"
+
+msgid "Mini series"
+msgstr "Miniserien"
+
+#, python-format
+msgid "Season %d (%d episodes)"
+msgstr "Staffel %d (%d Episoden)"
+
+msgid "Most viewed movies"
+msgstr "Meistgesehene Filme"
+
+msgid "4K movies"
+msgstr "4K-Filme"
+
+msgid "Most viewed series"
+msgstr "Meistgesehene Serien"
+
+msgid "Top rated series"
+msgstr "Bestbewertete Serien"
+
+msgid "Category"
+msgstr "Kategorie"
+
+msgid "Latest highlights"
+msgstr "Neueste Highlights"
+
+msgid "Venue"
+msgstr "Austragungsort"
+
+msgid "Referee"
+msgstr "Schiedsrichter"
+
+msgid "Round"
+msgstr "Runde"
+
+msgid "Original title"
+msgstr "Originaltitel"
+
+msgid "Topics"
+msgstr "Themen"
+
+msgid "Search is not available right now."
+msgstr "Die Suche ist derzeit nicht verfügbar."
+
+msgid "The link could not be resolved."
+msgstr "Der Link konnte nicht aufgelöst werden."
+
+msgid "Group search"
+msgstr "Gruppensuche"
+
+#, python-format
+msgid "%d of %d hosts asked, %d with results"
+msgstr "%d von %d Hosts abgefragt, %d mit Ergebnissen"
+
+msgid "Time limit"
+msgstr "Zeitlimit"
+
+#, python-format
+msgid "Search: %d of %d - now %s (%d found so far)"
+msgstr "Suche: %d von %d - jetzt %s (bisher %d gefunden)"
+
+msgid "Recommended"
+msgstr "Empfohlen"
+
+msgid "Top airing"
+msgstr "Aktuell beliebt"
+
+msgid "Most favourited"
+msgstr "Am häufigsten favorisiert"
+
+msgid "Top upcoming"
+msgstr "Demnächst beliebt"
+
+msgid "Types"
+msgstr "Typen"
+
+msgid "Filler"
+msgstr "Filler"
+
+msgid ""
+"This episode is not available in this version (SUB/DUB) on this server. "
+"Try another one."
+msgstr ""
+"Diese Episode ist auf diesem Server nicht in dieser Fassung (SUB/DUB) "
+"verfügbar. Versuchen Sie einen anderen."
+
+msgid "All stations"
+msgstr "Alle Sender"
+
+msgid "Directors"
+msgstr "Regisseure"
+
+msgid "Random selection"
+msgstr "Zufällige Auswahl"
+
+msgid "Series A-Z"
+msgstr "Serien A-Z"
+
+msgid "Documentaries A-Z"
+msgstr "Dokumentationen A-Z"
+
+msgid "Interviews"
+msgstr "Interviews"
+
+msgid "Popularity"
+msgstr "Beliebtheit"
+
+msgid "Matches of the national teams"
+msgstr "Spiele der Nationalmannschaften"
+
+msgid "League and cup matches"
+msgstr "Liga- und Pokalspiele"
+
+msgid "Video library"
+msgstr "Videothek"
+
+msgid "Last.fm user name:"
+msgstr "Last.fm-Benutzername:"
+
+msgid "Search for an artist (exact name) or a Last.fm user"
+msgstr "Nach einem Künstler (exakter Name) oder einem Last.fm-Benutzer suchen"
+
+msgid ""
+"Last.fm charts and tag pages are behind a browser check, only the radio "
+"stations can be used."
+msgstr ""
+"Last.fm-Charts und Tag-Seiten liegen hinter einer Browserprüfung, nur die"
+" Radiosender sind nutzbar."
+
+msgid "Library"
+msgstr "Bibliothek"
+
+msgid "Mix"
+msgstr "Mix"
+
+msgid "Top tracks"
+msgstr "Top-Titel"
+
+msgid "Similar artists mix"
+msgstr "Mix ähnlicher Künstler"
+
+msgid "Similar artists"
+msgstr "Ähnliche Künstler"
+
+#, python-format
+msgid "Last.fm user \"%s\" not found."
+msgstr "Last.fm-Benutzer \"%s\" nicht gefunden."
+
+#, python-format
+msgid "Artist \"%s\" not found on Last.fm - the exact artist name is needed."
+msgstr ""
+"Künstler \"%s\" auf Last.fm nicht gefunden - der genaue Künstlername wird"
+" benötigt."
+
+msgid "No YouTube video found for this track."
+msgstr "Kein YouTube-Video für diesen Titel gefunden."
+
+msgid "Artist"
+msgstr "Künstler"
+
+msgid "User"
+msgstr "Benutzer"
+
+#, python-format
+msgid "The site did not answer with data (HTTP %s). It may be down or have moved."
+msgstr ""
+"Die Seite hat keine Daten geliefert (HTTP %s). Sie ist eventuell offline "
+"oder umgezogen."
+
+#, python-format
+msgid "Failed to get the file list from %s."
+msgstr "Die Dateiliste von %s konnte nicht abgerufen werden."
+
+msgid "Total size:"
+msgstr "Gesamtgröße:"
+
+#, python-format
+msgid "Copying file from \"%s\" to \"%s\" failed.\n"
+msgstr "Kopieren der Datei von \"%s\" nach \"%s\" fehlgeschlagen.\n"
+
+msgid ""
+"Lodynet offers this video only on its subscription servers (Lody Plus / "
+"VIP) for now - the free servers usually follow later."
+msgstr ""
+"Lodynet bietet dieses Video derzeit nur auf seinen Abo-Servern (Lody Plus"
+" / VIP) an - die kostenlosen Server folgen meist später."
+
+msgid "More results"
+msgstr "Mehr Ergebnisse"
+
+msgid "Catch-up"
+msgstr "Mediathek"
+
+msgid "Best movies"
+msgstr "Beste Filme"
+
+msgid "Best series"
+msgstr "Beste Serien"
+
+msgid "Status"
+msgstr "Status"
+
+msgid "Tournament"
+msgstr "Turnier"
+
+msgid "Commentator"
+msgstr "Kommentator"
+
+msgid "Formations"
+msgstr "Formationen"
+
+msgid "Radio station - live stream"
+msgstr "Radiosender - Live-Stream"
+
+#, python-format
+msgid "%s plays"
+msgstr "%s Wiedergaben"
+
+#, python-format
+msgid "%s uploads"
+msgstr "%s Uploads"
+
+msgid "You have reached the play limit for this mix."
+msgstr "Sie haben das Wiedergabelimit für diesen Mix erreicht."
+
+msgid "This mix is only available with a Mixcloud Select subscription."
+msgstr "Dieser Mix ist nur mit einem Mixcloud-Select-Abonnement verfügbar."
+
+msgid "Mixes"
+msgstr "Mixe"
+
+msgid "Users"
+msgstr "Benutzer"
+
+msgid "Home / Sections"
+msgstr "Startseite / Bereiche"
+
+msgid "Most Watched"
+msgstr "Am meisten angesehen"
+
+msgid "Football Live"
+msgstr "Fußball live"
+
+msgid "Show results"
+msgstr "Ergebnisse anzeigen"
+
+msgid "No subtitles available for this title."
+msgstr "Für diesen Titel sind keine Untertitel verfügbar."
+
+#, python-format
+msgid "No subtitles in %s. Available: %s"
+msgstr "Keine Untertitel in %s. Verfügbar: %s"
+
+msgid "Search: "
+msgstr "Suche: "
+
+msgid "Replays & highlights"
+msgstr "Aufzeichnungen & Highlights"
+
+msgid ""
+"Finished matches with a full replay, highlights or match cuts, newest "
+"first (usually a few days after the match)."
+msgstr ""
+"Beendete Spiele mit vollständiger Aufzeichnung, Highlights oder "
+"Spielszenen, neueste zuerst (meist einige Tage nach dem Spiel)."
+
+msgid "Previous days"
+msgstr "Vorherige Tage"
+
+msgid "TODAY"
+msgstr "HEUTE"
+
+msgid "TOMORROW"
+msgstr "MORGEN"
+
+msgid "YESTERDAY"
+msgstr "GESTERN"
+
+msgid "Older days"
+msgstr "Ältere Tage"
+
+msgid "Failed to load the match list"
+msgstr "Die Spielliste konnte nicht geladen werden"
+
+msgid "No replays in these days"
+msgstr "Keine Aufzeichnungen an diesen Tagen"
+
+msgid "Older replays"
+msgstr "Ältere Aufzeichnungen"
+
+msgid "Replay"
+msgstr "Aufzeichnung"
+
+msgid "Match cuts"
+msgstr "Spielszenen"
+
+msgid "Match not started yet"
+msgstr "Spiel hat noch nicht begonnen"
+
+#, python-format
+msgid "Save subtitles (%s)"
+msgstr "Untertitel speichern (%s)"
+
+#, python-format
+msgid ""
+"Subtitles saved:\n"
+"%s"
+msgstr ""
+"Untertitel gespeichert:\n"
+"%s"
+
+msgid "First aired"
+msgstr "Erstausstrahlung"
+
+msgid "European movies"
+msgstr "Europäische Filme"
+
+#, python-format
+msgid "%d recitations"
+msgstr "%d Rezitationen"
+
+msgid "Complete Quran"
+msgstr "Kompletter Koran"
+
+msgid "Live radio"
+msgstr "Live-Radio"
+
+#, python-format
+msgid "%d videos"
+msgstr "%d Videos"
+
+msgid "Atheer radio (Arabic)"
+msgstr "Atheer Radio (Arabisch)"
+
+msgid "Tadabor"
+msgstr "Tadabor"
+
+msgid "Tafsir (Arabic)"
+msgstr "Tafsir (Arabisch)"
+
+msgid "MP3Quran live radio"
+msgstr "MP3Quran Live-Radio"
+
+msgid "Show Youtube Api Key warnings"
+msgstr "Zeige YouTube API-Schlüssel Warnungen"
+
+msgid "Wrong Youtube Api Key length"
+msgstr "Falsche Länge des Youtube-API-Schlüssels"
+
+msgid "Youtube searches are quicker, if you fill API key in setting menu"
+msgstr ""
+"YouTube-Suchen sind schneller, wenn Sie den API-Schlüssel im "
+"Einstellungsmenü eingeben"
+
+msgid "iTunes - Top songs by country"
+msgstr "iTunes - Top-Songs nach Land"
+
+msgid "iTunes - Top albums by country"
+msgstr "iTunes - Top-Alben nach Land"
+
+msgid "My list"
+msgstr "Meine Liste"
+
+#, python-format
+msgid "Last week: %s"
+msgstr "Letzte Woche: %s"
+
+#, python-format
+msgid "Peak: %s"
+msgstr "Höchste Platzierung: %s"
+
+#, python-format
+msgid "Weeks on chart: %s"
+msgstr "Wochen in den Charts: %s"
+
+msgid "Loved tracks"
+msgstr "Beliebte Titel"
+
+msgid "Wrestling shows"
+msgstr "Wrestling-Shows"
+
+msgid "Pro wrestling"
+msgstr "Profi-Wrestling"
+
+msgid "Netflix movies"
+msgstr "Netflix-Filme"
+
+msgid "Classic movies"
+msgstr "Filmklassiker"
+
+msgid "Dubbed movies"
+msgstr "Synchronisierte Filme"
+
+msgid "Egyptian series"
+msgstr "Ägyptische Serien"
+
+msgid "Netflix series"
+msgstr "Netflix-Serien"
+
+msgid "Wrestling"
+msgstr "Wrestling"
+
+msgid "Arabic songs"
+msgstr "Arabische Lieder"
+
+msgid "Arabic plays"
+msgstr "Arabische Theaterstücke"
+
+msgid "Series - latest episodes"
+msgstr "Serien - neueste Episoden"
+
+msgid "Series - seasons"
+msgstr "Serien - Staffeln"
+
+msgid "Top stations"
+msgstr "Top-Sender"
+
+msgid "Aired this week"
+msgstr "Diese Woche ausgestrahlt"
+
+msgid "Available worldwide"
+msgstr "Weltweit verfügbar"
+
+#, python-format
+msgid "Uploader: %s"
+msgstr "Hochgeladen von: %s"
+
+msgid "Tracklist"
+msgstr "Titelliste"
+
+msgid "This video needs a paid ororo.tv subscription."
+msgstr "Dieses Video erfordert ein kostenpflichtiges ororo.tv-Abonnement."
+
+msgid "Subspecialities"
+msgstr "Subspezialitäten"
+
+msgid "Board Review"
+msgstr "Facharztprüfung-Vorbereitung"
+
+msgid "CME SAE"
+msgstr "CME SAE"
+
+msgid "Educational Animation"
+msgstr "Pädagogische Animation"
+
+msgid "Ethical & Legal"
+msgstr "Ethisch & legal"
+
+msgid "Exam Review"
+msgstr "Prüfungsrückblick"
+
+msgid "Humanitarian"
+msgstr "Humanitär"
+
+msgid "Industry"
+msgstr "Industrie"
+
+msgid "Interactive Learning Center(ILC)"
+msgstr "Interaktives Lernzentrum (ILC)"
+
+msgid "Jobs & Positions"
+msgstr "Jobs & Positionen"
+
+msgid "Journal Club"
+msgstr "Journal Club"
+
+msgid "Medtryx Marketing"
+msgstr "Medtryx-Marketing"
+
+msgid "Meetings"
+msgstr "Besprechungen"
+
+msgid "Pathology Rounds"
+msgstr "Pathologierunden"
+
+msgid "Physical Exam"
+msgstr "Körperliche Untersuchung"
+
+msgid "Powerpoint Presentation"
+msgstr "PowerPoint Präsentation"
+
+msgid "Practice Management"
+msgstr "Praxismanagement"
+
+msgid "Professional Networks"
+msgstr "Professionelle Netzwerke"
+
+msgid "Radiology Rounds"
+msgstr "Radiologierunden"
+
+msgid "Study Plan"
+msgstr "Studienplan"
+
+msgid "Surgical Approaches"
+msgstr "Chirurgische Ansätze"
+
+msgid "Surgical Cases"
+msgstr "Chirurgische Fälle"
+
+msgid "Surgical Complications"
+msgstr "Chirurgische Komplikationen"
+
+msgid "Surgical Techniques"
+msgstr "Chirurgische Techniken"
+
+msgid "Techniques"
+msgstr "Techniken"
+
+msgid "Treatment Consult"
+msgstr "Behandlungsberatung"
+
+msgid "Written Boards Review"
+msgstr "Wiederholung für die schriftliche Facharztprüfung"
+
+msgid "Trauma"
+msgstr "Trauma"
+
+msgid "Spine"
+msgstr "Wirbelsäule"
+
+msgid "Shoulder & Elbow"
+msgstr "Schulter & Ellenbogen"
+
+msgid "Knee & Sports"
+msgstr "Knie & Sport"
+
+msgid "Pediatrics"
+msgstr "Pädiatrie"
+
+msgid "Recon"
+msgstr "Rekonstruktion"
+
+msgid "Hand"
+msgstr "Hand"
+
+msgid "Foot & Ankle"
+msgstr "Fuß & Knöchel"
+
+msgid "Pathology"
+msgstr "Pathologie"
+
+msgid "Basic Science"
+msgstr "Grundlagenwissenschaft"
+
+msgid "Anatomy"
+msgstr "Anatomie"
+
+msgid "Approaches"
+msgstr "Vorgehensweisen"
+
+msgid "General"
+msgstr "Allgemein"
+
+msgid "Best Pinkbike videos"
+msgstr "Beste Pinkbike-Videos"
+
+msgid "Programme archive (last 7 days)"
+msgstr "Sendungsarchiv (letzte 7 Tage)"
+
+msgid "Podcasts by category"
+msgstr "Podcasts nach Kategorie"
+
+msgid "Podcasts by station"
+msgstr "Podcasts nach Sender"
+
+msgid "Trending this week"
+msgstr "Trends dieser Woche"
+
+msgid "Paid content"
+msgstr "Kostenpflichtige Inhalte"
+
+msgid "Nothing available here at the moment (only upcoming broadcasts)."
+msgstr "Hier ist derzeit nichts verfügbar (nur kommende Sendungen)."
+
+msgid "This is paid content of PZPN+, it needs a purchase on the website."
+msgstr ""
+"Dies ist ein kostenpflichtiger Inhalt von PZPN+, er muss auf der Webseite"
+" gekauft werden."
+
+msgid "Audio programme"
+msgstr "Audiosendung"
+
+msgid "Country:"
+msgstr "Land:"
+
+msgid "Cinema History"
+msgstr "Kinogeschichte"
+
+msgid "The site's catalogue could not be loaded."
+msgstr "Der Katalog der Seite konnte nicht geladen werden."
+
+msgid "Top in your country"
+msgstr "Top in Ihrem Land"
+
+msgid "Action & Thriller"
+msgstr "Action & Thriller"
+
+msgid "Latest dubbed episodes"
+msgstr "Neueste synchronisierte Episoden"
+
+msgid "Live-action series episodes"
+msgstr "Episoden von Realserien"
+
+msgid "Series by genre"
+msgstr "Serien nach Genre"
+
+msgid "Series by year"
+msgstr "Serien nach Jahr"
+
+msgid "Films by genre"
+msgstr "Filme nach Genre"
+
+msgid "Short series"
+msgstr "Kurzserien"
+
+#, python-format
+msgid "Now playing: %s"
+msgstr "Läuft gerade: %s"
+
+msgid "FebBox token (\"ui\" cookie of www.febbox.com):"
+msgstr "FebBox-Token (\"ui\"-Cookie von www.febbox.com):"
+
+msgid ""
+"ShowBox streams need a FebBox login: enter the \"ui\" cookie of your "
+"FebBox account in the host configuration."
+msgstr ""
+"ShowBox-Streams benötigen eine FebBox-Anmeldung: Tragen Sie das "
+"\"ui\"-Cookie Ihres FebBox-Kontos in der Host-Konfiguration ein."
+
+msgid "serial number"
+msgstr "Seriennummer"
+
+msgid "device ID"
+msgstr "Geräte-ID"
+
+msgid "device ID 2"
+msgstr "Geräte-ID 2"
+
+msgid "signature"
+msgstr "Signatur"
+
+#, python-format
+msgid "Portal %d - name (optional):"
+msgstr "Portal %d - Name (optional):"
+
+#, python-format
+msgid "Portal %d - portal URL (http://host:port/c/):"
+msgstr "Portal %d - Portal-URL (http://host:port/c/):"
+
+#, python-format
+msgid "Portal %d - MAC address (00:1A:79:...):"
+msgstr "Portal %d - MAC-Adresse (00:1A:79:...):"
+
+#, python-format
+msgid "Portal %d - %s (optional, from the MAG box):"
+msgstr "Portal %d - %s (optional, von der MAG-Box):"
+
+#, python-format
+msgid "Also use the portals of EStalker (%s)"
+msgstr "Auch die Portale von EStalker verwenden (%s)"
+
+msgid "Show adult content"
+msgstr "Inhalte für Erwachsene anzeigen"
+
+#, python-format
+msgid "Expiry: %s"
+msgstr "Ablaufdatum: %s"
+
+#, python-format
+msgid "Tariff: %s"
+msgstr "Tarif: %s"
+
+#, python-format
+msgid "Balance: %s"
+msgstr "Guthaben: %s"
+
+msgid "Please configure the Stalker portal (blue button)"
+msgstr "Bitte konfigurieren Sie das Stalker-Portal (blaue Taste)"
+
+#, python-format
+msgid ""
+"Portal URL and MAC address in the host configuration, as the provider "
+"gives them out. More portals: %s in the EStalker format (portal URL, then"
+" its MAC addresses, one per line)."
+msgstr ""
+"Portal-URL und MAC-Adresse in der Host-Konfiguration, so wie der Anbieter"
+" sie herausgibt. Weitere Portale: %s im EStalker-Format (Portal-URL, "
+"danach ihre MAC-Adressen, eine pro Zeile)."
+
+msgid "Programmes of the last days of the channels with an archive"
+msgstr "Sendungen der letzten Tage von Sendern mit Archiv"
+
+#, python-format
+msgid "Catch-up: %d days"
+msgstr "Mediathek: %d Tage"
+
+msgid "No channels with an archive on this portal."
+msgstr "Keine Kanäle mit Archiv auf diesem Portal."
+
+msgid "No recorded programmes on this day."
+msgstr "Keine aufgezeichneten Sendungen an diesem Tag."
+
+msgid "The Stalker portal of this entry is not configured (any more)."
+msgstr "Das Stalker-Portal dieses Eintrags ist nicht (mehr) konfiguriert."
+
+msgid "The portal did not hand out a link for this entry."
+msgstr "Das Portal hat für diesen Eintrag keinen Link herausgegeben."
+
+msgid "No programme guide for this channel."
+msgstr "Keine Programmübersicht für diesen Sender."
+
+msgid "WebStreamr / AIOStreams manifest URL (your own):"
+msgstr "WebStreamr / AIOStreams-Manifest-URL (Ihre eigene):"
+
+msgid "Runtime"
+msgstr "Laufzeit"
+
+msgid "YP connected"
+msgstr "YP verbunden"
+
+msgid "Collected streams only"
+msgstr "Nur gesammelte Streams"
+
+msgid "Free IPTV list"
+msgstr "Freie IPTV-Liste"
+
+msgid "All streams"
+msgstr "Alle Streams"
+
+msgid "Hide titles only available in Sweden"
+msgstr "Nur in Schweden verfügbare Titel ausblenden"
+
+msgid "Sweden"
+msgstr "Schweden"
+
+msgid "Category:"
+msgstr "Kategorie:"
+
+msgid "E-mail (free TBN GO account):"
+msgstr "E-Mail (kostenloses TBN GO-Konto):"
+
+msgid ""
+"TBN GO needs a free account to play programmes.\n"
+"Register on https://tbngo.pl/ and enter the e-mail and password in the "
+"host settings."
+msgstr ""
+"TBN GO benötigt ein kostenloses Konto zum Abspielen von Sendungen.\n"
+"Registrieren Sie sich auf https://tbngo.pl/ und geben Sie E-Mail und "
+"Passwort in den Host-Einstellungen ein."
+
+#, python-format
+msgid "Live stream of the %s channel"
+msgstr "Live-Stream des Senders %s"
+
+msgid "Subtitle languages"
+msgstr "Untertitelsprachen"
+
+#, python-format
+msgid "%s talks"
+msgstr "%s Vorträge"
+
+msgid "Date"
+msgstr "Datum"
+
+msgid "Events"
+msgstr "Events"
+
+msgid "WWE shows"
+msgstr "WWE-Shows"
+
+msgid "English dubbed"
+msgstr "Englisch synchronisiert"
+
+msgid "Indian"
+msgstr "Indisch"
+
+msgid "Classic"
+msgstr "Klassiker"
+
+msgid "Latino"
+msgstr "Lateinamerikaner"
+
+msgid "IMDb"
+msgstr "IMDb"
+
+msgid "Maximum torrent size:"
+msgstr "Maximale Torrent-Größe:"
+
+msgid "MediaFusion manifest URL (your own):"
+msgstr "MediaFusion-Manifest-URL (Ihre eigene):"
+
+msgid "Complete series"
+msgstr "Komplette Serien"
+
+msgid "Select best available quality"
+msgstr "Beste verfügbare Qualität auswählen"
+
+msgid "Poland"
+msgstr "Polen"
+
+msgid "World"
+msgstr "Welt"
+
+msgid "Business"
+msgstr "Wirtschaft"
+
+msgid "Culture and lifestyle"
+msgstr "Kultur und Lifestyle"
+
+msgid "Regions"
+msgstr "Regionen"
+
+msgid "This article has no free video."
+msgstr "Dieser Artikel hat kein kostenloses Video."
+
+msgid "Live stream on YouTube"
+msgstr "Live-Stream auf YouTube"
+
+msgid ""
+"The video could not be resolved (it may be private, ended or not "
+"available in your country)."
+msgstr ""
+"Das Video konnte nicht aufgelöst werden (es ist evtl. privat, beendet "
+"oder in Ihrem Land nicht verfügbar)."
+
+msgid "Streaming platforms"
+msgstr "Streaming-Plattformen"
+
+msgid "Watch online"
+msgstr "Online ansehen"
+
+msgid "Group links into categories:"
+msgstr "Links in Kategorien gliedern:"
+
+#, python-format
+msgid "%s not found in %s"
+msgstr "%s nicht gefunden in %s"
+
+#, python-format
+msgid "Lines that could not be read: %d (first: line %d of %s)"
+msgstr "Zeilen, die nicht gelesen werden konnten: %d (erste: Zeile %d von %s)"
+
+msgid "Link"
+msgstr "Link"
+
+msgid "Vimeo does not offer this list to anonymous users in your region."
+msgstr "Vimeo bietet diese Liste anonymen Benutzern in Ihrer Region nicht an."
+
+msgid "Followers"
+msgstr "Follower"
+
+msgid "Members"
+msgstr "Mitglieder"
+
+msgid "The best short films on the internet, handpicked by Vimeo staff"
+msgstr "Die besten Kurzfilme im Internet, handverlesen vom Vimeo-Team"
+
+msgid "Latest anime episodes"
+msgstr "Neueste Anime-Episoden"
+
+msgid "Latest cartoon episodes"
+msgstr "Neueste Zeichentrick-Episoden"
+
+msgid "Cartoons A-Z"
+msgstr "Zeichentrick A-Z"
+
+msgid "Anime genres"
+msgstr "Anime-Genres"
+
+msgid "Cartoon genres"
+msgstr "Zeichentrick-Genres"
+
+msgid "English subbed"
+msgstr "Englisch untertitelt"
+
+msgid "Exclusive"
+msgstr "Exklusiv"
+
+msgid "Size:"
+msgstr "Größe:"
+
+msgid "Read by"
+msgstr "Gelesen von"
+
+msgid "All audiobooks"
+msgstr "Alle Hörbücher"
+
+msgid "Authors"
+msgstr "Autoren"
+
+msgid "Epochs"
+msgstr "Epochen"
+
+msgid "Kinds"
+msgstr "Arten"
+
+msgid "Prefer MP4 over HLS:"
+msgstr "MP4 gegenüber HLS bevorzugen:"
+
+#, python-format
+msgid "Account %d - name (optional):"
+msgstr "Konto %d - Name (optional):"
+
+#, python-format
+msgid "Account %d - server (http://host:port or get.php link):"
+msgstr "Konto %d - Server (http://host:port oder get.php-Link):"
+
+#, python-format
+msgid "Account %d - user name:"
+msgstr "Konto %d - Benutzername:"
+
+#, python-format
+msgid "Account %d - password:"
+msgstr "Konto %d - Passwort:"
+
+msgid "User-Agent (leave empty for the default):"
+msgstr "User-Agent (leer lassen für Standard):"
+
+#, python-format
+msgid "Also use the accounts of X-Streamity (%s)"
+msgstr "Auch die Konten von X-Streamity verwenden (%s)"
+
+msgid "Login or password is wrong."
+msgstr "Login oder Passwort ist falsch."
+
+#, python-format
+msgid "Status: %s"
+msgstr "Status: %s"
+
+msgid "never"
+msgstr "nie"
+
+msgid "Trial"
+msgstr "Testzugang"
+
+#, python-format
+msgid "Connections: %s of %s"
+msgstr "Verbindungen: %s von %s"
+
+#, python-format
+msgid "Created: %s"
+msgstr "Erstellt: %s"
+
+#, python-format
+msgid "Stream formats: %s"
+msgstr "Stream-Formate: %s"
+
+#, python-format
+msgid "Ports: %s"
+msgstr "Ports: %s"
+
+#, python-format
+msgid "Server time: %s"
+msgstr "Serverzeit: %s"
+
+msgid "Please configure Xtream (blue button)"
+msgstr "Bitte konfigurieren Sie Xtream (blaue Taste)"
+
+#, python-format
+msgid ""
+"Server, user name and password in the host configuration. The server "
+"field also takes a get.php link. More accounts: %s with one get.php link "
+"per line (X-Streamity format)."
+msgstr ""
+"Server, Benutzername und Passwort in der Host-Konfiguration. Das Server-"
+"Feld nimmt auch einen get.php-Link an. Weitere Konten: %s mit einem get"
+".php-Link pro Zeile (X-Streamity-Format)."
+
+#, python-format
+msgid "Catch-up (%d channels)"
+msgstr "Mediathek (%d Sender)"
+
+msgid "The Xtream account of this entry is not configured (any more)."
+msgstr "Das Xtream-Konto dieses Eintrags ist nicht (mehr) konfiguriert."
+
+msgid "Catch-up (timeshift.php)"
+msgstr "Mediathek (timeshift.php)"
+
+msgid "New links"
+msgstr "Neue Links"
+
+msgid "E2iPlayer downloader"
+msgstr "E2iPlayer Downloader"
+

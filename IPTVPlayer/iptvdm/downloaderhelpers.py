@@ -175,6 +175,27 @@ def filesAreIdentical(pathA, pathB):
         return False
 
 
+# the extensions of the subtitles saved next to a download (the download manager removes / renames them with it)
+SUBTITLE_SIDECAR_EXT = ('srt', 'ass')
+
+
+def subtitleSidecarFiles(basePath):
+    # the subtitle files saved next to the download basePath (without extension): name.srt, name.2.srt, name.de.srt,
+    # name.de.2.srt - not "name.2023.srt" or "name.HD.srt" of another video
+    import re
+    found = []
+    try:
+        folder, name = os.path.split(ensureText(basePath))
+        pattern = re.compile(r'^%s(?:\.[a-z]{2})?(?:\.(?:[2-9]|[1-9]\d))?\.(?:%s)$' % (re.escape(name), '|'.join(SUBTITLE_SIDECAR_EXT)))
+        for entry in os.listdir(fsPath(folder or '.')):
+            entry = ensureText(entry)
+            if pattern.match(entry):
+                found.append(os.path.join(folder, entry))
+    except Exception:
+        printExc()
+    return sorted(found)
+
+
 def safeRemoveFile(path):
     try:
         path = fsPath(path)
