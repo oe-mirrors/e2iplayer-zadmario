@@ -25,6 +25,10 @@ from Components.config import config, ConfigSubsection, ConfigSelection, ConfigD
 ###################################################
 config.plugins.iptvplayer.extplayer_summary = ConfigSelection(default="yes", choices=[('auto', _('Auto')), ('yes', _('Yes')), ('no', _('No'))])
 config.plugins.iptvplayer.lcd_cover = ConfigYesNo(default=True)
+config.plugins.iptvplayer.lcd_cover_size = ConfigSelection(default="small", choices=[('small', _('Small (16:9)')), ('column', _('Column'))])
+config.plugins.iptvplayer.lcd_font_size = ConfigSelection(default="large", choices=[('normal', _('Normal')), ('large', _('Large')), ('xlarge', _('Very large'))])
+config.plugins.iptvplayer.lcd_time_format = ConfigSelection(default="minutes", choices=[('minutes', _('Minutes')), ('seconds', _('With seconds'))])
+config.plugins.iptvplayer.lcd_long_titles = ConfigSelection(default="scroll", choices=[('scroll', _('Scroll')), ('pages', _('Page by page')), ('shrink', _('Smaller text'))])
 config.plugins.iptvplayer.use_clear_iframe = ConfigYesNo(default=False)
 config.plugins.iptvplayer.show_iframe = ConfigYesNo(default=True)
 config.plugins.iptvplayer.iframe_file = ConfigIPTVFileSelection(fileMatch="^.*\.mvi$", default="/usr/share/enigma2/radio.mvi")
@@ -301,6 +305,11 @@ class ConfigExtMoviePlayer(ConfigBaseWidget, ConfigExtMoviePlayerBase):
         valTab.append(config.plugins.iptvplayer.extplayer_subtitle_wrapping_enabled.value)
         valTab.append(config.plugins.iptvplayer.show_iframe.value)
         valTab.append(config.plugins.iptvplayer.extplayer_summary.value)
+        valTab.append(config.plugins.iptvplayer.lcd_cover.value)
+        valTab.append(config.plugins.iptvplayer.lcd_cover_size.value)
+        valTab.append(config.plugins.iptvplayer.lcd_font_size.value)
+        valTab.append(config.plugins.iptvplayer.lcd_time_format.value)
+        valTab.append(config.plugins.iptvplayer.lcd_long_titles.value)
         valTab.append(config.plugins.iptvplayer.extplayer_infobanner_clockformat.value)
         return valTab
 
@@ -313,7 +322,13 @@ class ConfigExtMoviePlayer(ConfigBaseWidget, ConfigExtMoviePlayerBase):
         if getDesktop(0).size().width() >= 800:
             list.append(getConfigListEntry(_("Info bar clock format"), config.plugins.iptvplayer.extplayer_infobanner_clockformat))
         list.append(getConfigListEntry(_("Create LCD/VFD summary screen"), config.plugins.iptvplayer.extplayer_summary))
-        list.append(getConfigListEntry("    " + _("Cover on the LCD summary screen"), config.plugins.iptvplayer.lcd_cover))
+        if config.plugins.iptvplayer.extplayer_summary.value != "no":
+            list.append(getConfigListEntry("    " + _("Cover on the LCD summary screen"), config.plugins.iptvplayer.lcd_cover))
+            if config.plugins.iptvplayer.lcd_cover.value:
+                list.append(getConfigListEntry("        " + _("Cover size"), config.plugins.iptvplayer.lcd_cover_size))
+            list.append(getConfigListEntry("    " + _("LCD font size"), config.plugins.iptvplayer.lcd_font_size))
+            list.append(getConfigListEntry("    " + _("Time on the LCD (player)"), config.plugins.iptvplayer.lcd_time_format))
+            list.append(getConfigListEntry("    " + _("Long titles on the LCD"), config.plugins.iptvplayer.lcd_long_titles))
         if 1:#IsExecutable(config.plugins.iptvplayer.exteplayer3path.value):
             list.append(getConfigListEntry(_("----------------- External exteplayer3 options -----------------"), config.plugins.iptvplayer.fakeExtePlayer3))
             list.append(getConfigListEntry("    " + _("RAM buffer size [MB] for network protocols"), config.plugins.iptvplayer.rambuffer_sizemb_network_proto))
@@ -390,6 +405,8 @@ class ConfigExtMoviePlayer(ConfigBaseWidget, ConfigExtMoviePlayerBase):
                config.plugins.iptvplayer.extplayer_subtitle_background,
                config.plugins.iptvplayer.show_iframe,
                config.plugins.iptvplayer.use_clear_iframe,
+               config.plugins.iptvplayer.extplayer_summary,
+               config.plugins.iptvplayer.lcd_cover,
               ]
 
     def changeSubOptions(self):

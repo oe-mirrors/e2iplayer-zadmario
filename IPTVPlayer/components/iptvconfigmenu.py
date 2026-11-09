@@ -340,6 +340,9 @@ config.plugins.iptvplayer.meta_omdb = ConfigYesNo(default=False)
 config.plugins.iptvplayer.meta_language = ConfigSelection(default="auto", choices=[("auto", _("Auto")), ("ar", _("Arabic")), ("cs", _("Czech")), ("de", _("German")), ("el", _("Greek")), ("en", _("English")), ("es", _("Spanish")), ("fr", _("French")), ("hu", _("Hungarian")), ("it", _("Italian")), ("nl", _("Dutch")), ("pl", _("Polish")), ("pt", _("Portuguese")), ("ru", _("Russian")), ("tr", _("Turkish")), ("uk", _("Ukrainian"))])
 config.plugins.iptvplayer.meta_tmdb_apikey = ConfigText(default="", fixed_size=False)
 config.plugins.iptvplayer.meta_omdb_apikey = ConfigText(default="", fixed_size=False)
+# 16:9 pictures (an episode's still, a title's backdrop) from the same services instead of the portrait poster: list icons of
+# the hosts which set them, the info picture and the download sidecar .jpg
+config.plugins.iptvplayer.meta_images_169 = ConfigYesNo(default=False)
 
 # folder of the account files of hosts like hostxtream / hoststalker (<ConfigDir>/IPTVAccounts/), same place as in
 # the python3 branch; no settings row - zadmario keeps its own settings files in GetConfigDir()
@@ -757,6 +760,7 @@ class ConfigMenu(ConfigBaseWidget):
             list.append(getConfigListEntry(_("Use OMDb"), cp.meta_omdb))
             if cp.meta_omdb.value:
                 list.append(getConfigListEntry("    " + _("OMDb API key (free at omdbapi.com)"), cp.meta_omdb_apikey))
+            list.append(getConfigListEntry(_("Use 16:9 pictures (per episode) instead of the portrait poster"), cp.meta_images_169))
 
         list.append(getConfigListEntry('\\c00289496' + _("----- TORRENT CONFIGURATION (OK) -----"), config.plugins.iptvplayer.torrConfVisible))
         if torrConfVisible: #TORRENT CONFIGURATION - libs/torrserver.py

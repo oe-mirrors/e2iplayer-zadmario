@@ -14,7 +14,7 @@
 ###################################################
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, eConnectCallback, GetIconDir, GetBinDir, E2PrioFix, formatBytes
 from Plugins.Extensions.IPTVPlayer.components.iptvplayer import IPTVStandardMoviePlayer, IPTVMiniMoviePlayer
-from Plugins.Extensions.IPTVPlayer.components.iptvextmovieplayer import IPTVExtMoviePlayer, addLcdSources, colorSummaryIfWanted
+from Plugins.Extensions.IPTVPlayer.components.iptvextmovieplayer import IPTVExtMoviePlayer, addLcdSources, colorSummaryIfWanted, lcdSetTitle
 from Plugins.Extensions.IPTVPlayer.components.iconmenager import FindCachedIcon
 from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import ConfigMenu, GetMoviePlayer
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
@@ -609,7 +609,7 @@ class IPTVDMWidget(Screen):
             if state != self.lcdLastState:
                 self.lcdLastState = state
                 title, percent, position, right = state
-                self["lcdTitle"].setText(title)
+                lcdSetTitle(self, title)
                 self["lcdProgress"].value = max(0, min(100, percent))
                 self["lcdPercent"].setText("%d%%" % percent if percent >= 0 else "")
                 self["lcdCurrTime"].setText(position)
