@@ -25,10 +25,21 @@ from Components.config import config, ConfigSubsection, ConfigSelection, ConfigD
 ###################################################
 config.plugins.iptvplayer.extplayer_summary = ConfigSelection(default="yes", choices=[('auto', _('Auto')), ('yes', _('Yes')), ('no', _('No'))])
 config.plugins.iptvplayer.lcd_cover = ConfigYesNo(default=True)
-config.plugins.iptvplayer.lcd_cover_size = ConfigSelection(default="small", choices=[('small', _('Small (16:9)')), ('column', _('Column'))])
+config.plugins.iptvplayer.lcd_cover_size = ConfigSelection(default="small", choices=[('small', _('Small (16:9)')), ('column', _('Medium (beside the title)')), ('poster', _('Large (title below)')), ('side', _('Large (info on the right)'))])
+config.plugins.iptvplayer.lcd_cover_fit = ConfigSelection(default="auto", choices=[('auto', _('Automatic (crop or blurred background)')), ('crop', _('Fill the field (crop)')), ('fit', _('Whole picture (black bars)'))])
 config.plugins.iptvplayer.lcd_font_size = ConfigSelection(default="large", choices=[('normal', _('Normal')), ('large', _('Large')), ('xlarge', _('Very large'))])
 config.plugins.iptvplayer.lcd_time_format = ConfigSelection(default="minutes", choices=[('minutes', _('Minutes')), ('seconds', _('With seconds'))])
 config.plugins.iptvplayer.lcd_long_titles = ConfigSelection(default="scroll", choices=[('scroll', _('Scroll')), ('pages', _('Page by page')), ('shrink', _('Smaller text'))])
+config.plugins.iptvplayer.lcd_title_runs = ConfigSelection(default="2", choices=[('0', _('Endless')), ('1', '1'), ('2', '2'), ('3', '3'), ('5', '5')])
+config.plugins.iptvplayer.lcd_poster_time = ConfigSelection(default="70", choices=[(str(p), '%d %%' % p) for p in (50, 60, 70, 80, 90, 100)])
+config.plugins.iptvplayer.lcd_poster_title = ConfigSelection(default="100", choices=[(str(p), '%d %%' % p) for p in (70, 80, 90, 100, 110, 120, 130)])
+LCD_SIDE_ROW_CHOICES = [('none', _('None')), ('clock', _('Time')), ('date', _('Date')), ('end', _('End time')), ('remaining', _('Remaining')), ('elapsed', _('Played')), ('length', _('Length')), ('percent', _('Percent'))]
+config.plugins.iptvplayer.lcd_side_row1 = ConfigSelection(default="clock", choices=LCD_SIDE_ROW_CHOICES)
+config.plugins.iptvplayer.lcd_side_row2 = ConfigSelection(default="end", choices=LCD_SIDE_ROW_CHOICES)
+config.plugins.iptvplayer.lcd_side_row3 = ConfigSelection(default="remaining", choices=LCD_SIDE_ROW_CHOICES)
+config.plugins.iptvplayer.lcd_side_row4 = ConfigSelection(default="percent", choices=LCD_SIDE_ROW_CHOICES)
+config.plugins.iptvplayer.lcd_bar_color = ConfigSelection(default="red", choices=[('red', _('Red')), ('green', _('Green')), ('blue', _('Blue')), ('yellow', _('Yellow')), ('orange', _('Orange')), ('cyan', _('Cyan')), ('magenta', _('Magenta')), ('white', _('White'))])
+config.plugins.iptvplayer.lcd_bar_frame = ConfigSelection(default="white", choices=[('white', _('White')), ('grey', _('Grey')), ('same', _('Same as the bar')), ('none', _('No frame'))])
 config.plugins.iptvplayer.use_clear_iframe = ConfigYesNo(default=False)
 config.plugins.iptvplayer.show_iframe = ConfigYesNo(default=True)
 config.plugins.iptvplayer.iframe_file = ConfigIPTVFileSelection(fileMatch="^.*\.mvi$", default="/usr/share/enigma2/radio.mvi")
@@ -321,14 +332,30 @@ class ConfigExtMoviePlayer(ConfigBaseWidget, ConfigExtMoviePlayerBase):
             list.append(getConfigListEntry("    " + _("Skip video shorter than [min]"), config.plugins.iptvplayer.remember_last_position_time))
         if getDesktop(0).size().width() >= 800:
             list.append(getConfigListEntry(_("Info bar clock format"), config.plugins.iptvplayer.extplayer_infobanner_clockformat))
-        list.append(getConfigListEntry(_("Create LCD/VFD summary screen"), config.plugins.iptvplayer.extplayer_summary))
+        list.append(getConfigListEntry(_("Show E2iPlayer on the display"), config.plugins.iptvplayer.extplayer_summary))
         if config.plugins.iptvplayer.extplayer_summary.value != "no":
-            list.append(getConfigListEntry("    " + _("Cover on the LCD summary screen"), config.plugins.iptvplayer.lcd_cover))
+            list.append(getConfigListEntry("    " + _("Cover on the LCD"), config.plugins.iptvplayer.lcd_cover))
             if config.plugins.iptvplayer.lcd_cover.value:
                 list.append(getConfigListEntry("        " + _("Cover size"), config.plugins.iptvplayer.lcd_cover_size))
+                list.append(getConfigListEntry("        " + _("Cover picture on the LCD"), config.plugins.iptvplayer.lcd_cover_fit))
             list.append(getConfigListEntry("    " + _("LCD font size"), config.plugins.iptvplayer.lcd_font_size))
             list.append(getConfigListEntry("    " + _("Time on the LCD (player)"), config.plugins.iptvplayer.lcd_time_format))
             list.append(getConfigListEntry("    " + _("Long titles on the LCD"), config.plugins.iptvplayer.lcd_long_titles))
+            if config.plugins.iptvplayer.lcd_long_titles.value == 'scroll':
+                list.append(getConfigListEntry("        " + _("Scrolling title runs (then it stands still)"), config.plugins.iptvplayer.lcd_title_runs))
+            # only the settings of the chosen layout
+            coverSize = config.plugins.iptvplayer.lcd_cover_size.value if config.plugins.iptvplayer.lcd_cover.value else ''
+            if coverSize in ('poster', 'side'):
+                list.append(getConfigListEntry("        " + _("Large cover: size of the title line"), config.plugins.iptvplayer.lcd_poster_title))
+            if coverSize == 'poster':
+                list.append(getConfigListEntry("        " + _("Large cover: size of the times below the bar"), config.plugins.iptvplayer.lcd_poster_time))
+            if coverSize == 'side':
+                list.append(getConfigListEntry("        " + _("Large cover, info on the right: row 1"), config.plugins.iptvplayer.lcd_side_row1))
+                list.append(getConfigListEntry("        " + _("Large cover, info on the right: row 2"), config.plugins.iptvplayer.lcd_side_row2))
+                list.append(getConfigListEntry("        " + _("Large cover, info on the right: row 3"), config.plugins.iptvplayer.lcd_side_row3))
+                list.append(getConfigListEntry("        " + _("Large cover, info on the right: row 4"), config.plugins.iptvplayer.lcd_side_row4))
+            list.append(getConfigListEntry("    " + _("Progress bar color on the LCD"), config.plugins.iptvplayer.lcd_bar_color))
+            list.append(getConfigListEntry("    " + _("Progress bar frame on the LCD"), config.plugins.iptvplayer.lcd_bar_frame))
         if 1:#IsExecutable(config.plugins.iptvplayer.exteplayer3path.value):
             list.append(getConfigListEntry(_("----------------- External exteplayer3 options -----------------"), config.plugins.iptvplayer.fakeExtePlayer3))
             list.append(getConfigListEntry("    " + _("RAM buffer size [MB] for network protocols"), config.plugins.iptvplayer.rambuffer_sizemb_network_proto))

@@ -10,6 +10,7 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc
 from Plugins.Extensions.IPTVPlayer.components.iptvdirbrowser import IPTVDirectorySelectorWidget, IPTVFileSelectorWidget
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
 from Plugins.Extensions.IPTVPlayer.components.e2ivkselector import GetVirtualKeyboard, GetNumericKeyboard
+from Plugins.Extensions.IPTVPlayer.components.iptvlcd import setupSummaryIfWanted
 ###################################################
 from Plugins.Extensions.IPTVPlayer.p2p3.pVer import isPY2
 if not isPY2():
@@ -408,3 +409,7 @@ class ConfigBaseWidget(Screen, ConfigListScreen):
         self.changeSubOptions()
         for x in self.onChangedEntry:
             x()
+
+    def createSummary(self):
+        # Screen comes first in the bases, its createSummary (None) would win over ConfigListScreen's
+        return setupSummaryIfWanted()

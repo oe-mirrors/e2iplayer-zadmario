@@ -454,8 +454,170 @@ msgstr "Video kürzer als [min] überspringen"
 msgid "Info bar clock format"
 msgstr "Infobar Uhr-Anzeige"
 
-msgid "Create LCD/VFD summary screen"
-msgstr "Erzeuge Summary-Screen für LCD/VFD"
+msgid "Small (16:9)"
+msgstr "Klein (16:9)"
+
+msgid "Medium (beside the title)"
+msgstr "Mittel (neben dem Titel)"
+
+msgid "Large (title below)"
+msgstr "Groß (Titel darunter)"
+
+msgid "Large (info on the right)"
+msgstr "Groß (Infos rechts)"
+
+msgid "Automatic (crop or blurred background)"
+msgstr "Automatisch (zuschneiden oder unscharfer Hintergrund)"
+
+msgid "Fill the field (crop)"
+msgstr "Feld füllen (zuschneiden)"
+
+msgid "Whole picture (black bars)"
+msgstr "Ganzes Bild (schwarze Balken)"
+
+msgid "Normal"
+msgstr "Normal"
+
+msgid "Large"
+msgstr "Groß"
+
+msgid "Very large"
+msgstr "Sehr groß"
+
+msgid "Minutes"
+msgstr "Minuten"
+
+msgid "With seconds"
+msgstr "Mit Sekunden"
+
+msgid "Scroll"
+msgstr "Laufschrift"
+
+msgid "Page by page"
+msgstr "Seitenweise"
+
+msgid "Smaller text"
+msgstr "Kleinere Schrift"
+
+msgid "Endless"
+msgstr "Endlos"
+
+msgid "Show E2iPlayer on the display"
+msgstr "E2iPlayer auf dem Display anzeigen"
+
+msgid "Cover on the LCD"
+msgstr "Cover auf dem LCD"
+
+msgid "Cover size"
+msgstr "Cover-Größe"
+
+msgid "Cover picture on the LCD"
+msgstr "Cover-Bild auf dem LCD"
+
+msgid "LCD font size"
+msgstr "LCD-Schriftgröße"
+
+msgid "Time on the LCD (player)"
+msgstr "Zeit auf dem LCD (Player)"
+
+msgid "Long titles on the LCD"
+msgstr "Lange Titel auf dem LCD"
+
+msgid "Scrolling title runs (then it stands still)"
+msgstr "Laufschrift-Durchläufe (danach steht sie still)"
+
+msgid "Large cover: size of the title line"
+msgstr "Großes Cover: Größe der Titelzeile"
+
+msgid "Large cover: size of the times below the bar"
+msgstr "Großes Cover: Größe der Zeiten unter dem Balken"
+
+msgid "Large cover, info on the right: row 1"
+msgstr "Großes Cover, Infos rechts: Zeile 1"
+
+msgid "Large cover, info on the right: row 2"
+msgstr "Großes Cover, Infos rechts: Zeile 2"
+
+msgid "Large cover, info on the right: row 3"
+msgstr "Großes Cover, Infos rechts: Zeile 3"
+
+msgid "Large cover, info on the right: row 4"
+msgstr "Großes Cover, Infos rechts: Zeile 4"
+
+msgid "Progress bar color on the LCD"
+msgstr "Farbe des Fortschrittsbalkens auf dem LCD"
+
+msgid "Progress bar frame on the LCD"
+msgstr "Rahmen des Fortschrittsbalkens auf dem LCD"
+
+msgid "min"
+msgstr "Min"
+
+msgid "ENDS"
+msgstr "ENDE"
+
+msgid "REMAINING"
+msgstr "REST"
+
+msgid "PLAYED"
+msgstr "GELAUFEN"
+
+msgid "LENGTH"
+msgstr "LÄNGE"
+
+msgid "DONE"
+msgstr "ERLEDIGT"
+
+msgid "Use 16:9 pictures (per episode) instead of the portrait poster"
+msgstr "16:9-Bilder (pro Episode) statt des Hochformat-Posters verwenden"
+
+msgid "End time"
+msgstr "Endzeit"
+
+msgid "Remaining"
+msgstr "Restzeit"
+
+msgid "Played"
+msgstr "Gelaufen"
+
+msgid "Length"
+msgstr "Länge"
+
+msgid "Percent"
+msgstr "Prozent"
+
+msgid "Red"
+msgstr "Rot"
+
+msgid "Green"
+msgstr "Grün"
+
+msgid "Blue"
+msgstr "Blau"
+
+msgid "Yellow"
+msgstr "Gelb"
+
+msgid "Orange"
+msgstr "Orange"
+
+msgid "Cyan"
+msgstr "Cyan"
+
+msgid "Magenta"
+msgstr "Magenta"
+
+msgid "White"
+msgstr "Weiß"
+
+msgid "Grey"
+msgstr "Grau"
+
+msgid "Same as the bar"
+msgstr "Wie der Balken"
+
+msgid "No frame"
+msgstr "Kein Rahmen"
 
 msgid "----------------- External exteplayer3 options -----------------"
 msgstr "---------------- Externer Exteplayer3 Optionen ----------------"
@@ -6052,9 +6214,6 @@ msgstr "MyE2i: Seite im Browser öffnen"
 
 msgid "Show download notification"
 msgstr "Download-Benachrichtigung anzeigen"
-
-msgid "Cover on the LCD summary screen"
-msgstr "Cover auf der LCD-Übersichtsseite"
 
 msgid "----- EXPERT OPTIONS (OK) -----"
 msgstr "----- EXPERTEN OPTIONEN (OK) -----"

@@ -19,6 +19,7 @@ from Components.Label import Label
 from Components.MenuList import MenuList
 
 from Plugins.Extensions.IPTVPlayer.components.e2ivkselector import GetVirtualKeyboard
+from Plugins.Extensions.IPTVPlayer.components.iptvlcd import infoSummaryIfWanted, lcdFollowList, lcdListText, lcdSetInfo
 from Tools.NumericalTextInput import NumericalTextInput
 
 try:
@@ -193,6 +194,7 @@ class SearchHistoryEditor(Screen):
         self['key_blue'] = Label('')
         self['key_menu'] = Label('')
         self['list'] = MenuList([], enableWrapAround=True)
+        lcdFollowList(self)  # LCD: the marked search
 
         self.setTitle(guiSafeStr(_(u'Edit search history')))
         self.safeSetText(self['key_red'], _(u'Delete'))
@@ -258,6 +260,10 @@ class SearchHistoryEditor(Screen):
         if selectedIndex is not None and displayList:
             selectedIndex = max(0, min(selectedIndex, len(displayList) - 1))
             self['list'].moveToIndex(selectedIndex)
+        lcdSetInfo(self, text=lcdListText(self['list']))
+
+    def createSummary(self):
+        return infoSummaryIfWanted()
 
     def loadEntriesFromFile(self):
         return parseHistoryFile(self.historyFile, self.reverseForDisplay)
