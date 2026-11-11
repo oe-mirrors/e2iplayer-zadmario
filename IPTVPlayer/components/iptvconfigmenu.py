@@ -9,7 +9,7 @@
 ###################################################
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, GetSkinsList, GetHostsList, GetEnabledHostsList, \
                                                           IsHostEnabled, IsExecutable, CFakeMoviePlayerOption, GetAvailableIconSize, \
-                                                          IsWebInterfaceModuleAvailable, SetIconsHash, SetGraphicsHash, isOPKGinstall, \
+                                                          IsWebInterfaceModuleAvailable, SetIconsHash, SetGraphicsHash, \
                                                           defaultToolPath, GITHUB_UPDATE_REPO
 from Plugins.Extensions.IPTVPlayer.iptvupdate.updatemainwindow import IPTVUpdateWindow, UpdateMainAppImpl
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, IPTVPlayerNeedInit
@@ -114,13 +114,12 @@ config.plugins.iptvplayer.IPTVWebIterface = ConfigYesNo(default=False)
 config.plugins.iptvplayer.plugin_autostart = ConfigYesNo(default=False)
 config.plugins.iptvplayer.plugin_autostart_method = ConfigSelection(default="wizard", choices=[("wizard", "wizard"), ("infobar", "infobar")])
 
-if isOPKGinstall():
-    config.plugins.iptvplayer.preferredupdateserver = ConfigSelection(default="4", choices=[("", _("Default")), ("4", "opkg repo")])
-else:
-    # "1" (vline) and "3" (private) both pointed at addresses that are
-    # dead now (SSL failure / cert mismatch, checked live) - "2" (GitHub)
-    # is the only one that still works, so it's the only choice left
-    config.plugins.iptvplayer.preferredupdateserver = ConfigSelection(default="2", choices=[("2", _("GitHub repository") + " (%s)" % GITHUB_UPDATE_REPO)])
+# "1" (vline) and "3" (private) both pointed at addresses that are
+# dead now (SSL failure / cert mismatch, checked live) - "2" (GitHub)
+# is the only one that still works, so it's the only choice left; also
+# for opkg installs (old "4" = opkg repo, updates now come from GitHub too): a saved "4"
+# is not a choice any more and falls back to the default
+config.plugins.iptvplayer.preferredupdateserver = ConfigSelection(default="2", choices=[("2", _("GitHub repository") + " (%s)" % GITHUB_UPDATE_REPO)])
 config.plugins.iptvplayer.osk_type = ConfigSelection(default="", choices=[("", _("Auto")), ("system", _("System")), ("own", _("Own model"))])
 config.plugins.iptvplayer.osk_layout = ConfigText(default="", fixed_size=False)
 config.plugins.iptvplayer.osk_allow_suggestions = ConfigYesNo(default=True)

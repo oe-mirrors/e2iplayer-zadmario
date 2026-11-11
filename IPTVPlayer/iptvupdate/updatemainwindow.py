@@ -390,8 +390,12 @@ class UpdateMainAppImpl(IUpdateObjectInterface):
     def getStepsList(self):
         self.list = []
         if config.plugins.iptvplayer.preferredupdateserver.value == '2':
-            self.list.append(self.__getStepDesc(title=_("Add repository last version."), execFunction=self.stepGetGitlab, ignoreError=True))
-        self.list.append(self.__getStepDesc(title=_("Obtaining server list."), execFunction=self.stepGetServerLists))
+            # GitHub only: the version.py of the repository, then its archive - the old server list
+            # (serwerslist.json on the GitLab/vline servers) is not needed and would stop the update when missing
+            self.list.append(self.__getStepDesc(title=_("Add repository last version."), execFunction=self.stepGetGitlab))
+            self.list.append(self.__getStepDesc(title=_("Obtaining server list."), execFunction=self.stepUseGitHubVersion))
+        else:
+            self.list.append(self.__getStepDesc(title=_("Obtaining server list."), execFunction=self.stepGetServerLists))
         self.list.append(self.__getStepDesc(title=_("Downloading an update packet."), execFunction=self.stepGetArchive))
         self.list.append(self.__getStepDesc(title=_("Extracting an update packet."), execFunction=self.stepUnpackArchive))
         self.list.append(self.__getStepDesc(title=_("Copy post installed binaries."), execFunction=self.stepCopyPostInatalledBinaries, breakable=True, ignoreError=True))
@@ -423,6 +427,10 @@ class UpdateMainAppImpl(IUpdateObjectInterface):
         self.downloader = UpdateDownloaderCreator(serverUrl)
         self.downloader.subscribersFor_Finish.append(boundFunction(self.downloadFinished, self.__serversListDownloadFinished, None))
         self.downloader.start(serverUrl, os_path.join(self.tmpDir, 'serwerslist2.json'))
+
+    def stepUseGitHubVersion(self):
+        printDBG('UpdateMainAppImpl.stepUseGitHubVersion')
+        self.__selectServer([self.gitlabList], '', '')
 
     def stepGetGitlab(self):
         printDBG('UpdateMainAppImpl.stepGetGitlab')
@@ -753,24 +761,6 @@ class UpdateMainAppImpl(IUpdateObjectInterface):
         return
 
     def __serversListDownloadFinished(self, arg, status):
-        def ServerComparator(x, y):
-            try:
-                val1 = int(x['version'].replace('.', ''))
-            except Exception:
-                val1 = 0
-            try:
-                val2 = int(y['version'].replace('.', ''))
-            except Exception:
-                val2 = 0
-            #printDBG("ServerComparator val1[%d], val2[%d]" % (val1, val2))
-            return cmp(val1, val2)
-        try:
-            currVerNum = int(GetIPTVPlayerVerstion().replace('.', ''))
-        except Exception:
-            printDBG('Version of the current instalation [%s]' % GetIPTVPlayerVerstion())
-            currVerNum = 0
-        pythonVer = GetShortPythonVersion()
-
         url = self.downloader.getUrl()
         filePath = self.downloader.getFullFileName()
         self.downloader = None
@@ -834,46 +824,65 @@ class UpdateMainAppImpl(IUpdateObjectInterface):
             if config.plugins.iptvplayer.hiddenAllVersionInUpdate.value:
                 self.__addLastVersion(serversList) # get last version from gitlab.com only for developers
 
-            if config.plugins.iptvplayer.preferredupdateserver.value == '2':
-                serversList.append(self.gitlabList)
+            self.__selectServer(serversList, serverGraphicsHash, serverIconsHash)
 
-            self.serversList = serversList
-            self.serverGraphicsHash = serverGraphicsHash
-            self.serverIconsHash = serverIconsHash
-            if 0 < len(serversList):
-                options = []
-                if isPY2():
-                    self.serversList.sort(cmp=ServerComparator, reverse=True)
-                else: #py3
-                    pass #TBC sorting for py3
-                for idx in range(len(serversList)):
-                    server = serversList[idx]
-                    if not config.plugins.iptvplayer.hiddenAllVersionInUpdate.value:
-                        try:
-                            newVerNum = int(server['version'].replace('.', ''))
-                        except Exception:
-                            continue
-                        #printDBG("newVerNum[%s], currVerNum[%s]" % (newVerNum, currVerNum))
-                        if newVerNum < currVerNum and not config.plugins.iptvplayer.downgradePossible.value:
-                            continue
-                        if newVerNum == currVerNum and not self.allowTheSameVersion:
-                            continue
-                        if 'X.X' != server['pyver'] and pythonVer != server['pyver']:
-                            continue
-                        if config.plugins.iptvplayer.possibleUpdateType.value not in [server['packagetype'], 'all']: #"sourcecode", "precompiled"
-                            continue
+    def __selectServer(self, serversList, serverGraphicsHash, serverIconsHash):
+        # the versions to offer (filtered by version, python, packet type), one is taken right away
+        def ServerComparator(x, y):
+            try:
+                val1 = int(x['version'].replace('.', ''))
+            except Exception:
+                val1 = 0
+            try:
+                val2 = int(y['version'].replace('.', ''))
+            except Exception:
+                val2 = 0
+            #printDBG("ServerComparator val1[%d], val2[%d]" % (val1, val2))
+            return cmp(val1, val2)
+        try:
+            currVerNum = int(GetIPTVPlayerVerstion().replace('.', ''))
+        except Exception:
+            printDBG('Version of the current instalation [%s]' % GetIPTVPlayerVerstion())
+            currVerNum = 0
+        pythonVer = GetShortPythonVersion()
 
-                    name = "| %s | python %s | %s | %s |" % (server['version'], server['pyver'], server['packagetype'], server['name'])
-                    #printDBG("server list: " + name)
-                    options.append((name, idx))
-                if 1 == len(options) and not config.plugins.iptvplayer.downgradePossible.value:
-                    self.__selServerCallBack(options[0])
-                elif 0 < len(options):
-                    self.session.openWithCallback(self.__selServerCallBack, ChoiceBox, title=_("Select update server"), list=options)
-                else:
-                    self.stepFinished(-1, _("There is no update for the current configuration."))
+        self.serversList = serversList
+        self.serverGraphicsHash = serverGraphicsHash
+        self.serverIconsHash = serverIconsHash
+        if 0 < len(serversList):
+            options = []
+            if isPY2():
+                self.serversList.sort(cmp=ServerComparator, reverse=True)
+            else: #py3
+                pass #TBC sorting for py3
+            for idx in range(len(serversList)):
+                server = serversList[idx]
+                if not config.plugins.iptvplayer.hiddenAllVersionInUpdate.value:
+                    try:
+                        newVerNum = int(server['version'].replace('.', ''))
+                    except Exception:
+                        continue
+                    #printDBG("newVerNum[%s], currVerNum[%s]" % (newVerNum, currVerNum))
+                    if newVerNum < currVerNum and not config.plugins.iptvplayer.downgradePossible.value:
+                        continue
+                    if newVerNum == currVerNum and not self.allowTheSameVersion:
+                        continue
+                    if 'X.X' != server['pyver'] and pythonVer != server['pyver']:
+                        continue
+                    if config.plugins.iptvplayer.possibleUpdateType.value not in [server['packagetype'], 'all']: #"sourcecode", "precompiled"
+                        continue
+
+                name = "| %s | python %s | %s | %s |" % (server['version'], server['pyver'], server['packagetype'], server['name'])
+                #printDBG("server list: " + name)
+                options.append((name, idx))
+            if 1 == len(options) and not config.plugins.iptvplayer.downgradePossible.value:
+                self.__selServerCallBack(options[0])
+            elif 0 < len(options):
+                self.session.openWithCallback(self.__selServerCallBack, ChoiceBox, title=_("Select update server"), list=options)
             else:
-                self.stepFinished(-1, _("Update not available."))
+                self.stepFinished(-1, _("There is no update for the current configuration."))
+        else:
+            self.stepFinished(-1, _("Update not available."))
 
     def __selServerCallBack(self, retArg):
         if retArg and len(retArg) == 2:

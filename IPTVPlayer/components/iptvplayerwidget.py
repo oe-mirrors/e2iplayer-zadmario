@@ -11,6 +11,7 @@ from time import sleep as time_sleep
 from os import remove as os_remove, path as os_path
 from random import shuffle as random_shuffle
 import traceback
+import re
 
 ####################################################
 #                   E2 components
@@ -55,8 +56,8 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvtools import FreeSpace as iptvtools
                                                           CMoviePlayerPerHost, GetFavouritesDir, CFakeMoviePlayerOption, GetAvailableIconSize, \
                                                           GetE2VideoModeChoices, GetE2VideoMode, SetE2VideoMode, TestTmpCookieDir, TestTmpJSCacheDir,\
                                                           ClearTmpCookieDir, ClearTmpJSCacheDir, SetTmpCookieDir, SetTmpJSCacheDir,\
-                                                          GetEnabledHostsList, SaveHostsOrderList, GetUpdateServerUri, GetHostsAliases, formatBytes, getExcMSG, \
-                                                          findT9JumpIndex, StripColorCodes
+                                                          GetEnabledHostsList, SaveHostsOrderList, GetHostsAliases, formatBytes, getExcMSG, \
+                                                          findT9JumpIndex, StripColorCodes, GITHUB_UPDATE_REPO
 from Plugins.Extensions.IPTVPlayer.tools.iptvhostgroups import IPTVHostsGroups
 from Plugins.Extensions.IPTVPlayer.components.iptvhostpin import AskHostPin, ClearUnlockedHosts, HostNeedsPin, IsHostUnlocked
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdh import DMHelper
@@ -1865,11 +1866,13 @@ class E2iPlayerWidget(Screen):
         self.askUpdateAvailable(self.selectHost)
 
     def __requestCheckUpdate(self):
-        lastVerUrl = GetUpdateServerUri('lastversion.php')
+        # the version.py of the GitHub repository the update window installs from (normal and opkg installs);
+        # the old lastversion.php servers are gone or frozen at 2020
+        lastVerUrl = "https://raw.githubusercontent.com/%s/master/IPTVPlayer/version.py" % GITHUB_UPDATE_REPO
         if config.plugins.iptvplayer.autoCheckForUpdate.value:
             self.checkUpdateTimer.start(self.checkUpdateTimer_interval, True)
             if IsExecutable(DMHelper.GET_WGET_PATH()):
-                cmd = '%s "%s" -O - 2> /dev/null ' % (DMHelper.GET_WGET_PATH(), lastVerUrl)
+                cmd = '%s --no-check-certificate "%s" -O - 2> /dev/null ' % (DMHelper.GET_WGET_PATH(), lastVerUrl)
                 if None != self.checkUpdateConsole:
                     self.checkUpdateConsole.terminate()
                 printDBG("__requestCheckUpdate cmd[%r]" % cmd)
@@ -1877,6 +1880,8 @@ class E2iPlayerWidget(Screen):
 
     def __checkUpdateCmdFinished(self, status, lastversion):
         printDBG("__checkUpdateCmdFinished  status[%r] lastversion[%r]" % (status, lastversion))
+        match = re.search(r'IPTV_VERSION\s?=\s?"([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)"', lastversion or '')
+        lastversion = match.group(1) if match else ''
         if 0 == status and 50000000 < GetVersionNum(lastversion):
             self.lastPluginVersion = lastversion
 
