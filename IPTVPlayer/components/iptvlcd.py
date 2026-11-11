@@ -181,7 +181,9 @@ def lcdIsLogo(img):
     # a picture with transparency is a logo (a host or channel logo), not a photo: it is shown as it is
     if img.mode in ('RGBA', 'LA', 'PA'):
         try:
-            return img.getchannel('A').getextrema()[0] < 255
+            # getchannel() only since Pillow 4.3, the old PIL of older images (VTI) has split() only
+            alpha = img.getchannel('A') if hasattr(img, 'getchannel') else img.split()[-1]
+            return alpha.getextrema()[0] < 255
         except Exception:
             return True
     return img.mode == 'P' and 'transparency' in img.info
@@ -243,7 +245,8 @@ def lcdPrepareCover(path, width, height, mode=None):
         if os_path.isfile(prepared) and os_path.getsize(prepared) > 0:
             return prepared
         from PIL import Image
-        resample = Image.LANCZOS
+        # LANCZOS only since Pillow 2.7 (old PIL on older images, e.g. VTI: ANTIALIAS, removed in Pillow 10)
+        resample = getattr(Image, 'LANCZOS', None) or Image.ANTIALIAS
         img = Image.open(path)
         if lcdIsLogo(img):
             printDBG("IPTVLcd.lcdPrepareCover logo with transparency, shown as it is [%s]" % path)

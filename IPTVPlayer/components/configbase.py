@@ -413,3 +413,16 @@ class ConfigBaseWidget(Screen, ConfigListScreen):
     def createSummary(self):
         # Screen comes first in the bases, its createSummary (None) would win over ConfigListScreen's
         return setupSummaryIfWanted()
+
+    # SetupSummary reads the marked setting through these; older images (VTI) only have them in their
+    # own Setup screen, not in ConfigListScreen, and the display summary crashed the settings there
+    def getCurrentEntry(self):
+        current = self["config"].getCurrent()
+        return current[0] if current else ""
+
+    def getCurrentValue(self):
+        current = self["config"].getCurrent()
+        try:
+            return str(current[1].getText()) if current else ""
+        except (AttributeError, IndexError, TypeError):
+            return ""
