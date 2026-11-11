@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: IPTVPlayer VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-08 12:43+0100\n"
+"POT-Creation-Date: 2026-11-11 11:34+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -386,6 +386,54 @@ msgstr ""
 msgid "Auto"
 msgstr ""
 
+msgid "Small (16:9)"
+msgstr ""
+
+msgid "Medium (beside the title)"
+msgstr ""
+
+msgid "Large (title below)"
+msgstr ""
+
+msgid "Large (info on the right)"
+msgstr ""
+
+msgid "Automatic (crop or blurred background)"
+msgstr ""
+
+msgid "Fill the field (crop)"
+msgstr ""
+
+msgid "Whole picture (black bars)"
+msgstr ""
+
+msgid "Normal"
+msgstr ""
+
+msgid "Large"
+msgstr ""
+
+msgid "Very large"
+msgstr ""
+
+msgid "Minutes"
+msgstr ""
+
+msgid "With seconds"
+msgstr ""
+
+msgid "Scroll"
+msgstr ""
+
+msgid "Page by page"
+msgstr ""
+
+msgid "Smaller text"
+msgstr ""
+
+msgid "Endless"
+msgstr ""
+
 msgid "from E2 settings"
 msgstr ""
 
@@ -443,7 +491,52 @@ msgstr ""
 msgid "Info bar clock format"
 msgstr ""
 
-msgid "Create LCD/VFD summary screen"
+msgid "Show E2iPlayer on the display"
+msgstr ""
+
+msgid "Cover on the LCD"
+msgstr ""
+
+msgid "Cover size"
+msgstr ""
+
+msgid "Cover picture on the LCD"
+msgstr ""
+
+msgid "LCD font size"
+msgstr ""
+
+msgid "Time on the LCD (player)"
+msgstr ""
+
+msgid "Long titles on the LCD"
+msgstr ""
+
+msgid "Scrolling title runs (then it stands still)"
+msgstr ""
+
+msgid "Large cover: size of the title line"
+msgstr ""
+
+msgid "Large cover: size of the times below the bar"
+msgstr ""
+
+msgid "Large cover, info on the right: row 1"
+msgstr ""
+
+msgid "Large cover, info on the right: row 2"
+msgstr ""
+
+msgid "Large cover, info on the right: row 3"
+msgstr ""
+
+msgid "Large cover, info on the right: row 4"
+msgstr ""
+
+msgid "Progress bar color on the LCD"
+msgstr ""
+
+msgid "Progress bar frame on the LCD"
 msgstr ""
 
 msgid "----------------- External exteplayer3 options -----------------"
@@ -1221,6 +1314,9 @@ msgstr ""
 msgid "An error occurred while loading a subtitle from [%s]."
 msgstr ""
 
+msgid "min"
+msgstr ""
+
 msgid "Closing. Please wait..."
 msgstr ""
 
@@ -1324,6 +1420,21 @@ msgid "Select pictures"
 msgstr ""
 
 msgid "Input"
+msgstr ""
+
+msgid "ENDS"
+msgstr ""
+
+msgid "REMAINING"
+msgstr ""
+
+msgid "PLAYED"
+msgstr ""
+
+msgid "LENGTH"
+msgstr ""
+
+msgid "DONE"
 msgstr ""
 
 msgid "Verify"
@@ -4464,6 +4575,9 @@ msgstr ""
 msgid "OMDb API key (free at omdbapi.com)"
 msgstr ""
 
+msgid "Use 16:9 pictures (per episode) instead of the portrait poster"
+msgstr ""
+
 msgid "Show \"Newest videos\" of all YouTube channels in a group"
 msgstr ""
 
@@ -4912,9 +5026,6 @@ msgid "MyE2i: open the page in the browser"
 msgstr ""
 
 msgid "Show download notification"
-msgstr ""
-
-msgid "Cover on the LCD summary screen"
 msgstr ""
 
 msgid "----- EXPERT OPTIONS (OK) -----"
@@ -6551,6 +6662,54 @@ msgid "%s talks"
 msgstr ""
 
 msgid "Date"
+msgstr ""
+
+msgid "End time"
+msgstr ""
+
+msgid "Remaining"
+msgstr ""
+
+msgid "Played"
+msgstr ""
+
+msgid "Length"
+msgstr ""
+
+msgid "Percent"
+msgstr ""
+
+msgid "Red"
+msgstr ""
+
+msgid "Green"
+msgstr ""
+
+msgid "Blue"
+msgstr ""
+
+msgid "Yellow"
+msgstr ""
+
+msgid "Orange"
+msgstr ""
+
+msgid "Cyan"
+msgstr ""
+
+msgid "Magenta"
+msgstr ""
+
+msgid "White"
+msgstr ""
+
+msgid "Grey"
+msgstr ""
+
+msgid "Same as the bar"
+msgstr ""
+
+msgid "No frame"
 msgstr ""
 
 msgid "Events"

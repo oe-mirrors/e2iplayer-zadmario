@@ -13,6 +13,7 @@ from Screens.ChoiceBox import ChoiceBox
 from Components.ServiceEventTracker import ServiceEventTracker
 from enigma import iPlayableService, eTimer
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, eConnectCallback
+from Plugins.Extensions.IPTVPlayer.components.iptvlcd import movieSummaryIfWanted
 
 
 class customMoviePlayer(InfoBarShowHide, InfoBarSeek, InfoBarAudioSelection, InfoBarSubtitleSupport, HelpableScreen, InfoBarNotifications, Screen):
@@ -39,6 +40,8 @@ class customMoviePlayer(InfoBarShowHide, InfoBarSeek, InfoBarAudioSelection, Inf
 
         for x in HelpableScreen, InfoBarShowHide, InfoBarSeek, InfoBarAudioSelection, InfoBarSubtitleSupport, InfoBarNotifications:
             x.__init__(self)
+        if not hasattr(self, 'onChangedEntry'):
+            self.onChangedEntry = []  # InfoBarMoviePlayerSummary hooks in there
 
         # InfoBarServiceNotifications
 
@@ -198,6 +201,10 @@ class customMoviePlayer(InfoBarShowHide, InfoBarSeek, InfoBarAudioSelection, Inf
 
     def openEventView(self, *args, **kwargs):
         pass
+
+    def createSummary(self):
+        # title, progress bar and times on the LCD instead of the skin title "InfoBar"
+        return movieSummaryIfWanted()
 
 
 #####################################################

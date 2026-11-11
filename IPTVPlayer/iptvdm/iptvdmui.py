@@ -14,7 +14,8 @@
 ###################################################
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, eConnectCallback, GetIconDir, GetBinDir, E2PrioFix, formatBytes
 from Plugins.Extensions.IPTVPlayer.components.iptvplayer import IPTVStandardMoviePlayer, IPTVMiniMoviePlayer
-from Plugins.Extensions.IPTVPlayer.components.iptvextmovieplayer import IPTVExtMoviePlayer, addLcdSources, colorSummaryIfWanted, lcdSetTitle
+from Plugins.Extensions.IPTVPlayer.components.iptvextmovieplayer import IPTVExtMoviePlayer
+from Plugins.Extensions.IPTVPlayer.components.iptvlcd import addLcdSources, colorSummaryIfWanted, lcdSetTitle
 from Plugins.Extensions.IPTVPlayer.components.iconmenager import FindCachedIcon
 from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import ConfigMenu, GetMoviePlayer
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
