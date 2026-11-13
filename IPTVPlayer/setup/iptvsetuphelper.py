@@ -9,9 +9,12 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, iptv_system
 ###################################################
 # FOREIGN import
 ###################################################
+import re
 ###################################################
 
 LOG_DATA_MAX = 1000
+EXIT_CODE_MARK = '@@E2I_EXIT_CODE=$?@@'
+EXIT_CODE_RE = re.compile(r'@@E2I_EXIT_CODE=([0-9]+)@@\n?\s*$')
 
 
 class CCmdValidator:
@@ -60,6 +63,12 @@ class CCmdValidator:
         finishCallback(self.stsTab, self.dataTab)
 
     def _cmdFinished(self, code, data):
+        # the exit code reported by the image is not reliable (VTi 15 reports the code of the previous
+        # command), so every command prints its own exit code at the end of the output
+        match = EXIT_CODE_RE.search(data)
+        if match:
+            code = int(match.group(1))
+            data = data[:match.start()] + data[match.end():]
         # long outputs (the package list of "opkg list") only shortened into the debug log
         logData = data if len(data) <= LOG_DATA_MAX else '%s ... (%d characters)' % (data[:LOG_DATA_MAX], len(data))
         printDBG("CCmdValidator._cmdFinished cmd[%r] code[%r], data[%r]" % (self.cmdTabs[self.detectIdx], code, logData))
@@ -76,4 +85,4 @@ class CCmdValidator:
             self.finish()
 
     def _detect(self):
-        self.cmd = iptv_system(self.cmdTabs[self.detectIdx], self._cmdFinished)
+        self.cmd = iptv_system('%s; echo "%s"' % (self.cmdTabs[self.detectIdx], EXIT_CODE_MARK), self._cmdFinished)
