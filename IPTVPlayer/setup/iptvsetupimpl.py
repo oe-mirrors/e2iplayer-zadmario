@@ -669,6 +669,9 @@ class IPTVSetupImpl:
             if status == ST_FOUND:
                 continue
             lines.append('%s: %s' % (name, texts.get(status, status)))
+        # a Python extension cannot be replaced in the running Enigma2: the old one stays loaded until a restart
+        if any(status == ST_INSTALLED and path.endswith('_subparser.so') for name, status, path in self.results):
+            lines.append(_("Restart Enigma2 (GUI) to load the new subtitles parser."))
         if not lines:
             self.finish()
             return
