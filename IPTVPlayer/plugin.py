@@ -7,7 +7,8 @@ from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import ConfigMenu
 from Plugins.Extensions.IPTVPlayer.components.iptvpin import IPTVPinWidget
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, IPTVPlayerNeedInit
 from Plugins.Extensions.IPTVPlayer.setup.iptvsetupwidget import IPTVSetupMainWidget
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, IsExecutable, IsWebInterfaceModuleAvailable
+from Plugins.Extensions.IPTVPlayer.setup.iptvsetupimpl import SETUP_VERSION
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import IsExecutable, IsWebInterfaceModuleAvailable, GetLsdirPath
 ###################################################
 
 ###################################################
@@ -22,7 +23,6 @@ from Components.config import config
 from Tools.Directories import resolveFilename, fileExists, SCOPE_PLUGINS
 ###################################################
 import os
-import sys
 ####################################################
 # Wywołanie wtyczki w roznych miejscach
 ####################################################
@@ -136,26 +136,6 @@ def doRunMain(session):
 
 
 def runMain(session, nextFunction=doRunMain):
-    def allToolsFromOPKG():
-        if os.path.exists('/usr/lib/enigma2/python/Plugins/Extensions/IPTVPlayer/plugin.pe2i'): #users of private version jave all tools installed by design
-            return True
-        else:
-            toolsList = ['enigma2-plugin-extensions-e2iplayer-deps', 'duktape', 'exteplayer3', 'uchardet', 'gstplayer', 'rtmpdump']
-            if sys.version_info[0] >= 3:
-                # the python3-* packages don't exist for a Python 2 image
-                toolsList.extend(['python3-e2icjson', 'python3-pycurl'])
-            tryToInstall = ''
-            for tool in toolsList:
-                if not os.path.exists(os.path.join('/var/lib/opkg/info/', tool) + '.control'):
-                    tryToInstall += ' ' + tool
-            if tryToInstall != '':
-                printDBG('allToolsFromOPKG() >>> Trying to install missing packages: %s' % tryToInstall)
-                os.system('(opkg update;opkg install %s)&' % tryToInstall)
-                return False
-            else:
-                printDBG('allToolsFromOPKG() >>> All required packages installed :)')
-                return True
-
     for DBGfile in ['/hdd/iptv.dbg', '/tmp/iptv.dbg', '/home/root/logs/iptv.dbg', '/tmp/print.log']:
         if os.path.exists(DBGfile):
             try:
@@ -174,9 +154,11 @@ def runMain(session, nextFunction=doRunMain):
     rtmpdumppath = IsExecutable(config.plugins.iptvplayer.rtmpdumppath.value)
     f4mdumppath = IsExecutable(config.plugins.iptvplayer.f4mdumppath.value)
     platform = config.plugins.iptvplayer.plarform.value
-    if platform in ["auto", "unknown"] or not wgetpath or not rtmpdumppath or not f4mdumppath:
+    lsdirpath = IsExecutable(GetLsdirPath())
+    if platform in ["auto", "unknown"] or not wgetpath or not rtmpdumppath or not f4mdumppath or not lsdirpath:
         session.openWithCallback(boundFunction(nextFunction, session), IPTVSetupMainWidget)
-    elif IPTVPlayerNeedInit() and os.path.exists('/var/lib/opkg/info/') and not allToolsFromOPKG():
+    elif IPTVPlayerNeedInit() and config.plugins.iptvplayer.setupversion.value != SETUP_VERSION:
+        # once after an update that brings new tools: image feed (opkg) and binary feed
         session.openWithCallback(boundFunction(nextFunction, session), IPTVSetupMainWidget, True)
     else:
         nextFunction(session)

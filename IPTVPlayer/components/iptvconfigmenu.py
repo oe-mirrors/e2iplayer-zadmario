@@ -10,7 +10,7 @@
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, GetSkinsList, GetHostsList, GetEnabledHostsList, \
                                                           IsHostEnabled, IsExecutable, CFakeMoviePlayerOption, GetAvailableIconSize, \
                                                           IsWebInterfaceModuleAvailable, SetIconsHash, SetGraphicsHash, \
-                                                          defaultToolPath, GITHUB_UPDATE_REPO
+                                                          defaultToolPath
 from Plugins.Extensions.IPTVPlayer.iptvupdate.updatemainwindow import IPTVUpdateWindow, UpdateMainAppImpl
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, IPTVPlayerNeedInit
 from Plugins.Extensions.IPTVPlayer.components.configbase import ConfigBaseWidget, COLORS_DEFINITONS
@@ -77,6 +77,11 @@ config.plugins.iptvplayer.uchardetpath = ConfigText(default="", fixed_size=False
 config.plugins.iptvplayer.ffmpegpath = ConfigText(default="", fixed_size=False)
 config.plugins.iptvplayer.qjspath = ConfigText(default="", fixed_size=False)
 config.plugins.iptvplayer.curlimpersonatepath = ConfigText(default="", fixed_size=False)
+config.plugins.iptvplayer.lsdirpath = ConfigText(default="", fixed_size=False)
+# binary feed of the setup (setup/iptvsetupimpl.py FEED_URL), only for tests: empty = the official one
+config.plugins.iptvplayer.binaryfeedurl = ConfigText(default="", fixed_size=False)
+# SETUP_VERSION of the last finished setup, a new one starts the setup once
+config.plugins.iptvplayer.setupversion = ConfigText(default="", fixed_size=False)
 config.plugins.iptvplayer.set_curr_title = ConfigYesNo(default=False)
 config.plugins.iptvplayer.curr_title_file = ConfigText(default="", fixed_size=False)
 
@@ -114,12 +119,6 @@ config.plugins.iptvplayer.IPTVWebIterface = ConfigYesNo(default=False)
 config.plugins.iptvplayer.plugin_autostart = ConfigYesNo(default=False)
 config.plugins.iptvplayer.plugin_autostart_method = ConfigSelection(default="wizard", choices=[("wizard", "wizard"), ("infobar", "infobar")])
 
-# "1" (vline) and "3" (private) both pointed at addresses that are
-# dead now (SSL failure / cert mismatch, checked live) - "2" (GitHub)
-# is the only one that still works, so it's the only choice left; also
-# for opkg installs (old "4" = opkg repo, updates now come from GitHub too): a saved "4"
-# is not a choice any more and falls back to the default
-config.plugins.iptvplayer.preferredupdateserver = ConfigSelection(default="2", choices=[("2", _("GitHub repository") + " (%s)" % GITHUB_UPDATE_REPO)])
 config.plugins.iptvplayer.osk_type = ConfigSelection(default="", choices=[("", _("Auto")), ("system", _("System")), ("own", _("Own model"))])
 config.plugins.iptvplayer.osk_layout = ConfigText(default="", fixed_size=False)
 config.plugins.iptvplayer.osk_allow_suggestions = ConfigYesNo(default=True)
@@ -204,8 +203,6 @@ config.plugins.iptvplayer.vkcom_password = ConfigText(default="", fixed_size=Fal
 config.plugins.iptvplayer.fichiercom_login = ConfigText(default="", fixed_size=False)
 config.plugins.iptvplayer.fichiercom_password = ConfigText(default="", fixed_size=False)
 
-config.plugins.iptvplayer.iptvplayer_login = ConfigText(default="", fixed_size=False)
-config.plugins.iptvplayer.iptvplayer_password = ConfigText(default="", fixed_size=False)
 
 config.plugins.iptvplayer.useSubtitlesParserExtension = ConfigYesNo(default=True)
 config.plugins.iptvplayer.opensuborg_login = ConfigText(default="", fixed_size=False)
@@ -297,7 +294,6 @@ config.plugins.iptvplayer.autoCheckForUpdate = ConfigYesNo(default=True)
 config.plugins.iptvplayer.updateLastCheckedVersion = ConfigText(default="00.00.00.00", fixed_size=False)
 config.plugins.iptvplayer.fakeUpdate = ConfigSelection(default="fake", choices=[("fake", "  ")])
 config.plugins.iptvplayer.downgradePossible = ConfigYesNo(default=False)
-config.plugins.iptvplayer.possibleUpdateType = ConfigSelection(default="all", choices=[("sourcecode", _("with source code")), ("precompiled", _("precompiled")), ("all", _("all types"))])
 
 # Hosts lists
 config.plugins.iptvplayer.fakeHostsList = ConfigSelection(default="fake", choices=[("fake", "  ")])
@@ -569,12 +565,8 @@ class ConfigMenu(ConfigBaseWidget):
         list.append(getConfigListEntry('\\c00289496' + _("----- BASIC CONFIGURATION (OK) -----"), config.plugins.iptvplayer.basicConfVisible))
         if basicConfVisible: #BASIC CONFIGURATION
             list.append(getConfigListEntry(_("Auto check for plugin update"), config.plugins.iptvplayer.autoCheckForUpdate))
-            list.append(getConfigListEntry(_("The preferred update server"), config.plugins.iptvplayer.preferredupdateserver))
-            if config.plugins.iptvplayer.preferredupdateserver.value == '3':
-                list.append(getConfigListEntry(_("%s login") % 'E2iPlayer', config.plugins.iptvplayer.iptvplayer_login))
-                list.append(getConfigListEntry(_("%s password") % 'E2iPlayer', config.plugins.iptvplayer.iptvplayer_password))
-            if config.plugins.iptvplayer.preferredupdateserver.value != '4':
-                list.append(getConfigListEntry(_("Update"), config.plugins.iptvplayer.fakeUpdate))
+            # updates always come from the GitHub repository (GITHUB_UPDATE_REPO), also for opkg installs
+            list.append(getConfigListEntry(_("Update"), config.plugins.iptvplayer.fakeUpdate))
 
             list.append(getConfigListEntry(_("Virtual Keyboard type"), config.plugins.iptvplayer.osk_type))
             if config.plugins.iptvplayer.osk_type.value in ('', 'own'):
@@ -797,12 +789,9 @@ class ConfigMenu(ConfigBaseWidget):
             list.append(getConfigListEntry(_("Block wmv files"), config.plugins.iptvplayer.ZablokujWMV))
             list.append(getConfigListEntry(_("Show IPTVPlayer in extension list"), config.plugins.iptvplayer.showinextensions))
             list.append(getConfigListEntry(_("Show IPTVPlayer in main menu"), config.plugins.iptvplayer.showinMainMenu))
-            if config.plugins.iptvplayer.preferredupdateserver.value != '4': #4 = managed by opkg, no no update icon
-                list.append(getConfigListEntry(_("Show update icon in service selection menu"), config.plugins.iptvplayer.AktualizacjaWmenu))
+            list.append(getConfigListEntry(_("Show update icon in service selection menu"), config.plugins.iptvplayer.AktualizacjaWmenu))
             list.append(getConfigListEntry(_("Debug logs"), config.plugins.iptvplayer.debugprint))
-            if config.plugins.iptvplayer.preferredupdateserver.value != '4': #4 = managed by opkg, no no update icon
-                list.append(getConfigListEntry(_("Allow downgrade"), config.plugins.iptvplayer.downgradePossible))
-                list.append(getConfigListEntry(_("Update packet type"), config.plugins.iptvplayer.possibleUpdateType))
+            list.append(getConfigListEntry(_("Allow downgrade"), config.plugins.iptvplayer.downgradePossible))
 
         if hiddenOptions:
             list.append(getConfigListEntry('\\c00289496' + _("----- EXPERT OPTIONS (OK) -----"), config.plugins.iptvplayer.hiddenConfVisible))
@@ -822,6 +811,7 @@ class ConfigMenu(ConfigBaseWidget):
             list.append(getConfigListEntry(_("%s path") % "duk", config.plugins.iptvplayer.dukpath))
             list.append(getConfigListEntry(_("%s path") % "f4mdump", config.plugins.iptvplayer.f4mdumppath))
             list.append(getConfigListEntry(_("%s path") % "uchardet", config.plugins.iptvplayer.uchardetpath))
+            list.append(getConfigListEntry(_("%s path") % "lsdir", config.plugins.iptvplayer.lsdirpath))
             list.append(getConfigListEntry(_("%s path") % "ffmpeg", config.plugins.iptvplayer.ffmpegpath))
             list.append(getConfigListEntry(_("%s path") % "qjs", config.plugins.iptvplayer.qjspath))
             list.append(getConfigListEntry(_("%s path") % "curlimpersonate", config.plugins.iptvplayer.curlimpersonatepath))
@@ -871,6 +861,9 @@ class ConfigMenu(ConfigBaseWidget):
            pass
            # plugin must be restarted if we wont to this options take effect
         if self.platformOld != config.plugins.iptvplayer.plarform.value:
+            # the setup runs again when the settings are closed (iptvplayerwidget.configCallback)
+            config.plugins.iptvplayer.setupversion.value = ""
+            config.plugins.iptvplayer.setupversion.save()
             IPTVPlayerNeedInit(True)
         # our TorrServer follows the saved torrent configuration at once (not only with the next torrent link)
         try:
@@ -881,9 +874,7 @@ class ConfigMenu(ConfigBaseWidget):
 
     def getMessageBeforeClose(self, afterSave):
         needPluginUpdate = False
-        if config.plugins.iptvplayer.preferredupdateserver.value == "4": #opkg
-            return ''
-        elif afterSave and config.plugins.iptvplayer.ListaGraficzna.value and 0 == GetAvailableIconSize(False):
+        if afterSave and config.plugins.iptvplayer.ListaGraficzna.value and 0 == GetAvailableIconSize(False):
             needPluginUpdate = True
         else:
             enabledHostsList = GetEnabledHostsList()
@@ -1087,7 +1078,6 @@ class ConfigMenu(ConfigBaseWidget):
               config.plugins.iptvplayer.ListaGraficzna,
               config.plugins.iptvplayer.plarform,
               config.plugins.iptvplayer.osk_type,
-              config.plugins.iptvplayer.preferredupdateserver,
               config.plugins.iptvplayer.favourites_use_watched_flag,
               config.plugins.iptvplayer.meta_tmdb,
               config.plugins.iptvplayer.meta_omdb,

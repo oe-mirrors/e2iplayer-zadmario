@@ -960,9 +960,6 @@ msgstr "Baumliste"
 msgid "Default"
 msgstr "Standard"
 
-msgid "GitHub repository"
-msgstr "GitHub-Repository"
-
 msgid "System"
 msgstr "System"
 
@@ -998,15 +995,6 @@ msgstr "Ja, in Datei  /tmp/iptv.dbg"
 
 msgid "yes, to file /home/root/logs/iptv.dbg"
 msgstr "Ja, in Datei /home/root/logs/iptv.dbg"
-
-msgid "with source code"
-msgstr "mit Quelltext"
-
-msgid "precompiled"
-msgstr "vorcompiliert"
-
-msgid "all types"
-msgstr "Alle Arten"
 
 msgid "default"
 msgstr "Standard"
@@ -1058,13 +1046,6 @@ msgstr "----- GRUNDKONFIGURATION (OK) -----"
 
 msgid "Auto check for plugin update"
 msgstr "Automatisch nach Plugin Aktualisierung prüfen"
-
-msgid "The preferred update server"
-msgstr "Bevorzugter Update-Server"
-
-#, python-format
-msgid "%s login"
-msgstr "%s Login"
 
 #, python-format
 msgid "%s password"
@@ -1306,9 +1287,6 @@ msgstr "Debug Log-Dateien"
 
 msgid "Allow downgrade"
 msgstr "Erlaube Downgrade"
-
-msgid "Update packet type"
-msgstr "Update Pakettyp"
 
 msgid ""
 "Some changes will be applied only after plugin update.\n"
@@ -1628,31 +1606,12 @@ msgstr ""
 "Dieser Host ist kein integrierter Teil des E2iPlayer Plugins.\n"
 "Es wird nicht vom E2iPlayer Team unterstützt."
 
-#, python-format
-msgid ""
-"It seems that the host \"%s\" has crashed. Do you want to report this "
-"problem?"
-msgstr ""
-"Es scheint, dass der Host \"%s\" abgestürzt ist. Möchten Sie dieses "
-"Problem melden?"
-
 msgid ""
 "\n"
 "Make sure you are using the latest version of the plugin."
 msgstr ""
 "\n"
 "Stellen Sie sicher, dass Sie die neueste Version des Plugins nutzen."
-
-msgid ""
-"\n"
-"You can also report problem here: \n"
-"https://gitlab.com/iptvplayer-for-e2/iptvplayer-for-e2/issues\n"
-"or here: samsamsam@o2.pl"
-msgstr ""
-"\n"
-"Sie können Probleme auch hier melden: \n"
-"https://gitlab.com/iptvplayer-for-e2/iptvplayer-for-e2/issues\n"
-"oder hier: samsamsam@o2.pl"
 
 msgid "Zu Benutzer-Links hinzufügen"
 msgstr "Zu Benutzer-Links hinzufügen"
@@ -1689,9 +1648,6 @@ msgstr "Information"
 
 msgid "Lead programmer: "
 msgstr "Leitender Programmierer: "
-
-msgid "E-mail: "
-msgstr "E-Mail: "
 
 msgid "www: "
 msgstr "www: "
@@ -1866,14 +1822,6 @@ msgstr "Wirklich aus den Favoriten entfernen?"
 
 msgid "Confirm the title of the movie"
 msgstr "Bestätige den Titel des Films"
-
-#, python-format
-msgid ""
-"It seems that the subtitle's provider \"%s\" has crashed. Do you want to "
-"report this problem?"
-msgstr ""
-"Scheinbar ist der Untertitel Anbieter \"%s\" abgestürzt. Möchten Sie "
-"dieses Problem melden?"
 
 msgid "Select subtitles provider:"
 msgstr "Wähle Untertitel Anbieter:"
@@ -3993,14 +3941,6 @@ msgstr ""
 "Problem neue Version zu installieren.\n"
 "Status [%d], outData [%s]"
 
-#, python-format
-msgid ""
-"Problem with copy files.\n"
-"Status[%d], outData[%s]"
-msgstr ""
-"Problem beim Kopieren von Daten.\n"
-"Status[%d], outData[%s]"
-
 msgid "Correct version."
 msgstr "Gültige Version."
 
@@ -4084,9 +4024,6 @@ msgstr "Entferne die alte Version."
 msgid "Installing new version."
 msgstr "Installiere neue Version."
 
-msgid "Skipped."
-msgstr "Übersprungen."
-
 msgid "Nothing to do here."
 msgstr "Hier gibt es nichts zu tun."
 
@@ -4142,13 +4079,6 @@ msgstr ""
 "Datei nicht gefunden:\n"
 "[%s]."
 
-#, python-format
-msgid "Problem with downloading the server list from [%s]."
-msgstr "Problem Server-Liste von [%s] herunter zu laden."
-
-msgid "Problem with parsing the server list."
-msgstr "Problem mit dem Parsen der Serverliste."
-
 msgid "Select update server"
 msgstr "Wähle Update-Server"
 
@@ -4157,33 +4087,6 @@ msgstr "Kein Update für aktuelle Konfiguration verfügbar."
 
 msgid "Update not available."
 msgstr "Update nicht verfügbar."
-
-msgid "Downloading graphics package."
-msgstr "Lade Grafik-Paket herunter."
-
-msgid "Extracting graphics package."
-msgstr "Entpacke Grafik-Paket."
-
-msgid "Copy graphics without icons."
-msgstr "Kopiere Grafiken ohne Icons."
-
-msgid "Downloading icons package."
-msgstr "Lade Icons-Paket herunter."
-
-msgid "Extracting icons package."
-msgstr "Entpacke Icons-Paket."
-
-msgid "Copy all graphics."
-msgstr "Kopiere alle Grafiken."
-
-msgid "Copy icons."
-msgstr "Kopiere Icons."
-
-msgid "Get decryption key."
-msgstr "Erhalte Entschlüsselungsschlüssel."
-
-msgid "Decrypt archive."
-msgstr "Entschlüssele Archiv."
 
 #, python-format
 msgid "Selected version [%s]."
@@ -4197,24 +4100,6 @@ msgstr "Update-Paket wurde erfolgreich heruntergeladen."
 
 #, python-format
 msgid ""
-"Problem with downloading the encryption key:\n"
-"[%s]."
-msgstr ""
-"Problem beim Herunterladen des Verschlüsselungsschlüssels:\n"
-"[%s]."
-
-#, python-format
-msgid "Wrong the encryption key size: %s\n"
-msgstr "Falsche Größe des Verschlüsselungsschlüssels: %s\n"
-
-msgid "Problem with decryption the key."
-msgstr "Problem mit der Entschlüsselung des Schlüssels."
-
-msgid "Encryption key was downloaded successfully."
-msgstr "Der Verschlüsselungsschlüssel wurde erfolgreich heruntergeladen."
-
-#, python-format
-msgid ""
 "Problem with extracting the archive. Return code [%d]\n"
 "%s."
 msgstr ""
@@ -4223,17 +4108,6 @@ msgstr ""
 
 msgid "Unpacking the archive completed successfully."
 msgstr "Entpacken von Archiv erfolgreich beendet."
-
-#, python-format
-msgid ""
-"Problem with decryption the archive. Return code [%d]\n"
-"%s."
-msgstr ""
-"Problem mit der Entschlüsselung des Archivs. Fehler-Code [%d]\n"
-"%s."
-
-msgid "Decryption the archive completed successfully."
-msgstr "Entschlüsselung des Archivs erfolgreich abgeschlossen."
 
 #, python-format
 msgid ""
@@ -4304,12 +4178,6 @@ msgstr ""
 #, python-format
 msgid "Please report this problem to the developer %s."
 msgstr "Bitte melden Sie dieses Problem dem Entwickler %s."
-
-#, python-format
-msgid "You can install PyCurl package from %s to fix this problem."
-msgstr ""
-"Sie können das PyCurl-Paket von %s installieren, um dieses Problem zu "
-"beheben."
 
 msgid "It is not allowed to call getURLRequestData from main thread."
 msgstr "Es ist nicht erlaubt, getURLRequestData vom Hauptthread aus aufzurufen."
@@ -4551,35 +4419,11 @@ msgstr "Herunterladen von \"%s\"."
 
 #, python-format
 msgid ""
-"Downloading \"%s\" failed. \n"
-"Do you want to retry?"
-msgstr ""
-"Herunterladen von \"%s\" fehlgeschlagen. \n"
-"Erneut versuchen?"
-
-#, python-format
-msgid ""
-"Utility \"%s\" has not been detected. \n"
-"What do you want to do?"
-msgstr ""
-"Dienstprogramm \"%s\" wurde nicht erkannt. \n"
-"Was möchten Sie tun?"
-
-#, python-format
-msgid ""
 "Utility \"%s\" has not been detected. \n"
 "Do you want to install it?"
 msgstr ""
 "Dienstprogramm \"%s\" wurde nicht erkannt. \n"
 "Wollen Sie es installieren?"
-
-#, python-format
-msgid ""
-"Utility \"%s\" is deprecated. \n"
-"What do you want to do?"
-msgstr ""
-"Dienstprogramm \"%s\" ist veraltet. \n"
-"Was möchten Sie tun?"
 
 #, python-format
 msgid ""
@@ -4592,22 +4436,6 @@ msgstr ""
 #, python-format
 msgid "Installing \"%s\"."
 msgstr "Installiere \"%s\"."
-
-#, python-format
-msgid "Install into the \"%s\"."
-msgstr "Installiere in \"%s\"."
-
-msgid "recommended"
-msgstr "empfohlen"
-
-msgid "Do not install (not recommended)"
-msgstr "Nicht installieren (nicht empfohlen)"
-
-msgid "Detection of glibc version."
-msgstr "Erkennung der Glibc Version."
-
-msgid "Detection version of installed standard C library."
-msgstr "Erkennung der Version der installierten C-Standard-Bibliothek."
 
 msgid "Detection of the platform."
 msgstr "Erkennung der Plattform."
@@ -4626,60 +4454,8 @@ msgstr ""
 "Schwerer Fehler!\n"
 "Das Plugin wird für ihre Plattform nicht unterstützt."
 
-msgid "Detection of MIPSEL FPU ABI."
-msgstr "Erkennung der MIPSEL FPU ABI."
-
-msgid "This step is required to proper select binaries for installation."
-msgstr ""
-"Dieser Vorgang ist notwendig, um die passenden Binärdateien für die "
-"Installation zu ermitteln."
-
-msgid "Detection of the OpenSSL version."
-msgstr "Erkennung der OpenSSL Version."
-
-msgid "OpenSSL lib is needed by wget and rtmpdump utilities."
-msgstr "OpenSSL lib wird vom wget und rtmpdump Dienstprogramm benötigt."
-
-msgid ""
-"Fatal Error!\n"
-"Openssl could not be found. Please install it and retry."
-msgstr ""
-"Schwerer Fehler!\n"
-"OpenSSL konnte nicht gefunden werden. Bitte installieren und erneut "
-"versuchen."
-
-msgid "Detection of the OpenSSL 1.0.0 version."
-msgstr "Erkennung der OpenSSL 1.0.0 Version."
-
-#, python-format
-msgid ""
-"OpenSSL in your image has different library names then these used by %s.\n"
-"There is need to create following symlinks:\n"
-"%s\n"
-"to be able to install binary components from %s server.\n"
-"Do you want to proceed?"
-msgstr ""
-"OpenSSL in Ihrem Image hat andere Bibliotheksnamen als die von %s "
-"verwendeten.\n"
-"Es müssen folgende Symlinks erstellt werden:\n"
-"%s\n"
-"um binäre Komponenten vom %s-Server installieren zu können.\n"
-"Möchten Sie fortfahren?"
-
-#, python-format
-msgid ""
-"Create OpenSSL symlinks failed with following error \"%s\".\n"
-"Some functions may not work correctly."
-msgstr ""
-"Das Erstellen von OpenSSL-Symlinks ist mit folgendem Fehler "
-"fehlgeschlagen \"%s\".\n"
-"Einige Funktionen funktionieren möglicherweise nicht richtig."
-
 msgid "Detection of the gstreamer version."
 msgstr "Erkennung der GStreamer Version."
-
-msgid "Detection of the ffmpeg version."
-msgstr "Erkennung der FFmpeg Version."
 
 #, python-format
 msgid ""
@@ -4700,72 +4476,14 @@ msgstr ""
 msgid "C subtitle parser"
 msgstr "C Untertitel Parser"
 
-msgid ""
-"\n"
-"For more info please ask the author samsamsam@o2.pl"
-msgstr ""
-"\n"
-"Für weitere Informationen fragen Sie bitte den Autor samsamsam@o2.pl"
-
 msgid "It improves subtitles parsing.\n"
 msgstr "Es verbessert das Untertitel Parsing.\n"
-
-msgid ""
-" has not been detected. \n"
-"Do you want to install it? "
-msgstr ""
-" wurde nicht erkannt. \n"
-"Wollen Sie es installieren? "
-
-msgid ""
-" is deprecated. \n"
-"Do you want to install new one? "
-msgstr ""
-" ist veraltet. \n"
-"Möchten Sie eine neuere Version installieren? "
-
-msgid "python-cjson"
-msgstr "python-cjson"
-
-#, python-format
-msgid ""
-"\n"
-"For more info please ask %s "
-msgstr ""
-"\n"
-"Für weitere Informationen fragen Sie bitte %s "
-
-msgid "It improves json data parsing.\n"
-msgstr "Es verbessert das JSON Daten Parsing.\n"
-
-msgid "hlsdl downloader"
-msgstr "hlsdl Downloader"
-
-msgid ""
-"\n"
-"For more info please ask samsamsam@o2.pl"
-msgstr ""
-"\n"
-"Für weitere Informationen fragen Sie bitte samsamsam@o2.pl"
 
 msgid "It improves HLS/M3U8 stream download.\n"
 msgstr "Es verbessert den HLS/M3U8 Stream-Download.\n"
 
-msgid "cmdwrap tool"
-msgstr "cmdwrap-Tool"
-
 msgid "It improves commands execution with very long arguments.\n"
 msgstr "Es verbessert die Befehlsausführung mit sehr langen Argumenten.\n"
-
-msgid "duktape"
-msgstr "Duktape"
-
-msgid ""
-"\n"
-"Please visit http://duktape.org/"
-msgstr ""
-"\n"
-"Bitte besuchen Sie http://duktape.org/"
 
 msgid ""
 "Duktape is an embeddable Javascript engine, with a focus on portability "
@@ -4786,31 +4504,8 @@ msgstr ""
 msgid "The \"%s\" utility is used by the %s as external movie player."
 msgstr "Der \"%s\" wird vom %s als Externer Movie Player verwendet."
 
-msgid "Fluendo mpegdemux for GSTREAMER 0.10"
-msgstr "Fluendo mpegdemux für GSTREAMER 0.10"
-
-msgid ""
-"\n"
-"For more info please visit http://fluendo.com/"
-msgstr ""
-"\n"
-"Für weitere Informationen besuchen Sie bitte: http://fluendo.com/"
-
-msgid "It improves playing of streams hls/m3u8.\n"
-msgstr "Es verbessert das Abspielen von hls/m3u8 Streams.\n"
-
-msgid "GST-IFDSRC for GSTREAMER 1.X"
-msgstr "GST-IFDSRC für GSTREAMER 1.X"
-
 msgid "It improves buffering mode with the gstplayer.\n"
 msgstr "Es verbessert den Puffermodus mit dem Gstplayer.\n"
-
-#, python-format
-msgid "[%s] will be used by %s."
-msgstr "[%s] wird vom %s benutzt werden."
-
-msgid "Installation binary failed. Retry?"
-msgstr "Installation der Binärdatei fehlgeschlagen. Erneut versuchen?"
 
 msgid ""
 "IPTVPlayer need some additional setup.\n"
@@ -5345,15 +5040,6 @@ msgstr "Benutzerlinks sortiert."
 
 msgid "Could not sort the user links."
 msgstr "Die Benutzerlinks konnten nicht sortiert werden."
-
-#, python-format
-msgid ""
-"There is no \"%s\" build for OpenSSL %s on the E2iPlayer server.\n"
-"Install it from the image feed if it is available there (opkg install %s)."
-msgstr ""
-"Für \"%s\" gibt es auf dem E2iPlayer-Server keinen Build für OpenSSL %s.\n"
-"Installieren Sie es aus dem Image-Feed, falls es dort verfügbar ist (opkg"
-" install %s)."
 
 msgid "E2iPlayer virtual keyboard"
 msgstr "E2iPlayer Virtuelle Tastatur"
@@ -8113,3 +7799,58 @@ msgstr "Neue Links"
 msgid "E2iPlayer downloader"
 msgstr "E2iPlayer Downloader"
 
+msgid "Image feed"
+msgstr "Image-Feed"
+
+msgid "Updating the package lists of the image feed..."
+msgstr "Aktualisiere die Paketlisten des Image-Feeds..."
+
+msgid "Installing from the image feed:"
+msgstr "Installation aus dem Image-Feed:"
+
+msgid "E2iPlayer binary feed"
+msgstr "E2iPlayer-Binär-Feed"
+
+msgid "Reading the list of tools of the binary feed..."
+msgstr "Lese die Liste der Werkzeuge aus dem Binär-Feed..."
+
+msgid ""
+"The E2iPlayer binary feed could not be read with a certificate check.\n"
+"Please install the certificates and a downloader from the image feed:\n"
+"opkg install ca-certificates wget\n"
+"and start the setup again."
+msgstr ""
+"Der E2iPlayer-Binär-Feed konnte nicht mit Zertifikatsprüfung gelesen "
+"werden.\n"
+"Bitte die Zertifikate und ein Download-Programm aus dem Image-Feed "
+"installieren:\n"
+"opkg install ca-certificates wget\n"
+"und das Setup erneut starten."
+
+msgid "installed from the E2iPlayer binary feed"
+msgstr "aus dem E2iPlayer-Binär-Feed installiert"
+
+msgid "old version kept"
+msgstr "alte Version beibehalten"
+
+msgid "not installed (declined)"
+msgstr "nicht installiert (abgelehnt)"
+
+msgid "does not run on this image"
+msgstr "läuft auf diesem Image nicht"
+
+msgid "download failed"
+msgstr "Download fehlgeschlagen"
+
+msgid "checksum error"
+msgstr "Prüfsummenfehler"
+
+#, python-format
+msgid "It seems that the subtitle's provider \"%s\" has crashed."
+msgstr "Der Untertitel-Anbieter \"%s\" ist scheinbar abgestürzt."
+
+#, python-format
+msgid "You can install PyCurl from the image feed to fix this problem: %s"
+msgstr ""
+"Sie können PyCurl aus dem Image-Feed installieren, um dieses Problem zu "
+"beheben: %s"

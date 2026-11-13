@@ -47,7 +47,7 @@ from Plugins.Extensions.IPTVPlayer.components.e2ivk import GetVKTier, _s, toNati
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import (
     printDBG, printExc, iptv_system, eConnectCallback, formatBytes, GetImageName,
     GetIPTVPlayerVersion, GetIPTVPlayerComitStamp, GetShortPythonVersion,
-    GetConfigDir, GetTmpDir, GetDebugLogPath, GetFFmpegPath, GetQjsPath, GetBinDir, GetPluginDir,
+    GetConfigDir, GetTmpDir, GetDebugLogPath, GetFFmpegPath, GetQjsPath, GetLsdirPath, GetBinDir, GetPluginDir,
     IsExecutable, Which, defaultToolPath,
 )
 ###################################################
@@ -169,7 +169,7 @@ def _probeToolPaths():
                     _UNREGISTERED.add(key)
                     break
         paths[var] = path
-    paths['LS'] = GetBinDir('lsdir')  # local media runs the one of the platform folder
+    paths['LS'] = GetLsdirPath()  # the one local media and the folder browser run
     paths['FF'] = _executable(GetFFmpegPath())
     paths['QJ'] = GetQjsPath()
     try:
@@ -294,7 +294,7 @@ def aboutBlocks():
     version = "E2iPlayer zadmario Version\n" + GetIPTVPlayerVersion() + (("  (" + stamp + ")") if stamp else "")
     return [
         (_("version"), version),
-        (_("www:"), "https://github.com/oe-mirrors/e2iplayer-zadmario\nhttps://gitlab.com/zadmario/e2iplayer"),
+        (_("www:"), "https://github.com/oe-mirrors/e2iplayer-zadmario"),
         (_("Lead programmer:"), "samsamsam"),
         (_("Developers:"), ", ".join([
             'zdzislaw22', 'mamrot', 'MarcinO', 'skalita', 'atilaks',

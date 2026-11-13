@@ -35,41 +35,11 @@ import codecs
 import datetime
 import socket
 
-SERVER_DOMAINS = {'vline': 'http://iptvplayer.vline.pl/', 'gitlab': 'http://zadmario.gitlab.io/', 'private': 'http://www.e2iplayer.gitlab.io/'}
-SERVER_UPDATE_PATH = {'vline': 'download/update2/', 'gitlab': 'update2/', 'private': 'update2/'}
 CACHED_DATA_DICT = {}
 
 # fixed, not user-editable - pointing this at a different repo would break
 # update checking silently, so it isn't exposed as a config option
 GITHUB_UPDATE_REPO = 'oe-mirrors/e2iplayer-zadmario'
-
-
-def GetServerKey(serverNum=None):
-    if serverNum == None:
-        serverNum = config.plugins.iptvplayer.preferredupdateserver.value
-
-    if serverNum == '3':
-        serverKey = 'private'
-    elif serverNum == '2':
-        serverKey = 'gitlab'
-    else:
-        serverKey = 'vline'
-
-    return serverKey
-
-
-def GetUpdateServerUri(file='', serverNum=None):
-    serverKey = GetServerKey(serverNum)
-    uri = SERVER_DOMAINS[serverKey] + SERVER_UPDATE_PATH[serverKey] + file
-    printDBG("GetUpdateServerUri -> %s" % uri)
-    return uri
-
-
-def GetResourcesServerUri(file='', serverNum=None):
-    serverKey = GetServerKey(serverNum)
-    uri = SERVER_DOMAINS[serverKey] + 'resources/' + file
-    printDBG("GetResourcesServerUri -> %s" % uri)
-    return uri
 
 
 def UsePyCurl():
@@ -387,7 +357,9 @@ def GetPyScriptCmd(name):
     elif fileExists(baseName + '.pyo'):
         baseName += '.pyo'
     if baseName != '':
-        for item in ['python', 'python2.7', 'python2.6']:
+        # the interpreter of enigma2's Python first: "python" may be missing or the other one
+        pyNames = ['python3', 'python'] if sys.version_info[0] >= 3 else ['python', 'python2.7', 'python2.6']
+        for item in pyNames:
             pyPath = Which(item)
             if '' != pyPath:
                 cmd = '%s %s' % (pyPath, baseName)
@@ -435,6 +407,17 @@ def GetFFmpegPath():
 def GetQjsPath():
     # QuickJS-ng "qjs" or '' when there is none (duktape is used then)
     return _configuredToolPath('qjspath') or Which('qjs')
+
+
+def GetLsdirPath():
+    # local media / folder browser: the one the setup registered, else the image's (e2iplayer-deps),
+    # else the one of the platform folder (sh4, i686, armv5t still ship one)
+    path = _configuredToolPath('lsdirpath')
+    if path:
+        return path
+    if IsExecutable('/usr/bin/lsdir'):
+        return '/usr/bin/lsdir'
+    return GetBinDir('lsdir')
 
 
 def GetCurlImpersonatePath():

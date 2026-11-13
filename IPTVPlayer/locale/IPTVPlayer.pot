@@ -845,9 +845,6 @@ msgstr ""
 msgid "Default"
 msgstr ""
 
-msgid "GitHub repository"
-msgstr ""
-
 msgid "System"
 msgstr ""
 
@@ -882,15 +879,6 @@ msgid "yes, to file /tmp/iptv.dbg"
 msgstr ""
 
 msgid "yes, to file /home/root/logs/iptv.dbg"
-msgstr ""
-
-msgid "with source code"
-msgstr ""
-
-msgid "precompiled"
-msgstr ""
-
-msgid "all types"
 msgstr ""
 
 msgid "default"
@@ -939,13 +927,6 @@ msgid "----- BASIC CONFIGURATION (OK) -----"
 msgstr ""
 
 msgid "Auto check for plugin update"
-msgstr ""
-
-msgid "The preferred update server"
-msgstr ""
-
-#, python-format
-msgid "%s login"
 msgstr ""
 
 #, python-format
@@ -1187,9 +1168,6 @@ msgid "Debug logs"
 msgstr ""
 
 msgid "Allow downgrade"
-msgstr ""
-
-msgid "Update packet type"
 msgstr ""
 
 msgid ""
@@ -1494,22 +1472,9 @@ msgid ""
 "It is not supported by E2iPlayer team."
 msgstr ""
 
-#, python-format
-msgid ""
-"It seems that the host \"%s\" has crashed. Do you want to report this "
-"problem?"
-msgstr ""
-
 msgid ""
 "\n"
 "Make sure you are using the latest version of the plugin."
-msgstr ""
-
-msgid ""
-"\n"
-"You can also report problem here: \n"
-"https://gitlab.com/iptvplayer-for-e2/iptvplayer-for-e2/issues\n"
-"or here: samsamsam@o2.pl"
 msgstr ""
 
 msgid "Zu Benutzer-Links hinzufügen"
@@ -1546,9 +1511,6 @@ msgid "Info"
 msgstr ""
 
 msgid "Lead programmer: "
-msgstr ""
-
-msgid "E-mail: "
 msgstr ""
 
 msgid "www: "
@@ -1717,12 +1679,6 @@ msgid "Definitely remove from favorites?"
 msgstr ""
 
 msgid "Confirm the title of the movie"
-msgstr ""
-
-#, python-format
-msgid ""
-"It seems that the subtitle's provider \"%s\" has crashed. Do you want to "
-"report this problem?"
 msgstr ""
 
 msgid "Select subtitles provider:"
@@ -3054,12 +3010,6 @@ msgid ""
 "Status[%d], outData[%s]"
 msgstr ""
 
-#, python-format
-msgid ""
-"Problem with copy files.\n"
-"Status[%d], outData[%s]"
-msgstr ""
-
 msgid "Correct version."
 msgstr ""
 
@@ -3135,9 +3085,6 @@ msgstr ""
 msgid "Installing new version."
 msgstr ""
 
-msgid "Skipped."
-msgstr ""
-
 msgid "Nothing to do here."
 msgstr ""
 
@@ -3186,13 +3133,6 @@ msgid ""
 "[%s]."
 msgstr ""
 
-#, python-format
-msgid "Problem with downloading the server list from [%s]."
-msgstr ""
-
-msgid "Problem with parsing the server list."
-msgstr ""
-
 msgid "Select update server"
 msgstr ""
 
@@ -3200,33 +3140,6 @@ msgid "There is no update for the current configuration."
 msgstr ""
 
 msgid "Update not available."
-msgstr ""
-
-msgid "Downloading graphics package."
-msgstr ""
-
-msgid "Extracting graphics package."
-msgstr ""
-
-msgid "Copy graphics without icons."
-msgstr ""
-
-msgid "Downloading icons package."
-msgstr ""
-
-msgid "Extracting icons package."
-msgstr ""
-
-msgid "Copy all graphics."
-msgstr ""
-
-msgid "Copy icons."
-msgstr ""
-
-msgid "Get decryption key."
-msgstr ""
-
-msgid "Decrypt archive."
 msgstr ""
 
 #, python-format
@@ -3241,36 +3154,11 @@ msgstr ""
 
 #, python-format
 msgid ""
-"Problem with downloading the encryption key:\n"
-"[%s]."
-msgstr ""
-
-#, python-format
-msgid "Wrong the encryption key size: %s\n"
-msgstr ""
-
-msgid "Problem with decryption the key."
-msgstr ""
-
-msgid "Encryption key was downloaded successfully."
-msgstr ""
-
-#, python-format
-msgid ""
 "Problem with extracting the archive. Return code [%d]\n"
 "%s."
 msgstr ""
 
 msgid "Unpacking the archive completed successfully."
-msgstr ""
-
-#, python-format
-msgid ""
-"Problem with decryption the archive. Return code [%d]\n"
-"%s."
-msgstr ""
-
-msgid "Decryption the archive completed successfully."
 msgstr ""
 
 #, python-format
@@ -3331,10 +3219,6 @@ msgstr ""
 
 #, python-format
 msgid "Please report this problem to the developer %s."
-msgstr ""
-
-#, python-format
-msgid "You can install PyCurl package from %s to fix this problem."
 msgstr ""
 
 msgid "It is not allowed to call getURLRequestData from main thread."
@@ -3559,26 +3443,8 @@ msgstr ""
 
 #, python-format
 msgid ""
-"Downloading \"%s\" failed. \n"
-"Do you want to retry?"
-msgstr ""
-
-#, python-format
-msgid ""
-"Utility \"%s\" has not been detected. \n"
-"What do you want to do?"
-msgstr ""
-
-#, python-format
-msgid ""
 "Utility \"%s\" has not been detected. \n"
 "Do you want to install it?"
-msgstr ""
-
-#, python-format
-msgid ""
-"Utility \"%s\" is deprecated. \n"
-"What do you want to do?"
 msgstr ""
 
 #, python-format
@@ -3589,22 +3455,6 @@ msgstr ""
 
 #, python-format
 msgid "Installing \"%s\"."
-msgstr ""
-
-#, python-format
-msgid "Install into the \"%s\"."
-msgstr ""
-
-msgid "recommended"
-msgstr ""
-
-msgid "Do not install (not recommended)"
-msgstr ""
-
-msgid "Detection of glibc version."
-msgstr ""
-
-msgid "Detection version of installed standard C library."
 msgstr ""
 
 msgid "Detection of the platform."
@@ -3620,45 +3470,7 @@ msgid ""
 "Plugin is not supported with your platform."
 msgstr ""
 
-msgid "Detection of MIPSEL FPU ABI."
-msgstr ""
-
-msgid "This step is required to proper select binaries for installation."
-msgstr ""
-
-msgid "Detection of the OpenSSL version."
-msgstr ""
-
-msgid "OpenSSL lib is needed by wget and rtmpdump utilities."
-msgstr ""
-
-msgid ""
-"Fatal Error!\n"
-"Openssl could not be found. Please install it and retry."
-msgstr ""
-
-msgid "Detection of the OpenSSL 1.0.0 version."
-msgstr ""
-
-#, python-format
-msgid ""
-"OpenSSL in your image has different library names then these used by %s.\n"
-"There is need to create following symlinks:\n"
-"%s\n"
-"to be able to install binary components from %s server.\n"
-"Do you want to proceed?"
-msgstr ""
-
-#, python-format
-msgid ""
-"Create OpenSSL symlinks failed with following error \"%s\".\n"
-"Some functions may not work correctly."
-msgstr ""
-
 msgid "Detection of the gstreamer version."
-msgstr ""
-
-msgid "Detection of the ffmpeg version."
 msgstr ""
 
 #, python-format
@@ -3676,59 +3488,13 @@ msgstr ""
 msgid "C subtitle parser"
 msgstr ""
 
-msgid ""
-"\n"
-"For more info please ask the author samsamsam@o2.pl"
-msgstr ""
-
 msgid "It improves subtitles parsing.\n"
-msgstr ""
-
-msgid ""
-" has not been detected. \n"
-"Do you want to install it? "
-msgstr ""
-
-msgid ""
-" is deprecated. \n"
-"Do you want to install new one? "
-msgstr ""
-
-msgid "python-cjson"
-msgstr ""
-
-#, python-format
-msgid ""
-"\n"
-"For more info please ask %s "
-msgstr ""
-
-msgid "It improves json data parsing.\n"
-msgstr ""
-
-msgid "hlsdl downloader"
-msgstr ""
-
-msgid ""
-"\n"
-"For more info please ask samsamsam@o2.pl"
 msgstr ""
 
 msgid "It improves HLS/M3U8 stream download.\n"
 msgstr ""
 
-msgid "cmdwrap tool"
-msgstr ""
-
 msgid "It improves commands execution with very long arguments.\n"
-msgstr ""
-
-msgid "duktape"
-msgstr ""
-
-msgid ""
-"\n"
-"Please visit http://duktape.org/"
 msgstr ""
 
 msgid ""
@@ -3746,28 +3512,7 @@ msgstr ""
 msgid "The \"%s\" utility is used by the %s as external movie player."
 msgstr ""
 
-msgid "Fluendo mpegdemux for GSTREAMER 0.10"
-msgstr ""
-
-msgid ""
-"\n"
-"For more info please visit http://fluendo.com/"
-msgstr ""
-
-msgid "It improves playing of streams hls/m3u8.\n"
-msgstr ""
-
-msgid "GST-IFDSRC for GSTREAMER 1.X"
-msgstr ""
-
 msgid "It improves buffering mode with the gstplayer.\n"
-msgstr ""
-
-#, python-format
-msgid "[%s] will be used by %s."
-msgstr ""
-
-msgid "Installation binary failed. Retry?"
 msgstr ""
 
 msgid ""
@@ -4235,12 +3980,6 @@ msgid "User links sorted."
 msgstr ""
 
 msgid "Could not sort the user links."
-msgstr ""
-
-#, python-format
-msgid ""
-"There is no \"%s\" build for OpenSSL %s on the E2iPlayer server.\n"
-"Install it from the image feed if it is available there (opkg install %s)."
 msgstr ""
 
 msgid "E2iPlayer virtual keyboard"
@@ -6927,3 +6666,50 @@ msgstr ""
 msgid "E2iPlayer downloader"
 msgstr ""
 
+msgid "Image feed"
+msgstr ""
+
+msgid "Updating the package lists of the image feed..."
+msgstr ""
+
+msgid "Installing from the image feed:"
+msgstr ""
+
+msgid "E2iPlayer binary feed"
+msgstr ""
+
+msgid "Reading the list of tools of the binary feed..."
+msgstr ""
+
+msgid ""
+"The E2iPlayer binary feed could not be read with a certificate check.\n"
+"Please install the certificates and a downloader from the image feed:\n"
+"opkg install ca-certificates wget\n"
+"and start the setup again."
+msgstr ""
+
+msgid "installed from the E2iPlayer binary feed"
+msgstr ""
+
+msgid "old version kept"
+msgstr ""
+
+msgid "not installed (declined)"
+msgstr ""
+
+msgid "does not run on this image"
+msgstr ""
+
+msgid "download failed"
+msgstr ""
+
+msgid "checksum error"
+msgstr ""
+
+#, python-format
+msgid "It seems that the subtitle's provider \"%s\" has crashed."
+msgstr ""
+
+#, python-format
+msgid "You can install PyCurl from the image feed to fix this problem: %s"
+msgstr ""
