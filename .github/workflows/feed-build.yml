@@ -1,0 +1,209 @@
+name: feed-build
+
+# Builds the helper binaries of the feed (see feed/SOURCES.md) and tests them on
+# the target architecture. Only runs when the feed itself changes.
+
+on:
+  # branches only: a feed-* tag runs feed-publish.yml, which builds through workflow_call
+  push:
+    branches: ['**']
+    paths:
+      - 'feed/**'
+      - '.github/workflows/feed-*.yml'
+  pull_request:
+    paths:
+      - 'feed/**'
+      - '.github/workflows/feed-*.yml'
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  # static tools, cross compiled with a musl toolchain
+  tools:
+    name: tools ${{ matrix.plat }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - plat: armv7
+            qemu: arm
+            apt: ''
+          # docker/setup-qemu-action has no 32-bit MIPS: Ubuntu's qemu-user-static registers qemu-mipsel
+          - plat: mipsel
+            qemu: ''
+            apt: qemu-user-static binfmt-support
+    env:
+      PLAT: ${{ matrix.plat }}
+      WORK: ${{ github.workspace }}/../feed-work
+    steps:
+      - uses: actions/checkout@v7
+
+      # runs the target binaries in the tests
+      - uses: docker/setup-qemu-action@v4
+        if: matrix.qemu != ''
+        with:
+          platforms: ${{ matrix.qemu }}
+
+      # toolchain and source tarballs; everything in it is checked against sources.lock
+      - uses: actions/cache@v6
+        with:
+          path: ${{ github.workspace }}/../feed-work/dl
+          key: feed-dl-${{ matrix.plat }}-${{ hashFiles('feed/sources.lock') }}
+          restore-keys: feed-dl-${{ matrix.plat }}-
+
+      - name: Host tools
+        run: |
+          sudo apt-get -q update
+          sudo apt-get -y install upx-ucl ${{ matrix.apt }}
+          ls /proc/sys/fs/binfmt_misc/
+
+      - name: Build and test
+        run: sh feed/scripts/build-all.sh
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: part-${{ matrix.plat }}-tools
+          path: out/${{ matrix.plat }}
+          if-no-files-found: error
+
+  # parts that load into a program of the image and so cannot be static: built
+  # natively in a container of the platform whose glibc (and GStreamer) is not
+  # newer than the images' one - _subparser.so per Python version, gst-ifdsrc
+  native:
+    name: ${{ matrix.part }} ${{ matrix.plat }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - plat: armv7
+            docker: linux/arm/v7
+            part: subparser-py2.7
+            step: build-subparser
+            py: '2.7'
+            image: debian:bullseye-slim      # glibc 2.31
+            pkgs: gcc libc6-dev binutils git ca-certificates python2.7-dev
+            test: ''
+          - plat: armv7
+            docker: linux/arm/v7
+            part: subparser-py3.10
+            step: build-subparser
+            py: '3.10'
+            image: debian:bullseye-slim      # glibc 2.31, headers of the pinned CPython
+            pkgs: gcc libc6-dev binutils make git ca-certificates curl xz-utils
+            test: python:3.10-slim
+          - plat: armv7
+            docker: linux/arm/v7
+            part: subparser-py3.11
+            step: build-subparser
+            py: '3.11'
+            image: debian:bullseye-slim      # glibc 2.31, headers of the pinned CPython
+            pkgs: gcc libc6-dev binutils make git ca-certificates curl xz-utils
+            test: python:3.11-slim
+          - plat: armv7
+            docker: linux/arm/v7
+            part: subparser-py3.12
+            step: build-subparser
+            py: '3.12'
+            image: debian:bullseye-slim      # glibc 2.31, headers of the pinned CPython
+            pkgs: gcc libc6-dev binutils make git ca-certificates curl xz-utils
+            test: python:3.12-slim
+          - plat: armv7
+            docker: linux/arm/v7
+            part: subparser-py3.13
+            step: build-subparser
+            py: '3.13'
+            image: debian:bullseye-slim      # glibc 2.31, headers of the pinned CPython
+            pkgs: gcc libc6-dev binutils make git ca-certificates curl xz-utils
+            test: python:3.13-slim
+          - plat: armv7
+            docker: linux/arm/v7
+            part: subparser-py3.14
+            step: build-subparser
+            py: '3.14'
+            image: debian:bullseye-slim      # glibc 2.31, headers of the pinned CPython
+            pkgs: gcc libc6-dev binutils make git ca-certificates curl xz-utils
+            test: python:3.14-slim
+          - plat: armv7
+            docker: linux/arm/v7
+            part: subparser-py3.15
+            step: build-subparser
+            py: '3.15'
+            image: debian:bullseye-slim      # glibc 2.31, headers of the pinned CPython
+            pkgs: gcc libc6-dev binutils make git ca-certificates curl xz-utils
+            test: python:3.15-slim
+          - plat: armv7
+            docker: linux/arm/v7
+            part: gst-ifdsrc
+            step: build-ifdsrc
+            py: ''
+            image: debian:bullseye-slim      # glibc 2.31, GStreamer 1.18
+            pkgs: >-
+              gcc libc6-dev binutils make autoconf automake libtool pkg-config git ca-certificates
+              libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-tools
+            test: ''
+          - plat: armv7
+            docker: linux/arm/v7
+            part: exteplayer3png
+            step: build-png
+            py: ''
+            image: debian:bullseye-slim      # glibc 2.31, libpng 1.6
+            pkgs: gcc libc6-dev binutils git ca-certificates libpng-dev python3 python3-pil
+            test: ''
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm
+
+      - name: Build in ${{ matrix.image }}
+        run: |
+          docker run --rm --platform ${{ matrix.docker }} -e PLAT=${{ matrix.plat }} -e PYVER=${{ matrix.py }}               -e WORK=/tmp/feed-work -v "$PWD:/w" -w /w ${{ matrix.image }}               sh -euc 'sh feed/scripts/apt-install.sh ${{ matrix.pkgs }} && sh feed/scripts/build-all.sh ${{ matrix.step }}'
+          sudo chown -R "$(id -u):$(id -g)" out
+
+      # a module built against headers only is loaded by the real Python of that version
+      - name: Test in ${{ matrix.test }}
+        if: matrix.test != ''
+        run: |
+          docker run --rm --platform ${{ matrix.docker }} -e PLAT=${{ matrix.plat }} -e PYVER=${{ matrix.py }}               -v "$PWD:/w" -w /w ${{ matrix.test }} sh feed/scripts/build-all.sh test-subparser
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: part-${{ matrix.plat }}-${{ matrix.part }}
+          path: out/${{ matrix.plat }}
+          if-no-files-found: error
+
+  # one artifact per platform with SHA256SUMS and index.json
+  feed:
+    name: feed ${{ matrix.plat }}
+    needs: [tools, native]
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        plat: [armv7, mipsel]
+    env:
+      PLAT: ${{ matrix.plat }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: part-${{ matrix.plat }}-*
+          path: out/${{ matrix.plat }}
+          merge-multiple: true
+
+      - name: SHA256SUMS, index.json
+        run: sh feed/scripts/manifest.sh
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: feed-${{ matrix.plat }}
+          path: out/${{ matrix.plat }}
+          if-no-files-found: error

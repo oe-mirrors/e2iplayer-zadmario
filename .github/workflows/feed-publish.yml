@@ -1,0 +1,107 @@
+name: feed-publish
+
+# Builds the whole feed, publishes it on GitHub Pages
+#   https://<owner>.github.io/<repo>/resources/bin/<platform>/<file>
+# and keeps every published state as a release (binaries + source archive).
+# Runs for a tag feed-YYYY.MM.DD[.N] or by hand (then only Pages, no release).
+# Pages keeps only the last deploy, so every publish carries the complete feed.
+
+on:
+  push:
+    tags:
+      - 'feed-*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: feed-publish
+  cancel-in-progress: false
+
+jobs:
+  build:
+    uses: ./.github/workflows/feed-build.yml
+
+  site:
+    needs: build
+    runs-on: ubuntu-24.04
+    env:
+      WORK: ${{ github.workspace }}/../feed-work
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: feed-*
+          path: dist
+
+      - name: Pages site
+        env:
+          PLAT: site
+        run: sh feed/scripts/build-all.sh site
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+      - name: Source archive
+        if: startsWith(github.ref, 'refs/tags/feed-')
+        env:
+          PLAT: armv7
+        run: sh feed/scripts/build-all.sh sources-tarball
+
+      - uses: actions/upload-artifact@v7
+        if: startsWith(github.ref, 'refs/tags/feed-')
+        with:
+          name: release-files
+          path: |
+            release
+            dist
+
+  deploy:
+    needs: site
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
+
+  release:
+    needs: [site, deploy]
+    if: startsWith(github.ref, 'refs/tags/feed-')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-files
+
+      - name: Release ${{ github.ref_name }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          mkdir assets
+          # the platform from each index.json (one artifact lies directly in dist/)
+          for idx in $(find dist -name index.json); do
+              d=$(dirname "$idx")
+              plat=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["platform"])' "$idx")
+              for f in "$d"/*; do cp "$f" "assets/$plat-$(basename "$f")"; done
+          done
+          cp release/sources-*.tar.xz assets/
+          ls -l assets
+          # the tag may come with a release made in the web interface: fill that one
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+              gh release upload "$GITHUB_REF_NAME" assets/* --clobber --repo "$GITHUB_REPOSITORY"
+          else
+              gh release create "$GITHUB_REF_NAME" assets/* --repo "$GITHUB_REPOSITORY" \
+                  --title "Binary feed $GITHUB_REF_NAME" \
+                  --notes "Binaries of the feed published on Pages, file names prefixed with the platform; sources-$GITHUB_REF_NAME.tar.xz holds every source and patch they are built from (see SOURCES.md)."
+          fi

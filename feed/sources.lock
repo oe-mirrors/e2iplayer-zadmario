@@ -1,0 +1,83 @@
+# Sources of the binary feed - sourced by feed/scripts/*.sh.
+# Tarballs are checked against their sha256, git sources are checked out at the
+# given commit. Versions and patches follow the oe-alliance-core 6.0 recipes
+# (see feed/SOURCES.md for the recipe each tool comes from).
+
+# cross toolchains (Bootlin, musl), per platform
+TOOLCHAIN_URL_armv7=https://toolchains.bootlin.com/downloads/releases/toolchains/armv7-eabihf/tarballs/armv7-eabihf--musl--stable-2026.08-1.tar.xz
+TOOLCHAIN_SHA256_armv7=9147bafae4aa272321a3c6440d04d83b7e23411b2d344f875541d84c4444ba9b
+OPENSSL_TARGET_armv7=linux-armv4
+CMAKE_PROCESSOR_armv7=arm
+TOOLCHAIN_URL_mipsel=https://toolchains.bootlin.com/downloads/releases/toolchains/mips32el/tarballs/mips32el--musl--stable-2026.08-1.tar.xz
+TOOLCHAIN_SHA256_mipsel=e8517d51ba86699d5efaac62fc50fd9267dbdbc8b2cd3eb5b658db3582286778
+OPENSSL_TARGET_mipsel=linux-mips32
+CMAKE_PROCESSOR_mipsel=mipsel
+
+# libraries linked into the tools
+ZLIB_VERSION=1.3.2
+ZLIB_URL=https://github.com/madler/zlib/releases/download/v1.3.2/zlib-1.3.2.tar.gz
+ZLIB_SHA256=bb329a0a2cd0274d05519d61c667c062e06990d72e125ee2dfa8de64f0119d16
+
+OPENSSL_VERSION=3.5.9
+OPENSSL_URL=https://github.com/openssl/openssl/releases/download/openssl-3.5.9/openssl-3.5.9.tar.gz
+OPENSSL_SHA256=603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a
+
+# libcurl for hlsdl (static, HTTP/HTTPS only)
+CURL_VERSION=8.23.0
+CURL_URL=https://github.com/curl/curl/releases/download/curl-8_23_0/curl-8.23.0.tar.xz
+CURL_SHA256=8dadd7d2536a314f982ad05a651b713f426bf7d02cc2c76cffb9796f2218e6c5
+
+# hlsdl, cmdwrap, lsdir, f4mdump, e2ipow, exteplayer3png: oe-mirrors/e2iplayer-deps master
+DEPS_GIT=https://github.com/oe-mirrors/e2iplayer-deps.git
+DEPS_REV=e8cd31feefe95914f68f00e52a782f51b0242e6a
+
+# gst-ifdsrc: oe-mirrors/iptvplayer-bin-components master (oe-alliance gst-ifdsrc_git.bb)
+BINCOMP_GIT=https://github.com/oe-mirrors/iptvplayer-bin-components.git
+BINCOMP_REV=b998ab93ca7f0e74df30a1a0142c5f01ef37a723
+
+# CPython sources: only their headers (Include/ + the pyconfig.h configure writes)
+# are used, to build _subparser.so for Python 3 against an old glibc
+CPYTHON_URL_3_10=https://www.python.org/ftp/python/3.10.22/Python-3.10.22.tar.xz
+CPYTHON_SHA256_3_10=c61fe9b1a1a7ec2a0b0388e664187c378a5325a89e3606d220abf5bdfccb2543
+CPYTHON_URL_3_11=https://www.python.org/ftp/python/3.11.17/Python-3.11.17.tar.xz
+CPYTHON_SHA256_3_11=bfb74ad39efae27cda510f134ab408e00f9992c56851cfc0b1cdb5646da11599
+CPYTHON_URL_3_12=https://www.python.org/ftp/python/3.12.15/Python-3.12.15.tar.xz
+CPYTHON_SHA256_3_12=c2c4321961fab0fb999d66e0cecf521c2ab3994c7992873ea99e306c1094fd5a
+CPYTHON_URL_3_13=https://www.python.org/ftp/python/3.13.17/Python-3.13.17.tar.xz
+CPYTHON_SHA256_3_13=6020bd10aff3bf4821be16f088ebb1591beb7b811dcd8fab1da8f7c22a7b27e7
+CPYTHON_URL_3_14=https://www.python.org/ftp/python/3.14.9/Python-3.14.9.tar.xz
+CPYTHON_SHA256_3_14=e02d9ac21cebda6e46435369744a92c65cc7cd8669697694122cf97ffacd1e53
+CPYTHON_URL_3_15=https://www.python.org/ftp/python/3.15.2/Python-3.15.2.tar.xz
+CPYTHON_SHA256_3_15=8b5536d280142ecf6cdfe15d12a21ba1c65e300bbf7b28a8d0cdb849575797de
+
+# duktape: meta-oe duktape_2.7.0.bb + oe-alliance duktape_2%.bbappend
+DUKTAPE_VERSION=2.7.0
+DUKTAPE_URL=https://duktape.org/duktape-2.7.0.tar.xz
+DUKTAPE_SHA256=90f8d2fa8b5567c6899830ddef2c03f3c27960b11aca222fa17aa7ac613c2890
+
+# quickjs-ng: oe-alliance quickjs_0.16.2.bb
+QUICKJS_VERSION=0.16.2
+QUICKJS_GIT=https://github.com/quickjs-ng/quickjs.git
+QUICKJS_REV=1ab8676f4b6d6d669baeb5f21790fb9734636a20
+
+# wget: oe-core wget_1.25.0.bb (+ its CVE patches) + oe-alliance wget_1.%.bbappend
+WGET_VERSION=1.25.0
+WGET_URL=https://ftp.gnu.org/gnu/wget/wget-1.25.0.tar.gz
+WGET_SHA256=766e48423e79359ea31e41db9e5c289675947a7fcf2efdcedb726ac9d0da3784
+
+# rtmpdump: meta-multimedia rtmpdump_2.6.bb + oe-alliance rtmpdump_2.%.bbappend
+RTMPDUMP_VERSION=2.6
+RTMPDUMP_GIT=https://git.ffmpeg.org/rtmpdump.git
+RTMPDUMP_GIT_MIRROR=https://github.com/mirror/rtmpdump.git
+RTMPDUMP_REV=6f6bb1353fc84f4cc37138baa99f586750028a01
+
+# uchardet: meta-oe uchardet_0.0.8.bb
+UCHARDET_VERSION=0.0.8
+UCHARDET_URL=https://www.freedesktop.org/software/uchardet/releases/uchardet-0.0.8.tar.xz
+UCHARDET_SHA256=e97a60cfc00a1c147a674b097bb1422abd9fa78a2d9ce3f3fdcc2e78a34ac5f0
+
+# curl-impersonate: upstream release binary (glibc >= 2.17, everything else
+# linked in), stripped and packed like the oe-alliance recipe (upx-compress)
+CURLIMP_VERSION=2.2.3
+CURLIMP_URL_armv7=https://github.com/lexiforest/curl-impersonate/releases/download/v2.2.3/curl-impersonate-v2.2.3.arm-linux-gnueabihf.tar.gz
+CURLIMP_SHA256_armv7=bdfba66572546a5331a31e36be99bbbcfa1cbe78cf2175088f2c0ff9d7f6757f
