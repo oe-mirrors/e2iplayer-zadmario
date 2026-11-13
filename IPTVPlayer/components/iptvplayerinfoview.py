@@ -103,6 +103,7 @@ _PROBE_SCRIPT = (
     'echo "@@wget";        [ -x "$WG" ] && r 1 "$WG" --version; p "$WG"; '
     'echo "@@curl";        C=$(w curl); [ "$C" != "-" ] && r 1 "$C" --version; echo "$C"; '
     'echo "@@curlimp";     [ -x "$CI" ] && r 1 "$CI" --version; p "$CI"; '
+    'echo "@@e2ipow";      [ -x "$EW" ] && r 1 "$EW" --version; p "$EW"; '
     'echo "@@rtmpdump";    [ -x "$RT" ] && r 5 "$RT" --help; p "$RT"; '
     'echo "@@exteplayer3"; [ -x "$EP" ] && r 2 "$EP"; p "$EP"; '
     'echo "@@gstplayer";   [ -x "$GP" ] && r 2 "$GP"; p "$GP"; '
@@ -172,6 +173,7 @@ def _probeToolPaths():
     paths['LS'] = GetLsdirPath()  # the one local media and the folder browser run
     paths['FF'] = _executable(GetFFmpegPath())
     paths['QJ'] = GetQjsPath()
+    paths['EW'] = _executable('e2ipow')  # urlparser runs it from PATH
     try:
         from Plugins.Extensions.IPTVPlayer.libs import curlimpersonate
         paths['CI'] = curlimpersonate.getImpersonateBinary()
@@ -187,6 +189,14 @@ _PROBE_CACHE = None       # parsed binary block, reused for the whole session
 _PROBE_KEEPALIVE = None   # holds the iptv_system object until its callback fires
 _STARTUP_KEEPALIVE = None
 _SNAPSHOT_LOGGED = False   # the full snapshot is already in the current log
+
+
+def ResetSystemProbe():
+    """Forget the probed tools: the setup has just installed or replaced some, the next
+    system page (and the next log snapshot) probes them again."""
+    global _PROBE_CACHE, _SNAPSHOT_LOGGED
+    _PROBE_CACHE = None
+    _SNAPSHOT_LOGGED = False
 
 
 def _log_snapshot(si):
@@ -592,6 +602,7 @@ class _SystemInfo(object):
         out.append(row("lsdir", lsdir_val(_("not installed (no local media / folder browser)"))))
         out.append(row("f4mdump", banner("f4mdump", _("not installed (no HDS/F4M streams)"))))
         out.append(row("curl-impersonate", path_val("curlimp", _("not installed (sites with bot protection may fail)"))))
+        out.append(row("e2ipow", path_val("e2ipow", notInstalled)))
         imp = self._impersonateState()
         if imp:
             out.append(row("  " + _("as Chrome this session"), imp))
