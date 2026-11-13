@@ -6,8 +6,8 @@
 ###################################################
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, GetDefaultLang, IsValidFileName, \
                                                           GetTmpDir, GetSubtitlesDir, GetIconDir, GetSkinsDir, \
-                                                          GetIPTVPlayerVerstion, eConnectCallback, GetPluginDir, \
-                                                          iptv_system, IsSubtitlesParserExtensionCanBeUsed
+                                                          GetIPTVPlayerVerstion, eConnectCallback, \
+                                                          IsSubtitlesParserExtensionCanBeUsed
 from Plugins.Extensions.IPTVPlayer.tools.iptvfavourites import IPTVFavourites
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
 from Plugins.Extensions.IPTVPlayer.components.ihost import CDisplayListItem, RetHost
@@ -23,7 +23,6 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.p2p3.pVer import isPY2
 if not isPY2():
     basestring = str
-from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote
 ###################################################
 # FOREIGN import
 ###################################################
@@ -378,27 +377,17 @@ class IPTVSubDownloaderWidget(Screen):
                         self.spinnerTimer.start(self.spinnerTimer_interval, True)
                         return
                 elif not self.workThread.isFinished():
-                    message = _("It seems that the subtitle's provider \"%s\" has crashed. Do you want to report this problem?") % self.hostName
+                    # the old crash report server (vline) is gone: only the message
+                    message = _("It seems that the subtitle's provider \"%s\" has crashed.") % self.hostName
                     message += "\n"
                     message += _('\nMake sure you are using the latest version of the plugin.')
-                    if config.plugins.iptvplayer.preferredupdateserver.value == '3': #private sss repository
-                        message += _('\nYou can also report problem here: \nhttps://gitlab.com/iptvplayer-for-e2/iptvplayer-for-e2/issues\nor here: samsamsam@o2.pl')
-                    self.session.openWithCallback(self.reportHostCrash, MessageBox, text=message, type=MessageBox.TYPE_YESNO)
+                    self.session.openWithCallback(self.hostCrashClosed, MessageBox, text=message, type=MessageBox.TYPE_ERROR)
             self.hideSpinner()
         except Exception:
             printExc()
 
-    def reportHostCrash(self, ret):
+    def hostCrashClosed(self, ret=None):
         try:
-            if ret and config.plugins.iptvplayer.preferredupdateserver.value == '3': #private sss repository:
-                try:
-                    exceptStack = self.workThread.getExceptStack()
-                    reporter = GetPluginDir('iptvdm/reporthostcrash.py')
-                    msg = urllib_quote('%s|%s|%s|%s' % ('HOST_CRASH', IPTVSubDownloaderWidget.IPTV_VERSION, self.hostName, self.getCategoryPath()))
-                    self.crashConsole = iptv_system('python "%s" "http://iptvplayer.vline.pl/reporthostcrash.php?msg=%s" "%s" 2&>1 > /dev/null' % (reporter, msg, exceptStack))
-                    printDBG(msg)
-                except Exception:
-                    printExc()
             self.workThread = None
             self.prevSelList = []
             self.back_pressed()

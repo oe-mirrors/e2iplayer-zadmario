@@ -16,9 +16,7 @@ from Plugins.Extensions.IPTVPlayer.setup.iptvsetupimpl import IPTVSetupImpl
 ###################################################
 # FOREIGN import
 ###################################################
-from enigma import getDesktop, eTimer
 from Screens.MessageBox import MessageBox
-from Screens.ChoiceBox import ChoiceBox
 from Screens.Screen import Screen
 from Components.ActionMap import ActionMap
 from Components.Label import Label
@@ -73,7 +71,7 @@ class IPTVSetupMainWidget(Screen):
         self.deferredAction = None
         self.started = False
 
-        self.setupImpl = IPTVSetupImpl(self.finished, self.chooseQuestion, self.showMessage, self.setInfo)
+        self.setupImpl = IPTVSetupImpl(self.finished, self.showMessage, self.setInfo)
 
     def __del__(self):
         printDBG("IPTVSetupMainWidget.__del__ -------------------------------")
@@ -132,20 +130,6 @@ class IPTVSetupMainWidget(Screen):
 
     def doShowMessage(self, message, type, callback):
         self.session.openWithCallback(callback, MessageBox, text=message, type=type)
-
-    def chooseQuestion(self, title, list, callback):
-        printDBG("IPTVSetupMainWidget.chooseQuestion")
-        if self.underClosing:
-            return
-        if self.underCloseMessage:
-            self.deferredAction = boundFunction(self.dochooseQuestion, title, list, callback)
-        else:
-            self.dochooseQuestion(title, list, callback)
-
-    def dochooseQuestion(self, title, list, callback):
-        title += "                                                                         " # workaround for truncation message by stupid E2
-        title = title.replace('\n', ' ').replace(' ', chr(160))
-        self.session.openWithCallback(callback, ChoiceBox, title=title, list=list)
 
     def setInfo(self, title, message):
         if self.underClosing:

@@ -51,7 +51,7 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import FreeSpace as iptvtools_FreeSpace, \
                                                           mkdirs as iptvtools_mkdirs, GetIPTVPlayerVerstion, getIPTVplayerOPKGVersion, GetVersionNum, GetShortSystemInfo, \
                                                           printDBG, printExc, iptv_system, GetHostsList, IsHostEnabled, \
-                                                          eConnectCallback, GetSkinsDir, GetIconDir, GetPluginDir, GetExtensionsDir, \
+                                                          eConnectCallback, GetSkinsDir, GetIconDir, GetExtensionsDir, \
                                                           SortHostsList, GetHostsOrderList, CSearchHistoryHelper, IsExecutable, \
                                                           CMoviePlayerPerHost, GetFavouritesDir, CFakeMoviePlayerOption, GetAvailableIconSize, \
                                                           GetE2VideoModeChoices, GetE2VideoMode, SetE2VideoMode, TestTmpCookieDir, TestTmpJSCacheDir,\
@@ -68,6 +68,7 @@ from Plugins.Extensions.IPTVPlayer.iptvupdate.updatemainwindow import IPTVUpdate
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, IPTVPlayerNeedInit, GetIPTVPlayerLastHostError, GetIPTVNotify, GetIPTVSleep
 
 from Plugins.Extensions.IPTVPlayer.setup.iptvsetupwidget import IPTVSetupMainWidget
+from Plugins.Extensions.IPTVPlayer.setup.iptvsetupimpl import SETUP_VERSION
 from Plugins.Extensions.IPTVPlayer.components.iptvplayer import IPTVStandardMoviePlayer, IPTVMiniMoviePlayer
 from Plugins.Extensions.IPTVPlayer.components.iptvextmovieplayer import IPTVExtMoviePlayer
 from Plugins.Extensions.IPTVPlayer.components.iptvpictureplayer import IPTVPicturePlayerWidget
@@ -84,7 +85,6 @@ from Plugins.Extensions.IPTVPlayer.components.e2ivkselector import GetVirtualKey
 from Plugins.Extensions.IPTVPlayer.components.searchhistoryeditor import SearchHistoryEditor
 ######################################################
 from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str
-from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote
 from Plugins.Extensions.IPTVPlayer.p2p3.pVer import isPY2, pVersion
 if not isPY2():
     basestring = str
@@ -640,27 +640,17 @@ class E2iPlayerWidget(Screen):
                         message += _('\nThis host is not integral part of the E2iPlayer plugin.\nIt is not supported by E2iPlayer team.')
                         self.session.open(MessageBox, message, type=MessageBox.TYPE_ERROR)
                     else:
-                        message = _('It seems that the host "%s" has crashed. Do you want to report this problem?') % self.hostName
+                        # the old crash report server (vline) is gone: only the message
+                        message = _('It seems that the host "%s" has crashed.') % self.hostName
                         message += "\n"
                         message += _('\nMake sure you are using the latest version of the plugin.')
-                        if config.plugins.iptvplayer.preferredupdateserver.value == '3': #private sss repository
-                            message += _('\nYou can also report problem here: \nhttps://gitlab.com/iptvplayer-for-e2/iptvplayer-for-e2/issues\nor here: samsamsam@o2.pl')
-                        self.session.openWithCallback(self.reportHostCrash, MessageBox, text=message, type=MessageBox.TYPE_YESNO)
+                        self.session.openWithCallback(self.hostCrashClosed, MessageBox, text=message, type=MessageBox.TYPE_ERROR)
             self.hideSpinner()
         except Exception:
             printExc()
 
-    def reportHostCrash(self, ret):
+    def hostCrashClosed(self, ret=None):
         try:
-            if ret and config.plugins.iptvplayer.preferredupdateserver.value == '3': #private sss repository
-                try:
-                    exceptStack = self.workThread.getExceptStack()
-                    reporter = GetPluginDir('iptvdm/reporthostcrash.py')
-                    msg = urllib_quote('%s|%s|%s|%s' % ('HOST_CRASH', E2iPlayerWidget.IPTV_VERSION, self.hostName, self.getCategoryPath()))
-                    self.crashConsole = iptv_system('python "%s" "http://iptvplayer.vline.pl/reporthostcrash.php?msg=%s" "%s" 2&>1 > /dev/null' % (reporter, msg, exceptStack))
-                    printDBG(msg)
-                except Exception:
-                    printExc()
             self.workThread = None
             self.prevSelList = []
             self.back_pressed()
@@ -898,9 +888,7 @@ class E2iPlayerWidget(Screen):
                     printExc()
                 # fallback - the plain "About" MessageBox
                 TextMSG = _("Lead programmer: ") + "\n\t- samsamsam\n"
-                if config.plugins.iptvplayer.preferredupdateserver.value == '3': #private sss repository
-                    TextMSG += _("E-mail: ") + "\n\t- iptvplayere2@gmail.com\n"
-                    TextMSG += _("www: ") + "\n\t- http://iptvplayer.vline.pl/" + '\n\t- http://www.iptvplayer.gitlab.io/\n'
+                TextMSG += _("www: ") + "\n\t- https://github.com/oe-mirrors/e2iplayer-zadmario\n"
                 TextMSG += _("Developers: ")
                 developersTab = [{'nick': 'zdzislaw22', },
                                  {'nick': 'mamrot', },
@@ -1936,9 +1924,8 @@ class E2iPlayerWidget(Screen):
         self.displayGroupsList.append((_('All'), 'all'))
         self.displayGroupsList.append((_("Configuration"), "config"))
 
-        if config.plugins.iptvplayer.AktualizacjaWmenu.value == True:
-            if config.plugins.iptvplayer.preferredupdateserver.value != '4': #4 = managed by opkg
-                self.displayGroupsList.append((_("Update"), "update"))
+        if config.plugins.iptvplayer.AktualizacjaWmenu.value:
+            self.displayGroupsList.append((_("Update"), "update"))
 
         self.newDisplayGroupsList = []
         self.session.openWithCallback(self.selectGroupCallback, PlayerSelectorWidget, inList=self.displayGroupsList, outList=self.newDisplayGroupsList, numOfLockedItems=self.getNumOfSpecialItems(self.displayGroupsList), groupName='selectgroup')
@@ -2086,9 +2073,8 @@ class E2iPlayerWidget(Screen):
         if len(brokenHostList) > 0:
             errorMessage = _("Following host are broken or additional python modules are needed.") + '\n' + '\n'.join(brokenHostList)
 
-        if config.plugins.iptvplayer.AktualizacjaWmenu.value == True:
-            if config.plugins.iptvplayer.preferredupdateserver.value != '4': #4 = managed by opkg
-                self.displayHostsList.append((_("Update"), "update"))
+        if config.plugins.iptvplayer.AktualizacjaWmenu.value:
+            self.displayHostsList.append((_("Update"), "update"))
 
         if "" != errorMessage and True is self.showHostsErrorMessage:
             self.showHostsErrorMessage = False
@@ -2858,7 +2844,9 @@ class E2iPlayerWidget(Screen):
             self.requestListFromHost('ForSearch')
 
     def configCallback(self):
-        if IPTVPlayerNeedInit():
+        # NeedInit is True until a setup ran in this session: only when the platform was changed
+        # in the settings (setupversion cleared) or a new setup version is due
+        if IPTVPlayerNeedInit() and config.plugins.iptvplayer.setupversion.value != SETUP_VERSION:
             self.session.openWithCallback(self.selectHost, IPTVSetupMainWidget, True)
         else:
             self.askUpdateAvailable(self.selectHost)

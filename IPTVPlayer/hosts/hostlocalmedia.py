@@ -6,7 +6,7 @@ LAST_MODIFIED = "01.11.2026"
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, SetIPTVPlayerLastHostError
 from Plugins.Extensions.IPTVPlayer.components.ihost import CHostBase, CBaseHostClass, RetHost, CUrlItem
 from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import IsSidecarEnabled
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, ReadTextFile, formatBytes, GetTmpDir, mkdirs
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, ReadTextFile, formatBytes, GetTmpDir, mkdirs, GetLsdirPath
 from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import getDirectM3U8Playlist, getF4MLinksWithMeta, getMPDLinksWithMeta
 from Plugins.Extensions.IPTVPlayer.libs.urlparser import urlparser
 from Plugins.Extensions.IPTVPlayer.libs.m3uparser import ParseM3u
@@ -158,7 +158,7 @@ class LocalMedia(GenericFolderWatchedScraperMixin, CBaseHostClass):
         extensions = self.VIDEO_FILE_EXTENSIONS + self.AUDIO_FILES_EXTENSIONS + self.PICTURE_FILES_EXTENSIONS + self.M3U_FILES_EXTENSIONS + self.ISO_FILES_EXTENSIONS
         for ext in extensions:
             fWildcards.append(namePart + '.' + ''.join('[%s%s]' % (char.upper(), char.lower()) for char in ext))
-        cmd = '%s "%s" rdl rd 0 %d "%s" "%s"' % ("/usr/bin/lsdir", shellPath(path), self.LSDIR_NO_LIMIT, ensure_str(shellQuote('|'.join(fWildcards))), ensure_str(shellQuote(dWildcards)))
+        cmd = '%s "%s" rdl rd 0 %d "%s" "%s"' % (GetLsdirPath(), shellPath(path), self.LSDIR_NO_LIMIT, ensure_str(shellQuote('|'.join(fWildcards))), ensure_str(shellQuote(dWildcards)))
         if config.plugins.iptvplayer.local_showfilesize.value:
             cmd += " 1 "
         return cmd

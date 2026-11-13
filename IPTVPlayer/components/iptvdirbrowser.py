@@ -10,7 +10,7 @@
 ###################################################
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
 from Plugins.Extensions.IPTVPlayer.components.iptvlist import IPTVMainNavigatorList
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, mkdir, IsValidFileName, GetBinDir, eConnectCallback, E2PrioFix
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, mkdir, IsValidFileName, GetLsdirPath, eConnectCallback, E2PrioFix
 from Plugins.Extensions.IPTVPlayer.components.e2ivkselector import GetVirtualKeyboard
 from Plugins.Extensions.IPTVPlayer.iptvdm.downloaderhelpers import shellQuote
 ###################################################
@@ -146,7 +146,7 @@ class IPTVDirectorySelectorWidget(Screen):
         return self.currList[currSelIndex]
 
     def prepareCmd(self):
-        lsdirPath = GetBinDir("lsdir")
+        lsdirPath = GetLsdirPath()
         try:
             os_chmod(lsdirPath, 0o777)
         except Exception:
@@ -336,7 +336,7 @@ class IPTVFileSelectorWidget(IPTVDirectorySelectorWidget):
         self.fileMatch = fileMatch
 
     def prepareCmd(self):
-        lsdirPath = GetBinDir("lsdir")
+        lsdirPath = GetLsdirPath()
         try:
             os_chmod(lsdirPath, 0o777)
         except Exception:

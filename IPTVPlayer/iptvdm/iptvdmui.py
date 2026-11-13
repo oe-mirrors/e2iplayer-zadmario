@@ -12,7 +12,7 @@
 ###################################################
 # LOCAL import
 ###################################################
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, eConnectCallback, GetIconDir, GetBinDir, E2PrioFix, formatBytes
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, eConnectCallback, GetIconDir, GetLsdirPath, E2PrioFix, formatBytes
 from Plugins.Extensions.IPTVPlayer.components.iptvplayer import IPTVStandardMoviePlayer, IPTVMiniMoviePlayer
 from Plugins.Extensions.IPTVPlayer.components.iptvextmovieplayer import IPTVExtMoviePlayer
 from Plugins.Extensions.IPTVPlayer.components.iptvlcd import addLcdSources, colorSummaryIfWanted, lcdSetTitle
@@ -398,7 +398,7 @@ class IPTVDMWidget(Screen):
             self.underRefreshing = True
             self.tmpList = []
             self.tmpData = ''
-            lsdirPath = GetBinDir("lsdir")
+            lsdirPath = GetLsdirPath()
             try:
                 os_chmod(lsdirPath, 0o777)
             except Exception:

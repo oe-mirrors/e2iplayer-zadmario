@@ -2,9 +2,9 @@
 
 from __future__ import print_function
 try:
-    from urllib import urlopen as urllib_urlopen, urlretrieve as urllib_urlretrieve
+    from urllib import urlretrieve as urllib_urlretrieve
 except Exception:
-    from urllib.request import urlopen as urllib_urlopen, urlretrieve as urllib_urlretrieve
+    from urllib.request import urlretrieve as urllib_urlretrieve
 import sys
 import traceback
 
@@ -23,14 +23,6 @@ def formatExceptionInfo(maxTBlevel=1):
     return "%s\n%s\n%s" % (excName, excArgs, excTb)
 
 
-def CheckVer(params):
-    url = "http://iptvplayer.vline.pl/check.php?" + params
-    f = urllib_urlopen(url)
-    data = f.read()
-    print("CheckVer [%s]\n" % data)
-    f.close()
-
-
 def download(url, file):
     try:
         (tmpfile, headers) = urllib_urlretrieve(url, file)
@@ -43,12 +35,6 @@ if __name__ == "__main__":
     if len(sys.argv) < 3:
         print('Usage: python pwget url file', file=sys.stderr)
         sys.exit(1)
-
-    try:
-        params = sys.argv[1].split('?')[1]
-        CheckVer(params)
-    except Exception:
-        pass
 
     sts, data = download(sys.argv[1], sys.argv[2])
     print(data, file=sys.stderr)
