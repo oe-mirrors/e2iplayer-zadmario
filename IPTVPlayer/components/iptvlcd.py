@@ -16,6 +16,7 @@
 from Plugins.Extensions.IPTVPlayer.components.cover import Cover
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, eConnectCallback, StripColorCodes, GetTmpDir, mkdirs
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
+from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str
 from enigma import getDesktop, eTimer, eLabel, gFont, ePoint, eSize
 from Screens.Screen import Screen
 from Components.Label import Label
@@ -346,7 +347,7 @@ def lcdTimeHM(seconds):
 
 def addLcdSources(screen, title, currTime="", remained="", length="", percent="", currTimeHM="", remainedHM="", lengthHM="", remainedMin="", remainedShort="", shortTimes=False, coverFile=None):
     # what IPTVExtMoviePlayerColorSummary reads from its parent as parent.lcd*
-    screen['lcdTitle'] = StaticText(StripColorCodes(title))
+    screen['lcdTitle'] = StaticText(ensure_str(StripColorCodes(title or '')))
     # the second parameter is named range or valuerange, depending on the image
     screen['lcdProgress'] = Progress(0, 100)
     screen['lcdCurrTime'] = StaticText(currTime)
@@ -379,6 +380,9 @@ def runningTextLabel(renderer):
 
 def lcdSetTitle(screen, text):
     # the title of the colour LCD summary: the source and the summary's font fit (and the pages of a long title)
+    # Py2: eLabel.setText() takes only str, a unicode title (download manager) raises a TypeError in the
+    # RunningText / VRunningText renderers (VTi: GUI restart)
+    text = ensure_str(text or '')
     screen['lcdTitle'].setText(text)
     for summary in getattr(screen, 'summaries', []):
         # the download manager sets the title with every state change (about once a second): a title that is fitted
