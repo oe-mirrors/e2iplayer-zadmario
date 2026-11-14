@@ -106,6 +106,7 @@ _PROBE_SCRIPT = (
     'echo "@@e2ipow";      [ -x "$EW" ] && r 1 "$EW" --version; p "$EW"; '
     'echo "@@rtmpdump";    [ -x "$RT" ] && r 5 "$RT" --help; p "$RT"; '
     'echo "@@exteplayer3"; [ -x "$EP" ] && r 2 "$EP"; p "$EP"; '
+    'echo "@@extpng";      E=/usr/lib/exteplayer3png.so; [ -f "$E" ] && echo "$E" || echo "-"; '
     'echo "@@gstplayer";   [ -x "$GP" ] && r 2 "$GP"; p "$GP"; '
     'echo "@@gstplayer2";  C=$(w gstplayer2); [ "$C" != "-" ] && r 2 "$C"; echo "$C"; '
     'echo "@@duktape";     D=/tmp/.e2i_dukver.js; '
@@ -378,15 +379,19 @@ class _SystemInfo(object):
         except Exception:
             pass
 
-        kernel = ""
-        for path in ("/proc/stb/info/model", "/proc/stb/info/boxtype", "/proc/stb/info/vumodel"):
-            kernel = _read_first_line(path)
-            if kernel:
-                break
+        # Vu+ drivers put "dm8000" into /proc/stb/info/model for old plugins, the real model is in vumodel
+        # (VTi has no boxbranding, so this is the only name it gets)
+        kernel = _read_first_line("/proc/stb/info/vumodel")
+        name = ("Vu+ %s" % kernel) if kernel else ""
+        if not kernel:
+            for path in ("/proc/stb/info/model", "/proc/stb/info/boxtype"):
+                kernel = name = _read_first_line(path)
+                if kernel:
+                    break
 
         if official and kernel and kernel.lower() not in official.lower():
             return "%s   [%s: %s]" % (official, _("kernel reports"), kernel)
-        return official or kernel or "?"
+        return official or name or "?"
 
     def _pycurlVersion(self):
         try:
@@ -619,6 +624,9 @@ class _SystemInfo(object):
         out.append(row("duktape", first("duktape", jsMissing)))
         out.append(row("quickjs", first("quickjs", jsMissing)))
         out.append(row("exteplayer3", ver_line("exteplayer3", playerMissing)))
+        if tool("exteplayer3")[1]:
+            # the PNG subtitle renderer of exteplayer3 (a library: shown with its path, no version)
+            out.append(row("exteplayer3png.so", path_val("extpng", notInstalled)))
         out.append(row("gstplayer", ver_line("gstplayer", playerMissing)))
         out.append(row("gstplayer2", ver_line("gstplayer2", playerMissing)))
         out.append(row("gst-ifdsrc", self._ifdsrcState(sections.get("ifdsrc") or [])))
