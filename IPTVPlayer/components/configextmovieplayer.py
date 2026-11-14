@@ -27,7 +27,7 @@ config.plugins.iptvplayer.extplayer_summary = ConfigSelection(default="yes", cho
 config.plugins.iptvplayer.lcd_cover = ConfigYesNo(default=True)
 config.plugins.iptvplayer.lcd_cover_size = ConfigSelection(default="small", choices=[('small', _('Small (16:9)')), ('column', _('Medium (beside the title)')), ('poster', _('Large (title below)')), ('side', _('Large (info on the right)'))])
 config.plugins.iptvplayer.lcd_cover_fit = ConfigSelection(default="auto", choices=[('auto', _('Automatic (crop or blurred background)')), ('crop', _('Fill the field (crop)')), ('fit', _('Whole picture (black bars)'))])
-config.plugins.iptvplayer.lcd_font_size = ConfigSelection(default="large", choices=[('normal', _('Normal')), ('large', _('Large')), ('xlarge', _('Very large'))])
+config.plugins.iptvplayer.lcd_font_size = ConfigSelection(default="large", choices=[('normal', _('Normal')), ('large', _('Large')), ('xlarge', _('Very large')), ('xxlarge', _('Extra large'))])
 config.plugins.iptvplayer.lcd_time_format = ConfigSelection(default="minutes", choices=[('minutes', _('Minutes')), ('seconds', _('With seconds'))])
 config.plugins.iptvplayer.lcd_long_titles = ConfigSelection(default="scroll", choices=[('scroll', _('Scroll')), ('pages', _('Page by page')), ('shrink', _('Smaller text'))])
 config.plugins.iptvplayer.lcd_title_runs = ConfigSelection(default="2", choices=[('0', _('Endless')), ('1', '1'), ('2', '2'), ('3', '3'), ('5', '5')])

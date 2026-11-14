@@ -170,7 +170,8 @@
   "witv",
   "aloula",
   "royatv",
-  "capitanstrims"
+  "capitanstrims",
+  "bbcsport"
  ],
  "live": [
   "webstream",
@@ -209,7 +210,8 @@
   "francetv",
   "rtpplay",
   "xtream",
-  "stalker"
+  "stalker",
+  "bbciplayer"
  ],
  "documentary": [
   "dokumentalnenet",
@@ -342,7 +344,9 @@
   "streamdb",
   "ask4movie",
   "rakutentv",
-  "euronews"
+  "euronews",
+  "bbciplayer",
+  "bbcsport"
  ],
  "german": [
   "youtube",

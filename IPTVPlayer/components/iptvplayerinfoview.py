@@ -96,7 +96,7 @@ _PROBE_SCRIPT = (
     'p(){ [ -n "$1" ] && [ -x "$1" ] && echo "$1" || echo "-"; }; '
     'r(){ n=$1; shift; o=$($T "$@" </dev/null 2>&1); c=$?; printf "%%s\n" "$o" | head -n $n; echo "@rc $c"; }; '
     'echo "@@hlsdl";       [ -x "$HL" ] && r 2 "$HL"; p "$HL"; '
-    'echo "@@cmdwrap";     [ -x "$CW" ] && r 1 "$CW"; p "$CW"; '
+    'echo "@@cmdwrap";     [ -x "$CW" ] && r 2 "$CW"; p "$CW"; '
     'echo "@@lsdir";       [ -x "$LS" ] && r 1 "$LS" --version; p "$LS"; '
     'echo "@@f4mdump";     [ -x "$F4" ] && r 1 "$F4"; p "$F4"; '
     'echo "@@ffmpeg";      [ -x "$FF" ] && r 1 "$FF" -version; p "$FF"; '
@@ -419,6 +419,21 @@ class _SystemInfo(object):
         v = getattr(mod, "__version__", "") or (getattr(mod, oldVersionAttr, "") if oldVersionAttr else "")
         return str(v) if v else _("installed")
 
+    def _pillowVersion(self):
+        # Pillow >= 5.2: PIL.__version__, older Pillow: PIL.PILLOW_VERSION,
+        # the classic PIL 1.1.x (python-imaging, VTi): only PIL.Image.VERSION
+        v = self._moduleVersion("PIL", "PILLOW_VERSION")
+        if v != _("installed"):
+            return v
+        try:
+            from PIL import Image
+            old = getattr(Image, "VERSION", "")
+            if old:
+                return "PIL %s" % old
+        except Exception:
+            pass
+        return v
+
     def _websocketVersion(self):
         # the image's websocket-client, else the copy in IPTVPlayer/libs/websocket
         v = self._moduleVersion("websocket")
@@ -571,8 +586,11 @@ class _SystemInfo(object):
             if broken(key):
                 return broken(key)
             line = lines[0] if lines else ""
-            if line.lower().startswith("version:"):
-                line = "v" + line.split(":", 1)[1].strip()
+            # cmdwrap prints its usage first and "Version: 2" in the second line
+            for item in lines[:3]:
+                if item.lower().startswith("version:"):
+                    line = "v" + item.split(":", 1)[1].strip()
+                    break
             return withPath(key, line or _("installed"), path)
 
         def path_val(key, missing, word=""):
@@ -638,7 +656,7 @@ class _SystemInfo(object):
         out.append("")
         out.append("--- " + _("Python modules") + " ---")
         out.append(row("pycurl", self._pycurlVersion()))
-        out.append(row("Pillow (PIL)", self._moduleVersion("PIL", "PILLOW_VERSION")))
+        out.append(row("Pillow (PIL)", self._pillowVersion()))
         out.append(row("websocket-client", self._websocketVersion()))
         out.append(row("Crypto", self._cryptoVersion()))
         return "\n".join(out)

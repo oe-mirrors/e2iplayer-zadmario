@@ -471,9 +471,10 @@ class IPTVExtMoviePlayerColorSummary(Screen):
         timePct = timePct or LCD_POSTER_TIME_DEFAULT
         titlePct = titlePct or LCD_POSTER_TITLE_DEFAULT
         percentColumn = mode == 'normal'
-        titleFactor = {'normal': 100, 'large': 115, 'xlarge': 130}.get(mode, 115)
-        barDiv = {'normal': 12, 'large': 14, 'xlarge': 16}.get(mode, 14)
-        charEm = 0.5 if mode == 'xlarge' else cls.CHAR_EM
+        titleFactor = {'normal': 100, 'large': 115, 'xlarge': 130, 'xxlarge': 150}.get(mode, 115)
+        barDiv = {'normal': 12, 'large': 14, 'xlarge': 16, 'xxlarge': 18}.get(mode, 14)
+        # the times are as large as the width allows already; the two big sizes assume narrower digits
+        charEm = 0.5 if mode in ('xlarge', 'xxlarge') else cls.CHAR_EM
         x0 = ml
         y0 = mt
         uw = w - ml - mr   # usable width

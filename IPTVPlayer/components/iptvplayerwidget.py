@@ -2935,17 +2935,19 @@ class E2iPlayerWidget(Screen):
             self.categoryList[-1].page, self.categoryList[-1].last, self.categoryList[-1].lastPage = ListPage(self.categoryList[-1], previousPage, self.currList)
         self.setHeaderText()
         if len(self.currList) <= 0:
-            disMessage = _("No item to display. \nPress OK to refresh.\n")
-            if ret.message and ret.message != '':
-                disMessage += ret.message
+            # one line per part, no empty line between them: the host's reason was the 4th line and fell off
+            # the status box (2 lines high in most skins)
+            lines = [_("No item to display. \nPress OK to refresh.\n").strip()]
+            if ret.message and ret.message.strip():
+                lines.append(ret.message.strip())
             lastErrorMsg = GetIPTVPlayerLastHostError()
             if lastErrorMsg != '':
-                disMessage += "\n" + _('Last error: "%s"') % lastErrorMsg
+                lines.append(_('Last error: "%s"') % lastErrorMsg)
             lastExcMSG = getExcMSG(True)
             if lastExcMSG != '':
-                disMessage += "\n" + _('Last Exception error: "%s"') % lastExcMSG
+                lines.append(_('Last Exception error: "%s"') % lastExcMSG)
 
-            self.setStatusTex(disMessage)
+            self.setStatusTex("\n".join(lines))
             self["list"].hide()
         else:
             # restor previus selection

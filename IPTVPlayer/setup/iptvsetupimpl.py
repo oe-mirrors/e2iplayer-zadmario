@@ -47,6 +47,17 @@ PY_PKG = 'python3' if PY3 else 'python'
 # image feed packages, installed when the feed offers them and they are not installed yet
 OPKG_PACKAGES = ['enigma2-plugin-extensions-e2iplayer-deps', 'duktape', 'quickjs', 'uchardet', 'rtmpdump', 'wget', 'curl', 'curl-impersonate',
                  'exteplayer3', 'gstplayer', 'unrar', 'unzip', 'ca-certificates', PY_PKG + '-pycurl']
+# tools of OPKG_PACKAGES that may also be there without the package (copied by hand, own ipk, the
+# binary feed): when one of these files exists, opkg is not asked - VTi lists curl-impersonate in its
+# index but has no file for it ("not available from any configured src") and the user's own newer
+# binary would be replaced otherwise
+OPKG_TOOL_FILES = {'duktape': ['/usr/bin/duk'],
+                   'quickjs': ['/usr/bin/qjs'],
+                   'uchardet': ['/usr/bin/uchardet'],
+                   'rtmpdump': ['/usr/bin/rtmpdump'],
+                   'curl-impersonate': ['/usr/bin/curl-impersonate', '/usr/local/bin/curl-impersonate'],
+                   'exteplayer3': ['/usr/bin/exteplayer3'],
+                   'gstplayer': ['/usr/bin/gstplayer']}
 # Pillow: the first one the feed offers
 OPKG_PILLOW = ['python3-pillow'] if PY3 else ['python-pillow', 'python-imaging']
 
@@ -124,6 +135,7 @@ class IPTVSetupImpl:
         self.platform = "unknown"
 
         self.opkgInstalled = []
+        self.opkgToInstall = []
         self.feedBase = ''
         self.feedDownloaders = []
         self.feedDownloader = ''
@@ -214,17 +226,36 @@ class IPTVSetupImpl:
             if item in available:
                 packages.append(item)
                 break
-        toInstall = [item for item in packages if item in available and item not in installed]
+        toInstall = []
+        for item in packages:
+            if item not in available or item in installed:
+                continue
+            present = [path for path in OPKG_TOOL_FILES.get(item, []) if os_path.exists(path)]
+            if present:
+                printDBG("IPTVSetupImpl.opkgListFinished %s already there (%s), opkg not asked" % (item, present[0]))
+                continue
+            toInstall.append(item)
         printDBG("IPTVSetupImpl.opkgListFinished available %d, installed %d, to install %s" % (len(available), len(installed), toInstall))
         if not toInstall:
             self.platformDetect()
             return
-        self.opkgInstalled = toInstall
+        self.opkgToInstall = toInstall
         self.setInfo(_("Image feed"), _("Installing from the image feed:") + '\n' + ', '.join(toInstall))
-        self.runCmds(['opkg install %s 2>&1' % ' '.join(toInstall)], lambda code, data: (code == 0, False), self.opkgInstallFinished)
+        # the list of installed packages afterwards tells what really came (opkg's exit code is one for all)
+        cmd = 'opkg install %s 2>&1; echo "@@INSTALLED@@"; opkg list-installed 2>/dev/null | cut -d " " -f 1' % ' '.join(toInstall)
+        self.runCmds([cmd], lambda code, data: (True, False), self.opkgInstallFinished)
 
     def opkgInstallFinished(self, stsTab, dataTab):
         printDBG("IPTVSetupImpl.opkgInstallFinished sts[%r]" % stsTab)
+        installed = set()
+        try:
+            installed = {item.strip() for item in (dataTab[-1] + '@@INSTALLED@@').split('@@INSTALLED@@')[1].split('\n') if item.strip()}
+        except Exception:
+            printExc()
+        self.opkgInstalled = [item for item in self.opkgToInstall if item in installed]
+        failed = [item for item in self.opkgToInstall if item not in installed]
+        if failed:
+            printDBG("IPTVSetupImpl.opkgInstallFinished not installed from the image feed: %s" % failed)
         self.platformDetect()
 
     ###################################################

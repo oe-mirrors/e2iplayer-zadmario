@@ -461,6 +461,7 @@ class urlparser:
             "hdfilmcehennemi.mobi": self.pp.parserHDFILMCEHENNEMI,  # add 241026 (hdfilmcehennemi "Close" player)
             "hdfilmcehennemi.nl": self.pp.parserHDFILMCEHENNEMI,  # add 241026 (hdfilmcehennemi /rplayer/ "Rapidrame")
             "hdfilmcehennemi.ws": self.pp.parserHDFILMCEHENNEMI,  # add 241026 (redirects to the current domain)
+            "dizipal": self.pp.parserDIZIPAL,  # add 141126 (hostdizipal sets host_name - the player domain changes)
             "hdsplay.xyz": self.pp.parserJWPLAYER,  # add 071026 (VidHide /v/ player, e.g. jetanimes)
             "hdsplay2.xyz": self.pp.parserBYSE,  # add 071026 (Byse /e/ player, e.g. jetanimes)
             "hdup400.com": self.pp.parserJWPLAYER,  # add 031026 (s1.hdup400.com via the parent domain)
@@ -2372,7 +2373,12 @@ class pageParser(CaptchaHelper):
         if vpid == "":
             data = self.getBBCIE()._real_extract(baseUrl)
         else:
-            formats, subtitles = self.getBBCIE()._download_media_selector(vpid)
+            try:
+                formats, subtitles = self.getBBCIE()._download_media_selector(vpid)
+            except Exception as e:
+                # geolocation / selectionunavailable: the extractor already set the message for the user
+                printDBG("parserBBC %s" % e)
+                return []
             data = {"formats": formats, "subtitles": subtitles}
         subtitlesTab = []
         for sub in data.get("subtitles", []):
@@ -2395,8 +2401,11 @@ class pageParser(CaptchaHelper):
         for item in tmpTab:
 
             def __getLinkQuality(itemLink):
+                # the shorter side: a portrait clip (720x1280) is a 720p picture, not 1280p
                 try:
-                    return int(itemLink["height"])
+                    sides = [int(itemLink.get(key) or 0) for key in ("width", "height")]
+                    sides = [side for side in sides if side > 0]
+                    return min(sides) if sides else 0
                 except Exception:
                     return 0
 
@@ -2405,8 +2414,10 @@ class pageParser(CaptchaHelper):
                 continue  # preferred format has no links - fall back to the other one
             if config.plugins.iptvplayer.bbc_use_default_quality.value:
                 videoUrls.append(item[0])
-                break
-            videoUrls.extend(item)
+            else:
+                # the qualities of the preferred protocol only - the other one offers the same pictures again
+                videoUrls.extend(item)
+            break
         if subtitlesTab:
             for idx in range(len(videoUrls)):
                 videoUrls[idx]["url"] = strwithmeta(videoUrls[idx]["url"], {"external_sub_tracks": subtitlesTab})
@@ -5896,6 +5907,50 @@ class pageParser(CaptchaHelper):
         urltab = getDirectM3U8Playlist(url, checkExt=False, variantCheck=False, checkContent=True, sortWithMaxBitrate=99999999)
         urltab.sort(key=lambda item: 0 if re.match(r"\[(?:Turkish|Türkçe)[\] ]", item.get("name", "")) else 1)
         return requireDownloaderForDisguisedHls(urltab)
+
+    def parserDIZIPAL(self, baseUrl):  # add 141126 (dizipal's own player, host_name "dizipal" - its domain changes)
+        # <player>/embed-<id>.html (Referer: the film site) -> fetch('/dl?op=get_stream...') = {"url": master.m3u8};
+        # the JSON answers {"error":"unauthorized"} without Sec-Fetch-Site. HLS + segments want the player as Referer;
+        # the audio languages come as alternative renditions (one merged link each), subtitles in the Playerjs setup
+        printDBG("parserDIZIPAL baseUrl[%s]" % baseUrl)
+        baseUrl = strwithmeta(baseUrl)
+        HTTP_HEADER = self.cm.getDefaultHeader(browser="chrome")
+        HTTP_HEADER["Referer"] = baseUrl.meta.get("Referer", "")
+        sts, data = self.cm.getPage(baseUrl, {"header": HTTP_HEADER})
+        if not sts:
+            return []
+        streamPath = self.cm.ph.getSearchGroups(data, r"""fetch\(\s*['"]([^'"]*op=get_stream[^'"]*)['"]""")[0]
+        if not streamPath:
+            SetIPTVPlayerLastHostError(_("Video link not found."))
+            return []
+        origin = self.cm.ph.getSearchGroups(baseUrl, r"^(https?://[^/]+)")[0]
+        apiHeader = dict(HTTP_HEADER, Referer=str(baseUrl), Accept="*/*")
+        apiHeader["Sec-Fetch-Site"] = "same-origin"
+        sts, js = self.cm.getPage(origin + streamPath if streamPath.startswith("/") else streamPath, {"header": apiHeader})
+        if not sts:
+            return []
+        try:
+            js = json_loads(js)
+        except Exception:
+            printExc()
+            return []
+        hlsUrl = ensure_str(js.get("url", "")) if isinstance(js, dict) else ""
+        if not self.cm.isValidUrl(hlsUrl):
+            printDBG("parserDIZIPAL get_stream: %s" % js)
+            SetIPTVPlayerLastHostError(_("Video link not found."))
+            return []
+        meta = {"Referer": origin + "/", "Origin": origin, "User-Agent": HTTP_HEADER["User-Agent"]}
+        subTracks = []
+        subSetup = self.cm.ph.getSearchGroups(data, r'"subtitle"\s*:\s*"([^"]+)"')[0]
+        for label, path in re.findall(r'\[([^\]]+)\]([^,"\s]+\.(?:vtt|srt))', subSetup):
+            label = label.strip()
+            lang = {"turkce": "tr", "türkçe": "tr", "english": "en", "ingilizce": "en"}.get(label.lower(), label[:2].lower())
+            subUrl = path if path.startswith("http") else origin + "/" + path.lstrip("/")
+            subTracks.append({"title": label, "url": subUrl, "lang": lang, "format": "vtt" if subUrl.endswith(".vtt") else "srt"})
+        if subTracks:
+            meta["external_sub_tracks"] = subTracks
+        urltab = getDirectM3U8Playlist(urlparser.decorateUrl(hlsUrl, meta), checkContent=True, sortWithMaxBitrate=99999999)
+        return urltab or [{"name": "HLS", "url": urlparser.decorateUrl(hlsUrl, dict(meta, iptv_proto="m3u8"))}]
 
     def parserMEGAFILES(self, baseUrl):  # update 270226
         printDBG("parserMEGAFILES baseUrl[%s]" % baseUrl)

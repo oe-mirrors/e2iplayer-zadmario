@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 
-#import urllib # not used?
-#import urllib2 # not used?
 import re
 from Plugins.Extensions.IPTVPlayer.libs.pCommon import common, CParsingHelper
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, SetIPTVPlayerLastHostError
@@ -46,7 +44,7 @@ class BBCCoUkIE(InfoExtractor):
 
     def __init__(self):
         self.IE_NAME = 'bbc.co.uk'
-        self._ID_REGEX = r'[pb][\da-z]{7}'
+        self._ID_REGEX = r'(?:[pbml][\da-z]{7}|w[\da-z]{7,14})'
         self._VALID_URL = r'''(?x)
                         https?://
                             (?:www\.)?bbc\.co\.uk/
@@ -59,11 +57,11 @@ class BBCCoUkIE(InfoExtractor):
                             (?P<id>%s)(?!/(?:episodes|broadcasts|clips))
                         ''' % self._ID_REGEX
 
+        # mediaselector 6 answers JSON; iptv-all has the better HLS but can fail with "geolocation" or
+        # "selectionunavailable" where pc still works (also for live channels: vpid = channel id, e.g. bbc_one_hd)
         self._MEDIASELECTOR_URLS = [
-                'http://open.live.bbc.co.uk/mediaselector/5/select/version/2.0/mediaset/iptv-all/vpid/%s',
-                'http://open.live.bbc.co.uk/mediaselector/5/select/version/2.0/mediaset/pc/vpid/%s',
-                'http://open.live.bbc.co.uk/mediaselector/4/mtis/stream/%s',
-                'http://open.live.bbc.co.uk/mediaselector/5/select/version/2.0/mediaset/journalism-pc/vpid/%s',
+                'https://open.live.bbc.co.uk/mediaselector/6/select/version/2.0/mediaset/iptv-all/vpid/%s',
+                'https://open.live.bbc.co.uk/mediaselector/6/select/version/2.0/mediaset/pc/vpid/%s',
             ]
 
         self._MEDIASELECTOR_URLS_2 = self._MEDIASELECTOR_URLS
@@ -71,7 +69,7 @@ class BBCCoUkIE(InfoExtractor):
         InfoExtractor.__init__(self)
         self.COOKIE_FILE = GetCookieDir('bbciplayer.cookie')
         self.HEADER = {'User-Agent': 'Mozilla/5.0', 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 'Accept-Encoding': 'gzip, deflate'}
-        self.cm.HEADER = self.HEADER # default header
+        self.cm.HEADER = self.HEADER  # default header
         self.defaultParams = {'header': self.HEADER, 'use_cookie': True, 'load_cookie': True, 'save_cookie': True, 'cookiefile': self.COOKIE_FILE}
 
     def getFullUrl(self, url):
@@ -82,9 +80,9 @@ class BBCCoUkIE(InfoExtractor):
                 pass
         return url
 
-    def getPage(self, url, params={}, post_data=None):
-        HTTP_HEADER = dict(self.HEADER)
-        params.update({'header': HTTP_HEADER})
+    def getPage(self, url, params=None, post_data=None):
+        params = dict(params or {})
+        params['header'] = dict(self.HEADER)
         return self.cm.getPage(self.getFullUrl(url), params, post_data)
 
     def _extract_asx_playlist(self, connection, programme_id):
@@ -92,8 +90,7 @@ class BBCCoUkIE(InfoExtractor):
         sts, asx = self.getPage(url, self.defaultParams)
         if not sts:
             return []
-        a = FixMe
-        return [ref.get('href') for ref in asx.findall('./Entry/ref')]
+        return re.compile(r'''<ref[^>]+href=['"]([^'"]+)['"]''', re.I).findall(asx)
 
     def _extract_medias(self, mediaData):
         error = self.xmlGetAllNodes(mediaData, 'error')
@@ -112,15 +109,19 @@ class BBCCoUkIE(InfoExtractor):
             sts, captions = self.getPage(subUrl, self.defaultParams)
             if not sts:
                 continue
-            lang = self.cm.ph.getSearchGroups(captions, '''[\:\s]lang="([^"]+?)"''')[0]
+            lang = self.cm.ph.getSearchGroups(captions, r'''[\:\s]lang="([^"]+?)"''')[0]
             if lang == '':
                 lang = 'en'
             subtitles.append({'lang': lang, 'url': subUrl, 'ext': 'ttml'})
         return subtitles
 
     def _raise_extractor_error(self, media_selection_error):
-        raise Exception(
-            '%s returned error: %s' % (self.IE_NAME, media_selection_error.id))
+        errorId = getattr(media_selection_error, 'id', '') or ''
+        if errorId in ('geolocation', 'notukerror'):
+            SetIPTVPlayerLastHostError(_("Not available in your country (geo-blocking)."))
+        else:
+            SetIPTVPlayerLastHostError(_("Content not available"))
+        raise Exception('%s returned error: %s' % (self.IE_NAME, errorId or media_selection_error))
 
     def _download_media_selector(self, programme_id):
         last_exception = None
@@ -134,33 +135,84 @@ class BBCCoUkIE(InfoExtractor):
         else:
             mediaselectorUrls = self._MEDIASELECTOR_URLS_2
 
-        hasDASH = False
-        hasHLS = False
         for mediaselector_url in mediaselectorUrls:
             try:
                 if len(subtitlesTab):
                     withSubtitles = False
                 formats, subtitles = self._download_media_selector_url(mediaselector_url % programme_id, programme_id, withSubtitles)
-                formatsTab.extend(formats)
+                knownUrls = [item.get('url') for item in formatsTab]
+                formatsTab.extend([item for item in formats if item.get('url') not in knownUrls])
                 subtitlesTab.extend(subtitles)
-                for item in formatsTab:
-                    if item.get('ext', '') == 'dash':
-                        hasDASH = True
-                    if item.get('ext', '') == 'hls':
-                        hasHLS = True
-                if hasDASH and hasHLS:
+                exts = [item.get('ext', '') for item in formatsTab]
+                if 'mpd' in exts and 'hls' in exts:
                     break
-            except Exception:
+            except BBCCoUkIE.MediaSelectionError as e:
+                # geolocation / selectionunavailable from one mediaset - the next one may still answer
+                printDBG('%s mediaselector [%s]: %s' % (self.IE_NAME, mediaselector_url % programme_id, e.id))
+                last_exception = e
+            except Exception as e:
                 printExc()
+                last_exception = e
         if len(formatsTab):
             return formatsTab, subtitlesTab
         self._raise_extractor_error(last_exception)
 
     def _download_media_selector_url(self, url, programme_id=None, withSubtitles=False):
-        sts, media_selection = self.getPage(url, self.defaultParams)
+        # errors (geolocation 403, selectionunavailable 404) come as a JSON body with "result"
+        params = dict(self.defaultParams)
+        params['ignore_http_code_ranges'] = [(403, 404)]
+        sts, media_selection = self.getPage(url, params)
         if not sts:
             return [], []
+        if media_selection.lstrip().startswith('{'):
+            return self._process_media_selector_json(media_selection, programme_id, withSubtitles)
         return self._process_media_selector(media_selection, programme_id, withSubtitles)
+
+    def _process_media_selector_json(self, data, programme_id, withSubtitles=False):
+        formats = []
+        subtitles = []
+        urls = []
+
+        data = json_loads(data)
+        medias = data.get('media') or []
+        if not medias:
+            raise BBCCoUkIE.MediaSelectionError(data.get('result') or 'nomedia')
+
+        for media in medias:
+            kind = media.get('kind', '')
+            # https first: every CDN is offered twice, http and https
+            connections = sorted(media.get('connection') or [], key=lambda c: 0 if c.get('protocol') == 'https' else 1)
+            if kind in ('video', 'audio'):
+                service = media.get('service') or ''
+                if service == '[deprecated]':
+                    service = ''
+                for connection in connections:
+                    href = connection.get('href', '')
+                    supplier = connection.get('supplier', '')
+                    # the same CDN once more over http
+                    key = '%s|%s|%s' % (supplier, connection.get('transferFormat', ''), media.get('bitrate', ''))
+                    if not href or href in urls or key in urls:
+                        continue
+                    urls.extend([href, key])
+                    transfer_format = connection.get('transferFormat', '')
+                    format_id = supplier or connection.get('kind', '') or connection.get('protocol', '')
+                    if service:
+                        format_id = '%s_%s' % (service, format_id)
+                    if transfer_format == 'dash':
+                        formats.append({'url': href, 'ext': 'mpd', 'format_id': format_id})
+                    elif transfer_format == 'hls':
+                        formats.append({'url': href, 'ext': 'hls', 'format_id': format_id})
+                    elif connection.get('protocol') in ('http', 'https') and transfer_format in ('', 'plain'):
+                        formats.append({'url': href, 'format_id': format_id,
+                                        'width': int_or_none(media.get('width')), 'height': int_or_none(media.get('height')),
+                                        'vbr': int_or_none(media.get('bitrate'))})
+            elif kind == 'captions' and withSubtitles:
+                for connection in connections:
+                    href = connection.get('href', '')
+                    if self.cm.isValidUrl(href):
+                        subtitles.append({'lang': 'en', 'url': href, 'ext': 'ttml'})
+                        break
+        return formats, subtitles
 
     def _process_media_selector(self, media_selection, programme_id, withSubtitles=False):
         formats = []
@@ -250,6 +302,20 @@ class BBCCoUkIE(InfoExtractor):
                 subtitles.extend(self._get_subtitles(media, programme_id))
         return formats, subtitles
 
+    @staticmethod
+    def pickVersion(versions):
+        # the main version of an iPlayer episode: not the signed / audio-described one
+        order = ('original', 'iplayer-version', 'editorial', 'technical-replacement', 'shortened', 'webcast')
+        best = None
+        for version in versions or []:
+            kind = version.get('kind', '')
+            if not version.get('id') or kind in ('signed', 'audio-described'):
+                continue
+            rank = order.index(kind) if kind in order else len(order)
+            if best is None or rank < best[0]:
+                best = (rank, version)
+        return best[1] if best else None
+
     def _real_extract(self, url):
 
         sts, webpage = self.getPage(url, self.defaultParams)
@@ -259,7 +325,18 @@ class BBCCoUkIE(InfoExtractor):
         programme_id = None
         duration = None
 
-        tviplayer = self.cm.ph.getSearchGroups(webpage, r'mediator\.bind\(({.+?})\s*,\s*document\.getElementById')[0]
+        # current iPlayer episode pages: window.__IPLAYER_REDUX_STATE__ = {... "versions": [{"id": <vpid>, "kind": ...}]}
+        redux = self.cm.ph.getSearchGroups(webpage, r'__IPLAYER_REDUX_STATE__\s*=\s*({.+?});?\s*</script>')[0]
+        if redux != '':
+            try:
+                version = self.pickVersion(json_loads(redux).get('versions'))
+                if version:
+                    programme_id = version['id']
+                    duration = int_or_none((version.get('duration') or {}).get('seconds'))
+            except Exception:
+                printExc()
+
+        tviplayer = '' if programme_id else self.cm.ph.getSearchGroups(webpage, r'mediator\.bind\(({.+?})\s*,\s*document\.getElementById')[0]
 
         player = None
         if tviplayer != '':
@@ -270,7 +347,7 @@ class BBCCoUkIE(InfoExtractor):
             programme_id = player.get('vpid')
             if not programme_id:
                 try:
-                    #programme_id = tmp['episode']['master_brand'].get('ident_id')
+                    # programme_id = tmp['episode']['master_brand'].get('ident_id')
                     programme_id = tmp['episode']['versions'][0]['id']
                 except Exception:
                     printExc()
