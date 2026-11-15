@@ -14,7 +14,7 @@ from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT
 from Plugins.Extensions.IPTVPlayer.components.asynccall import MainSessionWrapper
 from Plugins.Extensions.IPTVPlayer.libs.pCommon import common, CParsingHelper
 from Plugins.Extensions.IPTVPlayer.libs.urlparser import urlparser
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import CSearchHistoryHelper, GetCookieDir, printDBG, printExc, GetLogoDir, byteify
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import CSearchHistoryHelper, GetCookieDir, GetIconDir, printDBG, printExc, GetLogoDir, byteify
 from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads, dumps as json_dumps
 
 from Components.config import config
@@ -27,6 +27,7 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvtools import isPY2
 from Plugins.Extensions.IPTVPlayer.components.searchhistoryeditor import SearchHistoryEditor
 from Plugins.Extensions.IPTVPlayer.components.iptvhostpin import HostNameOf, IsHostPinProtected, GetHostPinCode
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
+import os
 import re
 if not isPY2():
     basestring = str
@@ -905,6 +906,9 @@ class CHostBase(IHost):
 
 
 class CBaseHostClass:
+    # getPage() through the browser-check handling (Cloudflare & co.) of pCommon
+    USE_CF_PROTECTION = False
+
     def __init__(self, params={}):
         self.sessionEx = MainSessionWrapper()
         self.up = urlparser()
@@ -922,6 +926,16 @@ class CBaseHostClass:
         if '' != params.get('cookie', ''):
             self.COOKIE_FILE = GetCookieDir(params['cookie'])
         self.moreMode = False
+        if not hasattr(self, 'DEFAULT_ICON_URL'):
+            self.DEFAULT_ICON_URL = self._hostLogoIcon()
+
+    def _hostLogoIcon(self):
+        # hosts/hostxyz.py -> icons/PlayerSelector/xyz135.png, a host sets DEFAULT_ICON_URL itself for anything else
+        moduleName = self.__class__.__module__.rsplit('.', 1)[-1]
+        if not moduleName.startswith('host'):
+            return ''
+        path = GetIconDir('PlayerSelector/%s135.png' % moduleName[4:])
+        return 'file://' + path if os.path.isfile(path) else ''
 
     def getHistoryText(self):
         return self.history.getLength()
@@ -1005,6 +1019,22 @@ class CBaseHostClass:
         except Exception:
             pass
         return ''
+
+    def getPage(self, url, addParams=None, post_data=None):
+        if addParams is None:
+            addParams = dict(getattr(self, 'defaultParams', {}))
+        if self.USE_CF_PROTECTION:
+            return self.cm.getPageCFProtection(url, addParams, post_data)
+        return self.cm.getPage(url, addParams, post_data)
+
+    def getVideoLinks(self, videoUrl):
+        # a hosting link left to the url parser, with the subtitles / meta its row carried
+        from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import IsSidecarEnabled
+        from Plugins.Extensions.IPTVPlayer.libs.urlmetahelper import sidecarFromUrlMeta, decorateResolvedLinkItems
+        printDBG("%s.getVideoLinks [%s]" % (self.__class__.__name__, videoUrl))
+        if not self.cm.isValidUrl(videoUrl):
+            return []
+        return decorateResolvedLinkItems(self.up.getVideoLinkExt(videoUrl), sidecarFromUrlMeta(videoUrl, IsSidecarEnabled()))
 
     @staticmethod
     def cleanHtmlStr(str):
@@ -1113,6 +1143,14 @@ class CBaseHostClass:
         except Exception:
             printExc()
         return ''
+
+    def getFavouriteFieldsData(self, cItem):
+        # a favourite with only the item keys in the host's FAV_FIELDS (the whole item when that fails)
+        try:
+            return json_dumps(dict((key, cItem[key]) for key in self.FAV_FIELDS if key in cItem))
+        except Exception:
+            printExc()
+        return CBaseHostClass.getFavouriteData(self, cItem)
 
     def getLinksForFavourite(self, fav_data):
         try:
