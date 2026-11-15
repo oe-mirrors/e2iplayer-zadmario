@@ -33,7 +33,7 @@ import sys
 
 # raise it when the setup has to run once more after an update (new tools, new feed files);
 # runMain() starts the setup on its own when the saved value differs
-SETUP_VERSION = '2026.11.13.2'
+SETUP_VERSION = '2026.11.15.1'
 
 # binary feed of this repository (feed/, built and published by GitHub Actions);
 # the hidden option binaryfeedurl overrides it for tests
@@ -154,10 +154,10 @@ class IPTVSetupImpl:
         self.wgetVersion = '1.19.2'
         self.uchardetVersion = '0.0.6'
         self.f4mdumpVersion = '0.82'
-        self.hlsdlVersion = '0.38'
+        self.hlsdlVersion = '0.39'
         self.cmdwrapVersion = '2'
         self.dukVersion = 6  # VER_FOR_IPTV of the iptvplayer patch
-        self.subparserVersion = '0.9'
+        self.subparserVersion = '0.9.1'
         self.gstplayerVersion = {'0.10': 20, '1.0': 10021}
         self.exteplayer3Version = 50
 

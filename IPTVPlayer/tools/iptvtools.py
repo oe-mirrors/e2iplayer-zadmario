@@ -808,6 +808,27 @@ def maskLogSecrets(text):
         return text
 
 
+_g_dbg_day = ['']  # day of the last '=== date ===' header written to the debug file
+
+
+def DebugLogRestarted():
+    """the debug file was removed: the next line gets its date header again"""
+    _g_dbg_day[0] = ''
+
+
+def _debugTimestamp(writeMode='a'):
+    """'HH:MM:SS.mmm ' prefix for every line written to the debug file. The first line of a
+    day (and of a new file) is preceded by a '=== YYYY-MM-DD ===' line, so logs that run
+    past midnight or get appended across sessions stay readable."""
+    now = datetime.datetime.now()
+    day = now.strftime('%Y-%m-%d')
+    head = ''
+    if writeMode == 'w' or _g_dbg_day[0] != day:
+        _g_dbg_day[0] = day
+        head = now.strftime('%H:%M:%S.') + '%03d === %s ===\n' % (now.microsecond // 1000, day)
+    return head + now.strftime('%H:%M:%S.') + '%03d ' % (now.microsecond // 1000)
+
+
 def printDBG(DBGtxt, writeMode='a'):
     DBG = getDebugMode()
     if DBG == '':
@@ -820,9 +841,10 @@ def printDBG(DBGtxt, writeMode='a'):
             DBGfile = '/hdd/iptv.dbg'  # backward compatibility
         else:
             DBGfile = DBG
+        stamp = _debugTimestamp(writeMode)
         try:
             f = open(DBGfile, writeMode)
-            f.write(str(DBGtxt) + '\n')
+            f.write(stamp + str(DBGtxt) + '\n')
             f.close
         except Exception:
             print("======================EXC printDBG======================")
@@ -831,7 +853,7 @@ def printDBG(DBGtxt, writeMode='a'):
             try:
                 msg = '%s' % traceback.format_exc()
                 f = open(DBGfile, writeMode)
-                f.write(str(DBGtxt) + '\n')
+                f.write(stamp + str(DBGtxt) + '\n')
                 f.close
             except Exception:
                 print("======================EXC printDBG======================")

@@ -8,7 +8,7 @@ from Plugins.Extensions.IPTVPlayer.components.iptvpin import IPTVPinWidget
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, IPTVPlayerNeedInit
 from Plugins.Extensions.IPTVPlayer.setup.iptvsetupwidget import IPTVSetupMainWidget
 from Plugins.Extensions.IPTVPlayer.setup.iptvsetupimpl import SETUP_VERSION
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import IsExecutable, IsWebInterfaceModuleAvailable, GetLsdirPath
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import IsExecutable, IsWebInterfaceModuleAvailable, GetLsdirPath, DebugLogRestarted
 ###################################################
 
 ###################################################
@@ -142,6 +142,7 @@ def runMain(session, nextFunction=doRunMain):
                 os.remove(DBGfile)
             except Exception:
                 pass
+    DebugLogRestarted()  # the new file starts with its date header
     # run the tool probe once and write the full system snapshot near the
     # top of the (just cleared) debug log
     try:

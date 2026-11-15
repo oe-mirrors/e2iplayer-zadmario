@@ -12,7 +12,7 @@ from webTools import *
 from Plugins.Extensions.IPTVPlayer.components.ihost import IHost, CDisplayListItem, RetHost, CUrlItem, ArticleContent, CFavItem
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdh import DMHelper, DMItemBase
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdownloadercreator import IsUrlDownloadable
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import GetPluginDir, printDBG
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import GetPluginDir, printDBG, DebugLogRestarted
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdmapi import IPTVDMApi, DMItem
 #### e2 imports
 from Components.config import configfile, config
@@ -282,6 +282,7 @@ class logsPage(resource.Resource):
             if os.path.exists(DBGFileName):
                 try:
                     os.remove(DBGFileName)
+                    DebugLogRestarted()  # the new file starts with its date header
                     htmlError = 'deleteLogOK'
                 except Exception:
                     htmlError = 'deleteLogError'

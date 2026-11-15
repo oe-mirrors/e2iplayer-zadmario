@@ -4,7 +4,10 @@
 #
 #  $Id$
 #
-#  Last Modified: 12.10.2026
+#  Last Modified: 15.11.2026
+#   - a host's "Create MKV" (e2i_postprocess_container) sets the output container of a download, also over the
+#     resolver's ff_out_container (merge:// with HLS audio, e.g. VOE, became .ts)
+#  12.10.2026
 #   - stopping a live recording is its normal end: DOWNLOADED, renamed to its container (not MP4 / MOV: ffmpeg
 #     still writes their index by name) and its .txt written (no cover: terminate() reports the finish at once) -
 #     live = the link says so, or its playlist (DASH
@@ -129,6 +132,9 @@ class FFMPEGDownloader(BaseDownloader, SidecarMixin):
     CONTAINER_EXT = {'matroska': '.mkv', 'webm': '.webm', 'mpegts': '.ts',
                      'mp4': '.mp4', 'mov': '.mp4', 'flv': '.flv'}
     KNOWN_EXT = ('.mp4', '.mkv', '.ts', '.webm', '.mov', '.flv', '.avi', '.m4v')
+    # e2i_postprocess_container of a host link -> -f <container>
+    POSTPROCESS_CONTAINER = {'mkv': 'matroska', 'matroska': 'matroska', 'mp4': 'mp4',
+                             'ts': 'mpegts', 'mpegts': 'mpegts', 'webm': 'webm'}
     # file extension of a source -> its container (the "auto" output format)
     SOURCE_CONTAINER = (('.mp4', 'mp4'), ('.m4v', 'mp4'), ('.mov', 'mp4'), ('.webm', 'webm'),
                         ('.flv', 'flv'), ('.ts', 'mpegts'), ('.mkv', 'matroska'))
@@ -522,6 +528,13 @@ class FFMPEGDownloader(BaseDownloader, SidecarMixin):
         # the container of the source); buffered playback, whose file the
         # player holds under its name, Matroska
         meta = strwithmeta(self.url).meta
+        # a download: the host's "Create MKV" (urlmetahelper: e2i_postprocess_container), as hlsdl / wget honour
+        # it - before ff_out_container, which the resolvers set to mpegts on every merge:// of an HLS audio track
+        # for buffered playback (VOE with its own audio playlist was saved as .ts with "Create MKV" on)
+        if self.allowFinalRename and str(meta.get('e2i_postprocess_ffmpeg', '')) in ('1', 'True'):
+            wanted = self.POSTPROCESS_CONTAINER.get(str(meta.get('e2i_postprocess_container', 'mkv')).strip().lower())
+            if wanted:
+                return wanted
         if 'ff_out_container' in meta:
             return str(meta['ff_out_container']).lower()
         if not self.allowFinalRename:
