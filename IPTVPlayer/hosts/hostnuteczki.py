@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-LAST_MODIFIED = "10.10.2026"
+LAST_MODIFIED = "13.11.2026"
 # Nuteczki.eu: Polish music portal (tracks, sets / mixes by genre), played from the site's KrakenFiles /
 #   SoundFiles uploads or YouTube; optional login with the user's own account
 # 02.07.2026 - damagic
@@ -66,11 +66,6 @@ class NuteczkiEU(GenericFolderWatchedScraperMixin, CBaseHostClass):
         self.password = ''
         self.watchedHelper = IPTVWatchedHelper('nuteczki')
         self.wfInitFolderCache()
-
-    def getPage(self, baseUrl, addParams=None, post_data=None):
-        if addParams is None:
-            addParams = dict(self.defaultParams)
-        return self.cm.getPage(baseUrl, addParams, post_data)
 
     ###################################################
     # watched flag / favourites
@@ -164,7 +159,8 @@ class NuteczkiEU(GenericFolderWatchedScraperMixin, CBaseHostClass):
         stats = []
         tmp = self.cm.ph.getDataBeetwenNodes(item, ('<div', '>', 'news-meta'), ('<form', '>'), False)[1]
         for span in self.cm.ph.getAllItemsBeetwenMarkers(tmp, '<span', '</span>'):
-            value = self.cleanHtmlStr(span)
+            # (the bitrate icon is broken HTML: <i class="fa fa-file-audio-o fa-fw"" ...> - every tag removed first)
+            value = self.cleanHtmlStr(re.sub(r'<[^>]*>', ' ', span))
             if not value:
                 continue
             if 'fa-eye' in span:
@@ -306,28 +302,7 @@ class NuteczkiEU(GenericFolderWatchedScraperMixin, CBaseHostClass):
     def getVideoLinks(self, videoUrl):
         printDBG("NuteczkiEU.getVideoLinks [%s]" % videoUrl)
         sidecar = sidecarFromUrlMeta(videoUrl, IsSidecarEnabled())
-        if 'krakenfiles.com' in videoUrl or 'soundfiles.eu' in videoUrl:
-            sts, data = self.getPage(videoUrl)
-            if not sts:
-                if self.cm.meta.get('status_code') == 404:
-                    # KrakenFiles: "File has been deleted"
-                    SetIPTVPlayerLastHostError(_('The video has been removed.'))
-                return []
-            urlTab = []
-            if 'krakenfiles.com' in videoUrl:
-                for key in ('m4a', 'mp3'):
-                    url = self.cm.ph.getSearchGroups(data, r'''%s\s*:\s*['"]([^'^"]+?)['"]''' % key)[0]
-                    if url:
-                        urlTab.append({'name': key, 'url': self.getFullUrl(url, videoUrl)})
-            else:
-                url = self.cm.ph.getSearchGroups(data, r'''sfaudio\s*=\s*['"]([^'^"]+?)['"]''')[0].replace('\\/', '/')
-                if self.cm.isValidUrl(url):
-                    urlTab.append({'name': 'mp3', 'url': url})
-            for item in urlTab:
-                item['url'] = strwithmeta(item['url'], {'User-Agent': self.HEADER['User-Agent'], 'Referer': videoUrl})
-            if not urlTab:
-                SetIPTVPlayerLastHostError(self.cleanHtmlStr(data)[:200] if len(data) < 500 else _('No stream available'))
-            return decorateResolvedLinkItems(urlTab, sidecar)
+        # KrakenFiles, SoundFiles, YouTube ...: urlparser
         if self.up.checkHostSupport(videoUrl) == 1:
             return decorateResolvedLinkItems(self.up.getVideoLinkExt(videoUrl), sidecar)
         return []

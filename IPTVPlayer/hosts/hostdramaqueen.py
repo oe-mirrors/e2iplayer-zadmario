@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-LAST_MODIFIED = "04.10.2026"
-# 03.10.2026 - DramaQueen.pl: Asian dramas and films with Polish subtitles (fansub group).
+LAST_MODIFIED = "13.11.2026"
+# DramaQueen.pl: Asian dramas and films with Polish subtitles (fansub group).
 #   The site's pages sit behind a login wall, its WordPress REST API (wp-json/wp/v2) is public: title lists
 #   per country (Korean / Japanese / other dramas and films) newest first, recently updated, A-Z, genres
 #   (tags), title search; a drama page carries its episodes as toggle sections with "DQ-Player" links
-#   (Bunny Stream iframe.mediadelivery.net, resolved here to its HLS playlist) and, on old pages, links to
-#   third-party hosters (urlparser). Watched flag, downloaded flag, name normalisation, sidecar, moviemeta
+#   (Bunny Stream iframe.mediadelivery.net) and, on old pages, links to third-party hosters - all resolved by
+#   urlparser (the site as Referer). Watched flag, downloaded flag, name normalisation, sidecar, moviemeta
 #   INFO (combined with the site's Polish description and details), favourites.
 ###################################################
 # LOCAL import
@@ -19,10 +19,9 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvnaming import formatSxxExx
 from Plugins.Extensions.IPTVPlayer.tools.iptvpaging import addPagingItems, isJumpItem, jumpTarget
 from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedhelper import IPTVWatchedHelper
 from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedfoldermixin import GenericFolderWatchedScraperMixin, GenericFolderWatchedHostMixin
-from Plugins.Extensions.IPTVPlayer.libs.urlmetahelper import buildSidecarFromItem, applySidecarToLinks, sidecarFromUrlMeta, sidecarMetaQuery, decorateResolvedLinkItems
-from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import getDirectM3U8Playlist
+from Plugins.Extensions.IPTVPlayer.libs.urlmetahelper import buildSidecarFromItem, applySidecarToLinks, sidecarMetaQuery
 from Plugins.Extensions.IPTVPlayer.libs.moviemeta import getMeta
-from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads, dumps as json_dumps
+from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads
 from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote
 ###################################################
@@ -98,21 +97,13 @@ class DramaQueenPL(GenericFolderWatchedScraperMixin, CBaseHostClass):
         return ""
 
     def getFavouriteData(self, cItem):
-        try:
-            if cItem.get("category", "") in ("series", "movie", "episode"):
-                return json_dumps(dict((key, cItem[key]) for key in self.FAV_FIELDS if key in cItem))
-        except Exception:
-            printExc()
+        if cItem.get("category", "") in ("series", "movie", "episode"):
+            return self.getFavouriteFieldsData(cItem)
         return CBaseHostClass.getFavouriteData(self, cItem)
 
     ###################################################
     # helpers
     ###################################################
-    def getPage(self, baseUrl, addParams=None, post_data=None):
-        if addParams is None:
-            addParams = dict(self.defaultParams)
-        return self.cm.getPage(baseUrl, addParams, post_data)
-
     def _api(self, path):
         params = dict(self.defaultParams)
         params["header"] = dict(self.HEADER)
@@ -300,7 +291,7 @@ class DramaQueenPL(GenericFolderWatchedScraperMixin, CBaseHostClass):
             if not links:
                 continue
             num = self.cm.ph.getSearchGroups(label, r"(\d+)")[0]
-            playable = len([x for x in links if "mediadelivery.net/" in x[0] or self.up.checkHostSupport(x[0]) == 1])
+            playable = len([x for x in links if self.up.checkHostSupport(x[0]) == 1])
             episodes.append({"label": label, "num": num, "links": links, "playable": playable})
         ret["episodes"] = episodes
         if len(self.pageCache) > 20:
@@ -355,13 +346,11 @@ class DramaQueenPL(GenericFolderWatchedScraperMixin, CBaseHostClass):
             return []
         for ep in episodes:
             for link, name in ep["links"]:
-                if "mediadelivery.net/" in link:
-                    name = name or "DQ-Player"
-                elif self.up.checkHostSupport(link) != 1:
+                if self.up.checkHostSupport(link) != 1:
                     printDBG("DramaQueenPL: hoster not supported by urlparser [%s]" % link)
                     continue
-                else:
-                    name = name or self.up.getHostName(link)
+                # (the site's own label for its Bunny Stream player is "DQ-Player")
+                name = name or ("DQ-Player" if "mediadelivery.net/" in link else self.up.getHostName(link))
                 if len(episodes) > 1:
                     name = "%s - %s" % (ep["label"], name)
                 urltab.append({"name": name, "url": strwithmeta(link, {"Referer": self.MAIN_URL}), "need_resolve": 1})
@@ -371,31 +360,6 @@ class DramaQueenPL(GenericFolderWatchedScraperMixin, CBaseHostClass):
         # moviemeta query of INFO: series by default, the page's year when the item has none
         metaQuery = sidecarMetaQuery(cItem.get("meta_type", "tv"), cItem.get("meta_title", ""), cItem.get("meta_year", "") or page["year"], skip=())
         return applySidecarToLinks(urltab, buildSidecarFromItem(cItem, IsSidecarEnabled(), page["desc"], metaQuery=metaQuery))
-
-    def _getBunnyLinks(self, videoUrl):
-        # DQ-Player = Bunny Stream embed; plays only with the site as referer, the HLS wants the embed host
-        params = dict(self.defaultParams)
-        params["header"] = dict(self.HEADER)
-        params["header"]["Referer"] = strwithmeta(videoUrl).meta.get("Referer", self.MAIN_URL)
-        sts, data = self.getPage(videoUrl.strip(), params)
-        if not sts:
-            return []
-        hlsUrl = self.cm.ph.getSearchGroups(data, r'''(https?://[^"'\s<>]+/playlist\.m3u8[^"'\s<>]*)''')[0]
-        if not hlsUrl:
-            SetIPTVPlayerLastHostError(_("Content not available"))
-            return []
-        hlsUrl = strwithmeta(hlsUrl.replace("&amp;", "&"), {"User-Agent": self.HEADER["User-Agent"], "Referer": "https://iframe.mediadelivery.net/",
-                                                            "Origin": "https://iframe.mediadelivery.net"})
-        return getDirectM3U8Playlist(hlsUrl, checkExt=False, checkContent=True, sortWithMaxBitrate=999999999)
-
-    def getVideoLinks(self, videoUrl):
-        printDBG("DramaQueenPL.getVideoLinks [%s]" % videoUrl)
-        if not self.cm.isValidUrl(videoUrl):
-            return []
-        sidecar = sidecarFromUrlMeta(videoUrl, IsSidecarEnabled())
-        if "mediadelivery.net/" in videoUrl:
-            return decorateResolvedLinkItems(self._getBunnyLinks(videoUrl), sidecar)
-        return decorateResolvedLinkItems(self.up.getVideoLinkExt(videoUrl), sidecar)
 
     ###################################################
     # INFO

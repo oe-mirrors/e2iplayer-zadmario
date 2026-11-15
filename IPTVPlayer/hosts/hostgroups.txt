@@ -52,6 +52,9 @@
   "vumoo",
   "akoam",
   "filmoviplex",
+  "filmoton",
+  "videoteka",
+  "filmovime",
   "dmdamedia",
   "shoofmax",
   "taxielcima",
@@ -114,7 +117,8 @@
   "maxvod",
   "dizibox",
   "hdfilmcehennemi",
-  "fullhdfilmizlesene"
+  "fullhdfilmizlesene",
+  "dizipal"
  ],
  "cartoonsandanime": [
   "aniworld",
@@ -149,6 +153,7 @@
   "webstream",
   "footyroom",
   "goals",
+  "hoofootcom",
   "basketballvideocom",
   "allgoals",
   "nflvideo",
@@ -584,6 +589,9 @@
   "filmaon",
   "dailymotion",
   "filmoviplex",
+  "filmoton",
+  "videoteka",
+  "filmovime",
   "fenixsite",
   "serijebalkan"
  ],

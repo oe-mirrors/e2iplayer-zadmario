@@ -15,7 +15,7 @@ from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT
 from Plugins.Extensions.IPTVPlayer.components.ihost import CHostBase, CBaseHostClass, CDisplayListItem
 from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import IsSidecarEnabled
 from Plugins.Extensions.IPTVPlayer.components.captcha_helper import CaptchaHelper
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, MergeDicts, rm, GetCookieDir, GetIconDir, ReadTextFile, WriteTextFile
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, MergeDicts, rm, GetCookieDir, ReadTextFile, WriteTextFile
 from Plugins.Extensions.IPTVPlayer.tools.iptvnaming import normalizeMediathekTitle
 from Plugins.Extensions.IPTVPlayer.tools.iptvpaging import addPagingItems, isJumpItem, jumpTarget, stripPagerKeys
 from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedhelper import IPTVWatchedHelper
@@ -68,7 +68,6 @@ class cda(GenericFolderWatchedScraperMixin, CBaseHostClass, CaptchaHelper):
         printDBG("cda.__init__")
         CBaseHostClass.__init__(self, {"history": "cda.pl", "cookie": "cdapl.cookie"})
         self.MAIN_URL = "https://www.cda.pl/"
-        self.DEFAULT_ICON_URL = "file://" + GetIconDir("PlayerSelector/cdapl135.png")
         self.HEADER = self.cm.getDefaultHeader(browser="chrome")
         self.HEADER.update({"Accept": "text/html", "Referer": self.MAIN_URL})
         self.defaultParams = {"header": self.HEADER, "use_cookie": True, "load_cookie": True, "save_cookie": True, "cookiefile": self.COOKIE_FILE}
@@ -85,7 +84,6 @@ class cda(GenericFolderWatchedScraperMixin, CBaseHostClass, CaptchaHelper):
         if addParams is None:
             addParams = dict(self.defaultParams)
         addParams = dict(addParams)
-        addParams["cloudflare_params"] = {"cookie_file": self.COOKIE_FILE, "User-Agent": self.HEADER.get("User-Agent")}
         return self.cm.getPageCFProtection(self.cm.iriToUri(url), addParams, post_data)
 
     def _icon(self, url):
@@ -123,11 +121,8 @@ class cda(GenericFolderWatchedScraperMixin, CBaseHostClass, CaptchaHelper):
         return ""
 
     def getFavouriteData(self, cItem):
-        try:
-            if cItem.get("type") == "video":
-                return json_dumps(dict((key, cItem[key]) for key in self.FAV_FIELDS if key in cItem))
-        except Exception:
-            printExc()
+        if cItem.get("type") == "video":
+            return self.getFavouriteFieldsData(cItem)
         return CBaseHostClass.getFavouriteData(self, cItem)
 
     def getLinksForFavourite(self, fav_data):

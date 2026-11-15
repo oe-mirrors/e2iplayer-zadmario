@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-LAST_MODIFIED = "27.10.2026"
+LAST_MODIFIED = "13.11.2026"
 # 27.10.2026 - film lists: the cards link video.php?vid= instead of watch.php?vid=
 # 23.10.2026 - update to current url
 # 03.10.2026 - revived for the redesigned hd1.brstej.com (Brstej / Prestige)
@@ -10,8 +10,7 @@ LAST_MODIFIED = "27.10.2026"
 #     gets a "series of this category" folder; paging via iptvpaging (First / Jump / Next (n/last))
 #   - series1.php?id=N -> seasons -> episodes; movies and episodes are VIDEO rows keyed on their
 #     watch.php?vid= page; the hoster embeds (play.php) are fetched in getLinksForVideo
-#   - film77 / vood78 / hd-vk / hdupNNN embeds unpacked here (no form + sleep any more),
-#     everything else (ok.ru, vk ...) goes to urlparser
+#   - all hoster embeds (film77 / hd-vk / hdupNNN, ok.ru, vk ...) go to urlparser
 #   - watched flag (video:/series:/season: keys), downloaded flag, favourites, sidecar,
 #     name normalisation ("Title (Year)", "Show - SxxExx"), INFO via moviemeta + the site's story
 # 05.10.2026 - "No items found" marker, episode / label of search hits, INFO shows
@@ -24,11 +23,8 @@ import re
 from Plugins.Extensions.IPTVPlayer.components.ihost import CBaseHostClass, CHostBase
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
 from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import IsSidecarEnabled, IsMediaNamingNormalized
-from Plugins.Extensions.IPTVPlayer.libs.e2ijson import dumps as json_dumps
-from Plugins.Extensions.IPTVPlayer.libs.jsunpack import get_packed_data
 from Plugins.Extensions.IPTVPlayer.libs.moviemeta import LATIN_ONLY, getMeta, isLatinTitle
-from Plugins.Extensions.IPTVPlayer.libs.urlmetahelper import buildSidecarFromItem, applySidecarToLinks, sidecarFromUrlMeta, decorateResolvedLinkItems, sidecarMetaQuery
-from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import getDirectM3U8Playlist
+from Plugins.Extensions.IPTVPlayer.libs.urlmetahelper import buildSidecarFromItem, applySidecarToLinks, sidecarMetaQuery
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote, urllib_quote_plus
 from Plugins.Extensions.IPTVPlayer.tools.iptvnaming import formatSxxExx
 from Plugins.Extensions.IPTVPlayer.tools.iptvpaging import addPagingItems, isJumpItem, jumpTarget
@@ -61,8 +57,6 @@ YEAR_RE = re.compile(r"(?:^|\s)\(?((?:19|20)\d{2})\)?(?=\s|$)")
 # site words that do not belong into a title / file name (only removed when normalising)
 JUNK_RE = re.compile(r"(?:^|\s)(?:مشاهدة|فيلم|مسلسل|مترجم|مترجمة|اون لاين|أون لاين|اونلاين|كامل|كاملة|بجودة عالية|HD|FHD|HDTV|WEB-DL)(?=\s|$)", re.I)
 DUB_WORD = "مدبلج"
-# embeds unpacked by the host itself (packed JWPlayer pages), anything else -> urlparser
-PACKED_EMBED_RE = re.compile(r"https?://(?:[^/]+\.)?(?:film77\.xyz|vood78\.xyz|hd-vk\.com|hdup\d*\.com)/", re.I)
 # Ramadan categories by their slug too: the site files 2021 / 2022 under "Brstej series", 2021 without "رمضان"
 RAMADAN_SLUG_RE = re.compile(r"[?&]cat=ra?ma?d?a?n?\d", re.I)
 CARD_RE = re.compile(r'(?s)<article class="(?:pmc|pln|prs|psd)-card">.*?</article>|<div class="thumbnail pcg-card">.*?</li>|<a class="pcg-series-card".*?</a>')
@@ -88,7 +82,6 @@ class Brstej(GenericFolderWatchedScraperMixin, CBaseHostClass):
     def getPage(self, baseUrl, addParams=None, post_data=None):
         if addParams is None:
             addParams = dict(self.defaultParams)
-        addParams["cloudflare_params"] = {"cookie_file": self.COOKIE_FILE, "User-Agent": self.HEADER.get("User-Agent")}
         return self.cm.getPageCFProtection(self._canonUrl(baseUrl), addParams, post_data)
 
     def _canonUrl(self, url):
@@ -204,11 +197,8 @@ class Brstej(GenericFolderWatchedScraperMixin, CBaseHostClass):
         return ""
 
     def getFavouriteData(self, cItem):
-        try:
-            if cItem.get("category", "") in ("brstej_video", "brstej_series", "brstej_season", "list_items", "brstej_submenu"):
-                return json_dumps(dict((key, cItem[key]) for key in self.FAV_FIELDS if key in cItem))
-        except Exception:
-            printExc()
+        if cItem.get("category", "") in ("brstej_video", "brstej_series", "brstej_season", "list_items", "brstej_submenu"):
+            return self.getFavouriteFieldsData(cItem)
         return CBaseHostClass.getFavouriteData(self, cItem)
 
     ###################################################
@@ -492,62 +482,6 @@ class Brstej(GenericFolderWatchedScraperMixin, CBaseHostClass):
         metaQuery = sidecarMetaQuery(cItem.get("meta_type", ""), title, cItem.get("meta_year", ""), skip=self._metaSkip(title),
                                      altTitles=self._metaAltTitles(title))
         return applySidecarToLinks(urltab, buildSidecarFromItem(cItem, IsSidecarEnabled(), metaQuery=metaQuery))
-
-    def _resolvePackedEmbed(self, embedUrl):
-        # film77 / vood78 / hd-vk / hdupNNN: JWPlayer setup inside eval(function(p,a,c,k,e,d)...)
-        urltab = []
-        origin = self.cm.ph.getSearchGroups(embedUrl, r"(https?://[^/]+)")[0]
-        params = dict(self.defaultParams)
-        params["header"] = dict(self.HEADER, Referer=self.MAIN_URL)
-        sts, data = self.getPage(embedUrl, params)
-        if not sts:
-            return urltab
-        try:
-            unpacked = get_packed_data(data)
-        except Exception:
-            printExc()
-            unpacked = ""
-        script = (unpacked or "") + data
-        meta = {"Referer": origin + "/", "Origin": origin, "User-Agent": self.HEADER.get("User-Agent")}
-        subtitles = []
-        for sub, label in re.findall(r'file\s*:\s*"([^"]+\.(?:vtt|srt)[^"]*)"[^}]*?label\s*:\s*"([^"]*)"', script):
-            sub = sub.replace("\\/", "/")
-            if self.cm.isValidUrl(sub) and "thumbnails" not in sub:
-                subtitles.append({"title": label or "ar", "url": sub, "lang": "ar", "format": "vtt" if ".vtt" in sub else "srt"})
-        if subtitles:
-            meta["external_sub_tracks"] = subtitles
-        seen = set()
-        for url in re.findall(r'["\'](https?://[^"\']+?\.(?:m3u8|mp4)(?:\?[^"\']*)?)["\']', script):
-            url = url.replace("\\/", "/")
-            if url in seen:
-                continue
-            seen.add(url)
-            if ".m3u8" in url:
-                hlsMeta = dict(meta, iptv_proto="m3u8")
-                variants = []
-                try:
-                    variants = getDirectM3U8Playlist(strwithmeta(url, hlsMeta), checkExt=False, checkContent=True, sortWithMaxBitrate=99999999)
-                except Exception:
-                    printExc()
-                if variants:
-                    urltab.extend(variants)
-                else:
-                    urltab.append({"name": "HLS", "url": strwithmeta(url, hlsMeta), "need_resolve": 0})
-            else:
-                urltab.append({"name": "MP4", "url": strwithmeta(url, dict(meta)), "need_resolve": 0})
-        return urltab
-
-    def getVideoLinks(self, videoUrl):
-        printDBG("Brstej.getVideoLinks [%s]" % videoUrl)
-        if not self.cm.isValidUrl(videoUrl):
-            return []
-        sidecar = sidecarFromUrlMeta(videoUrl, IsSidecarEnabled())
-        links = []
-        if PACKED_EMBED_RE.match(videoUrl):
-            links = self._resolvePackedEmbed(videoUrl)
-        if not links:
-            links = self.up.getVideoLinkExt(videoUrl)
-        return decorateResolvedLinkItems(links, sidecar)
 
     ###################################################
     # INFO

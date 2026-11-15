@@ -76,10 +76,10 @@ class YleAreena(GenericFolderWatchedScraperMixin, CBaseHostClass):
 
     def __init__(self):
         CBaseHostClass.__init__(self, {"history": "yleareena", "cookie": "yleareena.cookie"})
+        self.MAIN_URL = gettytul()
         self.HEADER = self.cm.getDefaultHeader(browser="chrome")
         self.HEADER.update({"Referer": "https://areena.yle.fi/", "Origin": "https://areena.yle.fi"})
         self.defaultParams = {"header": self.HEADER}
-        self.MAIN_URL = gettytul()
         self.MENU = [{"category": "yle_lang", "title": SITES[lang]["title"], "lang": lang} for lang in LANGS] + self.searchItems()
         self.watchedHelper = IPTVWatchedHelper("yleareena")
         self.wfInitFolderCache()

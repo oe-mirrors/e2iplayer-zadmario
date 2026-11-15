@@ -70,10 +70,10 @@ class SVTPlaySE(GenericFolderWatchedScraperMixin, CBaseHostClass):
 
     def __init__(self):
         CBaseHostClass.__init__(self, {"history": "svtplayse", "cookie": "svtplayse.cookie"})
+        self.MAIN_URL = gettytul()
         self.HEADER = self.cm.getDefaultHeader(browser="chrome")
         self.HEADER.update({"Referer": "https://www.svtplay.se/", "Origin": "https://www.svtplay.se"})
         self.defaultParams = {"header": self.HEADER}
-        self.MAIN_URL = gettytul()
         self.azCache = None
         self.MENU = [{"category": "svt_selection", "title": _("Popular"), "sel_id": "popular_start"},
                      {"category": "svt_selection", "title": _("Latest"), "sel_id": "latest_start"},
