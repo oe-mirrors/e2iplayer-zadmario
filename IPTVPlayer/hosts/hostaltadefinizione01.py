@@ -17,12 +17,12 @@ from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import SetIPTVPlaye
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
 from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads
 from Plugins.Extensions.IPTVPlayer.libs.moviemeta import getMeta, getMetaByImdbId
-from Plugins.Extensions.IPTVPlayer.libs.urlmetahelper import applySidecarToLinks, buildSidecarFromItem, decorateResolvedLinkItems, sidecarFromUrlMeta, sidecarMetaQuery
+from Plugins.Extensions.IPTVPlayer.libs.urlmetahelper import applySidecarToLinks, buildSidecarFromItem, sidecarMetaQuery
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote, urllib_urlencode
 from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str
 from Plugins.Extensions.IPTVPlayer.tools.iptvnaming import formatSxxExx
 from Plugins.Extensions.IPTVPlayer.tools.iptvpaging import addPagingItems, isJumpItem, jumpTarget, stripPagerKeys
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, GetIconDir
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedfoldermixin import GenericFolderWatchedHostMixin, GenericFolderWatchedScraperMixin
 from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedhelper import IPTVWatchedHelper
@@ -47,10 +47,8 @@ class Altadefinizione(GenericFolderWatchedScraperMixin, CBaseHostClass):
         # named after the host, not the domain: search history and cookies survive the next domain move
         CBaseHostClass.__init__(self, {"history": "altadefinizione01", "cookie": "altadefinizione01.cookie"})
         self.HEADER = self.cm.getDefaultHeader(browser="chrome")
-        self.USER_AGENT = self.HEADER.get("User-Agent", "")
         self.defaultParams = {"header": self.HEADER, "use_cookie": True, "load_cookie": True, "save_cookie": True, "cookiefile": self.COOKIE_FILE}
         self.MAIN_URL = gettytul()
-        self.DEFAULT_ICON_URL = "file://" + GetIconDir("PlayerSelector/altadefinizione01135.png")
         # filters of the archive api: the site's labels
         self.MENU = [{"category": "list_items", "title": _("Movies"), "filters": {"tipo": "Film"}},
                      {"category": "list_items", "title": _("Series"), "filters": {"tipo": "Serie TV"}},
@@ -64,7 +62,6 @@ class Altadefinizione(GenericFolderWatchedScraperMixin, CBaseHostClass):
     def getPage(self, baseUrl, addParams=None, post_data=None):
         if addParams is None:
             addParams = dict(self.defaultParams)
-        addParams["cloudflare_params"] = {"cookie_file": self.COOKIE_FILE, "User-Agent": self.USER_AGENT}
         return self.cm.getPageCFProtection(baseUrl.split("#", 1)[0], addParams, post_data)
 
     ###################################################
@@ -278,13 +275,6 @@ class Altadefinizione(GenericFolderWatchedScraperMixin, CBaseHostClass):
             urltab.append({"name": "VixSrc", "url": strwithmeta(vixsrc, {"Referer": self.MAIN_URL}), "need_resolve": 1})
         urltab.append({"name": "vidxgo", "url": strwithmeta(VIDXGO_URL + token + path, {"Referer": self.MAIN_URL}), "need_resolve": 1})
         return applySidecarToLinks(urltab, buildSidecarFromItem(cItem, IsSidecarEnabled(), cItem.get("plot", ""), metaQuery=self._metaQuery(cItem, imdb)))
-
-    def getVideoLinks(self, videoUrl):
-        printDBG("Altadefinizione.getVideoLinks [%s]" % videoUrl)
-        if self.cm.isValidUrl(videoUrl):
-            sidecar = sidecarFromUrlMeta(videoUrl, IsSidecarEnabled())
-            return decorateResolvedLinkItems(self.up.getVideoLinkExt(videoUrl), sidecar)
-        return []
 
     ###################################################
     # INFO

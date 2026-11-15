@@ -14,7 +14,7 @@ from Plugins.Extensions.IPTVPlayer.libs.botprotection import remembered_user_age
 from Plugins.Extensions.IPTVPlayer.libs.moviemeta import getMeta
 from Plugins.Extensions.IPTVPlayer.libs.urlmetahelper import applySidecarToLinks, buildSidecarFromItem, decorateResolvedLinkItems, sidecarFromUrlMeta
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote_plus
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import GetIconDir, printDBG, printExc
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 
 try:
@@ -36,6 +36,7 @@ SITE_INFO_KEYS = {"cast": "actors", "directors": "director"}
 
 
 class KinoGer(CBaseHostClass):
+    USE_CF_PROTECTION = True
 
     def __init__(self):
         CBaseHostClass.__init__(self, {"history": "kinoger", "cookie": "kinoger.cookie"})
@@ -44,14 +45,8 @@ class KinoGer(CBaseHostClass):
         self.HEADER["User-Agent"] = "Mozilla/5.0"
         self.defaultParams = {"header": self.HEADER, "use_cookie": True, "load_cookie": True, "save_cookie": True, "cookiefile": self.COOKIE_FILE}
         # the site's own logo sits behind both checks - IconMenager would get 403 without the cookies
-        self.DEFAULT_ICON_URL = "file://" + GetIconDir("PlayerSelector/kinoger135.png")
         self.MAIN_URL = gettytul()
         self.MENU = [{"category": "list_items", "title": "Neues", "url": self.MAIN_URL}, {"category": "list_items", "title": _("Series"), "url": self.getFullUrl("/stream/serie/")}, {"category": "list_genres", "title": "Genres"}] + self.searchItems()
-
-    def getPage(self, baseUrl, addParams=None, post_data=None):
-        if addParams is None:
-            addParams = dict(self.defaultParams)
-        return self.cm.getPageCFProtection(baseUrl, addParams, post_data)
 
     def getFullIconUrl(self, url):
         url = self.getFullUrl(url)

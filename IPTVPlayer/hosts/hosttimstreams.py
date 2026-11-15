@@ -20,11 +20,11 @@ import time
 from Plugins.Extensions.IPTVPlayer.components.ihost import CBaseHostClass, CHostBase
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, SetIPTVPlayerLastHostError
 from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import IsSidecarEnabled
-from Plugins.Extensions.IPTVPlayer.libs.e2ijson import dumps as json_dumps, loads as json_loads
+from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads
 from Plugins.Extensions.IPTVPlayer.libs.urlmetahelper import buildSidecarFromItem, applySidecarToLinks, sidecarFromUrlMeta, decorateResolvedLinkItems
 from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import getDirectM3U8Playlist, requireDownloaderForDisguisedHls
 from Plugins.Extensions.IPTVPlayer.tools.iptvpaging import addPagingItems
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, E2ColoR, GetIconDir, GetTmpDir, StripColorCodes
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, E2ColoR, GetTmpDir, StripColorCodes
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedhelper import IPTVWatchedHelper
 from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedfoldermixin import GenericFolderWatchedScraperMixin, GenericFolderWatchedHostMixin
@@ -87,7 +87,6 @@ class TimStreams(GenericFolderWatchedScraperMixin, CBaseHostClass):
     def __init__(self):
         CBaseHostClass.__init__(self, {"history": "timstreams", "cookie": "timstreams.cookie"})
         self.MAIN_URL = gettytul()
-        self.DEFAULT_ICON_URL = "file://" + GetIconDir("PlayerSelector/timstreams135.png")
         self.HEADER = self.cm.getDefaultHeader(browser="chrome")
         self.defaultParams = {"header": self.HEADER, "use_cookie": True, "load_cookie": True, "save_cookie": True, "cookiefile": self.COOKIE_FILE}
         self.apiCache = {}
@@ -186,11 +185,8 @@ class TimStreams(GenericFolderWatchedScraperMixin, CBaseHostClass):
         return {}, self._genres(data)
 
     def getFavouriteData(self, cItem):
-        try:
-            if cItem.get("category") in VIDEO_CATEGORIES:
-                return json_dumps(dict((key, cItem[key]) for key in self.FAV_FIELDS if key in cItem))
-        except Exception:
-            printExc()
+        if cItem.get("category") in VIDEO_CATEGORIES:
+            return self.getFavouriteFieldsData(cItem)
         return CBaseHostClass.getFavouriteData(self, cItem)
 
     ###################################################

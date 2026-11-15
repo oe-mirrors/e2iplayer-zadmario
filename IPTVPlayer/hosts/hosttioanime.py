@@ -11,14 +11,14 @@ from Components.config import ConfigText, config, getConfigListEntry
 from Plugins.Extensions.IPTVPlayer.components.ihost import CBaseHostClass, CHostBase
 from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import IsMediaNamingNormalized, IsSidecarEnabled
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, SetIPTVPlayerLastHostError
-from Plugins.Extensions.IPTVPlayer.libs.e2ijson import dumps as json_dumps, loads as json_loads
+from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads
 from Plugins.Extensions.IPTVPlayer.libs.moviemeta import getMeta
-from Plugins.Extensions.IPTVPlayer.libs.urlmetahelper import applySidecarToLinks, buildSidecarFromItem, decorateResolvedLinkItems, sidecarFromUrlMeta, sidecarMetaQuery
+from Plugins.Extensions.IPTVPlayer.libs.urlmetahelper import applySidecarToLinks, buildSidecarFromItem, sidecarMetaQuery
 from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str_deep
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote_plus
 from Plugins.Extensions.IPTVPlayer.tools.iptvnaming import formatSxxExx
 from Plugins.Extensions.IPTVPlayer.tools.iptvpaging import addPagingItems, isJumpItem, jumpTarget, stripPagerKeys
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import GetIconDir, printDBG, printExc
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedfoldermixin import GenericFolderWatchedHostMixin, GenericFolderWatchedScraperMixin
 from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedhelper import IPTVWatchedHelper
@@ -82,7 +82,6 @@ class TioAnime(GenericFolderWatchedScraperMixin, CBaseHostClass):
     def __init__(self):
         CBaseHostClass.__init__(self, {"history": "tioanime", "cookie": "tioanime.cookie"})
         self.selectDomain()
-        self.DEFAULT_ICON_URL = "file://" + GetIconDir("PlayerSelector/tioanime135.png")
         self.HEADER = self.cm.getDefaultHeader(browser="chrome")
         self.defaultParams = {"header": self.HEADER, "use_cookie": True, "load_cookie": True, "save_cookie": True, "cookiefile": self.COOKIE_FILE}
         self.watchedHelper = IPTVWatchedHelper("tioanime")
@@ -116,28 +115,12 @@ class TioAnime(GenericFolderWatchedScraperMixin, CBaseHostClass):
         return re.sub(r"^https?://[^/]+", "", url or "").split("#")[0].rstrip("/")
 
     def getFavouriteData(self, cItem):
-        try:
-            if cItem.get("category") in VIDEO_CATEGORIES + FOLDER_CATEGORIES:
-                return json_dumps({key: cItem[key] for key in self.FAV_FIELDS if key in cItem})
-        except Exception:
-            printExc()
+        if cItem.get("category") in VIDEO_CATEGORIES + FOLDER_CATEGORIES:
+            return self.getFavouriteFieldsData(cItem)
         return CBaseHostClass.getFavouriteData(self, cItem)
 
     def _getWatchedKeyForItem(self, cItem):
-        try:
-            if not isinstance(cItem, dict):
-                return ""
-            path = self._path(cItem.get("url", ""))
-            if not path:
-                return ""
-            category = cItem.get("category", "")
-            if category in VIDEO_CATEGORIES:
-                return "video:%s" % path
-            if category in FOLDER_CATEGORIES:
-                return "folder:%s" % path
-        except Exception:
-            printExc()
-        return ""
+        return self.wfCategoryKey(cItem, self._path, VIDEO_CATEGORIES, FOLDER_CATEGORIES)
 
     @staticmethod
     def _episodeTitle(show, season, episode):
@@ -347,13 +330,6 @@ class TioAnime(GenericFolderWatchedScraperMixin, CBaseHostClass):
         mediaType, metaTitle, year = self._metaArgs(cItem)
         metaQuery = sidecarMetaQuery(mediaType, metaTitle, year, skip=())
         return applySidecarToLinks(urltab, buildSidecarFromItem(cItem, IsSidecarEnabled(), "", metaQuery))
-
-    def getVideoLinks(self, videoUrl):
-        printDBG("TioAnime.getVideoLinks [%s]" % videoUrl)
-        if not self.cm.isValidUrl(videoUrl):
-            return []
-        sidecar = sidecarFromUrlMeta(videoUrl, IsSidecarEnabled())
-        return decorateResolvedLinkItems(self.up.getVideoLinkExt(videoUrl), sidecar)
 
     ###################################################
     # INFO

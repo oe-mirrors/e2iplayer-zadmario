@@ -24,13 +24,13 @@ from Plugins.Extensions.IPTVPlayer.components.ihost import CBaseHostClass, CHost
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, SetIPTVPlayerLastHostError
 from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import IsSidecarEnabled, IsMediaNamingNormalized
 from Plugins.Extensions.IPTVPlayer.libs.botprotection import remembered_user_agent
-from Plugins.Extensions.IPTVPlayer.libs.e2ijson import dumps as json_dumps, loads as json_loads
+from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads
 from Plugins.Extensions.IPTVPlayer.libs.moviemeta import LATIN_ONLY, getMeta, isLatinTitle
 from Plugins.Extensions.IPTVPlayer.libs.urlmetahelper import buildSidecarFromItem, applySidecarToLinks, sidecarFromUrlMeta, decorateResolvedLinkItems
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote_plus
 from Plugins.Extensions.IPTVPlayer.tools.iptvnaming import formatSxxExx
 from Plugins.Extensions.IPTVPlayer.tools.iptvpaging import addPagingItems, isJumpItem, jumpTarget, stripPagerKeys
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, GetIconDir
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedhelper import IPTVWatchedHelper
 from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedfoldermixin import GenericFolderWatchedScraperMixin, GenericFolderWatchedHostMixin
@@ -117,7 +117,6 @@ class Anime3rb(GenericFolderWatchedScraperMixin, CBaseHostClass):
     def __init__(self):
         CBaseHostClass.__init__(self, {"history": "anime3rb", "cookie": "anime3rb.cookie"})
         self.MAIN_URL = gettytul()
-        self.DEFAULT_ICON_URL = "file://" + GetIconDir("PlayerSelector/anime3rb135.png")
         self.HEADER = self.cm.getDefaultHeader(browser="chrome")
         self.defaultParams = {"header": self.HEADER, "use_cookie": True, "load_cookie": True, "save_cookie": True, "cookiefile": self.COOKIE_FILE}
         self.watchedHelper = IPTVWatchedHelper("anime3rb")
@@ -129,7 +128,6 @@ class Anime3rb(GenericFolderWatchedScraperMixin, CBaseHostClass):
     def getPage(self, baseUrl, addParams=None, post_data=None):
         if addParams is None:
             addParams = dict(self.defaultParams)
-        addParams["cloudflare_params"] = {"cookie_file": self.COOKIE_FILE, "User-Agent": self.HEADER.get("User-Agent")}
         sts, data = self.cm.getPageCFProtection(self.getFullUrl((baseUrl or "").replace("&amp;", "&")), addParams, post_data)
         if not sts:
             # otherwise the list just stays empty: the site's rate limit (HTTP 429 "طلبات كثيرة جدًا", seen on the
@@ -181,28 +179,12 @@ class Anime3rb(GenericFolderWatchedScraperMixin, CBaseHostClass):
         return strwithmeta(url, self._cfMeta())
 
     def getFavouriteData(self, cItem):
-        try:
-            if cItem.get("category") in VIDEO_CATEGORIES + FOLDER_CATEGORIES + ("r3_list",):
-                return json_dumps(dict((key, cItem[key]) for key in self.FAV_FIELDS if key in cItem))
-        except Exception:
-            printExc()
+        if cItem.get("category") in VIDEO_CATEGORIES + FOLDER_CATEGORIES + ("r3_list",):
+            return self.getFavouriteFieldsData(cItem)
         return CBaseHostClass.getFavouriteData(self, cItem)
 
     def _getWatchedKeyForItem(self, cItem):
-        try:
-            if not isinstance(cItem, dict):
-                return ""
-            path = self._path(cItem.get("url", ""))
-            if not path:
-                return ""
-            category = cItem.get("category", "")
-            if category in VIDEO_CATEGORIES:
-                return "video:%s" % path
-            if category in FOLDER_CATEGORIES:
-                return "folder:%s" % path
-        except Exception:
-            printExc()
-        return ""
+        return self.wfCategoryKey(cItem, self._path, VIDEO_CATEGORIES, FOLDER_CATEGORIES)
 
     @staticmethod
     def _episodeTitle(show, season, episode, label):

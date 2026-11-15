@@ -31,7 +31,7 @@ from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT
 from Plugins.Extensions.IPTVPlayer.components.ihost import CHostBase, CBaseHostClass
 from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import IsSidecarEnabled, IsMediaNamingNormalized
 from Plugins.Extensions.IPTVPlayer.components.configsecret import ConfigSecret
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, GetIconDir
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc
 try:
     from Plugins.Extensions.IPTVPlayer.tools.iptvtools import registerLogSecret
 except ImportError:  # an older plugin without it: the host still runs
@@ -432,7 +432,6 @@ class StalkerPortalHost(GenericFolderWatchedScraperMixin, CBaseHostClass):
     def __init__(self):
         CBaseHostClass.__init__(self, {'history': 'stalker', 'cookie': 'stalker.cookie'})
         self.MAIN_URL = ''
-        self.DEFAULT_ICON_URL = 'file://' + GetIconDir('PlayerSelector/stalker135.png')
         self.cache = {}
         self.sessions = {}
         self.timezone = _localTimezone()
@@ -1287,11 +1286,8 @@ class StalkerPortalHost(GenericFolderWatchedScraperMixin, CBaseHostClass):
         return self._article(cItem, text, icon, other)
 
     def getFavouriteData(self, cItem):
-        try:
-            if cItem.get('acc_id'):
-                return json_dumps(dict((key, cItem[key]) for key in self.FAV_FIELDS if key in cItem))
-        except Exception:
-            printExc()
+        if cItem.get('acc_id'):
+            return self.getFavouriteFieldsData(cItem)
         return CBaseHostClass.getFavouriteData(self, cItem)
 
     ###################################################

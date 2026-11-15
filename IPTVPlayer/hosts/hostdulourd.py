@@ -25,13 +25,12 @@ from Plugins.Extensions.IPTVPlayer.components.ihost import CBaseHostClass, CHost
 from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import GetAlternativeProxyChoices, GetAlternativeProxyUrl, IsSidecarEnabled, IsMediaNamingNormalized
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, SetIPTVPlayerLastHostError
 from Plugins.Extensions.IPTVPlayer.libs.botprotection import remembered_user_agent
-from Plugins.Extensions.IPTVPlayer.libs.e2ijson import dumps as json_dumps
-from Plugins.Extensions.IPTVPlayer.libs.moviemeta import getMeta
+from Plugins.Extensions.IPTVPlayer.libs.moviemeta import getMeta, metaArticle
 from Plugins.Extensions.IPTVPlayer.libs.urlmetahelper import buildSidecarFromItem, applySidecarToLinks, sidecarFromUrlMeta, decorateResolvedLinkItems
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote_plus
 from Plugins.Extensions.IPTVPlayer.tools.iptvnaming import formatSxxExx
 from Plugins.Extensions.IPTVPlayer.tools.iptvpaging import addPagingItems, isJumpItem, jumpTarget
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, MergeDicts, GetIconDir
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, MergeDicts
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedhelper import IPTVWatchedHelper
 from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedfoldermixin import GenericFolderWatchedScraperMixin, GenericFolderWatchedHostMixin
@@ -79,7 +78,6 @@ class DuLourd(GenericFolderWatchedScraperMixin, CBaseHostClass, CaptchaHelper):
     def __init__(self):
         CBaseHostClass.__init__(self, {"history": "dulourd", "cookie": "dulourd.cookie"})
         self.MAIN_URL = None
-        self.DEFAULT_ICON_URL = "file://" + GetIconDir("PlayerSelector/dulourd135.png")
         self.HEADER = self.cm.getDefaultHeader(browser="chrome")
         self.defaultParams = {"header": self.HEADER, "use_cookie": True, "load_cookie": True, "save_cookie": True, "cookiefile": self.COOKIE_FILE}
         self.watchedHelper = IPTVWatchedHelper("dulourd")
@@ -97,7 +95,6 @@ class DuLourd(GenericFolderWatchedScraperMixin, CBaseHostClass, CaptchaHelper):
         proxy = self.getProxy()
         if proxy and "http_proxy" not in addParams:
             addParams = MergeDicts(addParams, {"http_proxy": proxy})
-        addParams["cloudflare_params"] = {"cookie_file": self.COOKIE_FILE, "User-Agent": self.HEADER.get("User-Agent")}
         return self.cm.getPageCFProtection(self._rebase(baseUrl), addParams, post_data)
 
     def selectDomain(self):
@@ -146,11 +143,8 @@ class DuLourd(GenericFolderWatchedScraperMixin, CBaseHostClass, CaptchaHelper):
         return strwithmeta(url, meta) if meta else url
 
     def getFavouriteData(self, cItem):
-        try:
-            if cItem.get("category") in ("dl_video", "dl_series", "dl_season"):
-                return json_dumps(dict((key, cItem[key]) for key in self.FAV_FIELDS if key in cItem))
-        except Exception:
-            printExc()
+        if cItem.get("category") in ("dl_video", "dl_series", "dl_season"):
+            return self.getFavouriteFieldsData(cItem)
         return CBaseHostClass.getFavouriteData(self, cItem)
 
     ###################################################
@@ -466,13 +460,7 @@ class DuLourd(GenericFolderWatchedScraperMixin, CBaseHostClass, CaptchaHelper):
             story, poster, info = self._siteInfo(data)
         if cItem.get("meta_year"):
             info.setdefault("year", cItem["meta_year"])
-        info.update(meta.get("info", {}))
-        plot = meta.get("plot", "")
-        text = plot or story or cItem.get("desc", "")
-        if plot and story and story != plot:
-            text = "%s[/br][/br]%s" % (plot, story)
-        icon = meta.get("poster") or poster or cItem.get("icon", "")
-        return [{"title": cItem.get("title", ""), "text": text, "images": [{"title": "", "url": icon}] if icon else [], "other_info": info}]
+        return metaArticle(cItem, meta, story, poster, info)
 
     ###################################################
     # service

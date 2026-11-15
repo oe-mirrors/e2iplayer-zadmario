@@ -84,6 +84,8 @@ REGIONAL_CHANNELS = (
 AZ_LETTERS = ("a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "0-9")
 # categories whose programmes moviemeta knows as TV series (news, sport, documentaries ... would only find wrong matches)
 TV_META_CATEGORIES = ("drama-and-soaps", "comedy", "cbbc", "cbeebies")
+# search results carry no categories, only the genre label: the labels of those categories' programmes
+TV_META_LABELS = ("Drama", "Crime Drama", "Period Drama", "Comedy Drama", "Comedy", "Sci-Fi", "Fantasy", "CBBC", "CBeebies")
 # "Series 2: 5. The Name" / "Series 11: Episode 1"
 SXE_RE = re.compile(r'^Series\s+(\d+)\s*:\s*(?:Episode\s+)?(\d+)\b\.?\s*(.*)$', re.I)
 SERIES_RE = re.compile(r'^Series\s+(\d+)$', re.I)
@@ -190,14 +192,16 @@ class BBCiPlayer(GenericFolderWatchedScraperMixin, CBaseHostClass):
 
     def _isFilm(self, item):
         labels = item.get("labels") or {}
-        return "films" in (item.get("categories") or []) or labels.get("category") in ("Films", "Film")
+        label = labels.get("category") or ""
+        return "films" in (item.get("categories") or []) or label in ("Films", "Film") or label.startswith("Film - ")
 
     def _metaType(self, item):
         if self._isFilm(item):
             return "movie"
-        if set(item.get("categories") or []) & set(TV_META_CATEGORIES):
-            return "tv"
-        return ""
+        categories = item.get("categories")
+        if categories:
+            return "tv" if set(categories) & set(TV_META_CATEGORIES) else ""
+        return "tv" if (item.get("labels") or {}).get("category") in TV_META_LABELS else ""
 
     def _episodeTitle(self, show, subtitle):
         subtitle = (subtitle or "").strip()

@@ -22,15 +22,15 @@ import re
 from Plugins.Extensions.IPTVPlayer.components.ihost import CBaseHostClass, CHostBase
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, SetIPTVPlayerLastHostError
 from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import IsSidecarEnabled, IsMediaNamingNormalized
-from Plugins.Extensions.IPTVPlayer.libs.e2ijson import dumps as json_dumps, loads as json_loads
+from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads
 from Plugins.Extensions.IPTVPlayer.libs.botprotection import remembered_user_agent
-from Plugins.Extensions.IPTVPlayer.libs.moviemeta import getMeta
+from Plugins.Extensions.IPTVPlayer.libs.moviemeta import getMeta, metaArticle
 from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import getDirectM3U8Playlist
 from Plugins.Extensions.IPTVPlayer.libs.urlmetahelper import buildSidecarFromItem, applySidecarToLinks, sidecarFromUrlMeta, decorateResolvedLinkItems, sidecarMetaQuery
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote, urllib_quote_plus, urllib_unquote
 from Plugins.Extensions.IPTVPlayer.tools.iptvnaming import formatSxxExx
 from Plugins.Extensions.IPTVPlayer.tools.iptvpaging import addPagingItems, isJumpItem, jumpTarget
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, GetIconDir
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedhelper import IPTVWatchedHelper
 from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedfoldermixin import GenericFolderWatchedScraperMixin, GenericFolderWatchedHostMixin
@@ -87,7 +87,6 @@ class WitAnime(GenericFolderWatchedScraperMixin, CBaseHostClass):
     def __init__(self):
         CBaseHostClass.__init__(self, {"history": "witanime", "cookie": "witanime.cookie"})
         self.MAIN_URL = gettytul()
-        self.DEFAULT_ICON_URL = "file://" + GetIconDir("PlayerSelector/witanime135.png")
         self.HEADER = self.cm.getDefaultHeader(browser="chrome")
         self.HEADER.update(_clientHints(self.HEADER["User-Agent"]))
         self.defaultParams = {"header": self.HEADER, "use_cookie": True, "load_cookie": True, "save_cookie": True, "cookiefile": self.COOKIE_FILE}
@@ -127,11 +126,8 @@ class WitAnime(GenericFolderWatchedScraperMixin, CBaseHostClass):
         return re.sub(r"^https?://[^/]+", "", url).rstrip("/").lower()
 
     def getFavouriteData(self, cItem):
-        try:
-            if cItem.get("category") in ("wa_video", "wa_series"):
-                return json_dumps({key: cItem[key] for key in self.FAV_FIELDS if key in cItem})
-        except Exception:
-            printExc()
+        if cItem.get("category") in ("wa_video", "wa_series"):
+            return self.getFavouriteFieldsData(cItem)
         return CBaseHostClass.getFavouriteData(self, cItem)
 
     @staticmethod
@@ -409,13 +405,7 @@ class WitAnime(GenericFolderWatchedScraperMixin, CBaseHostClass):
                 meta = getMeta(cItem["meta_type"], cItem["meta_title"], info.get("year", ""))
             except Exception:
                 printExc()
-        info.update(meta.get("info", {}))
-        plot = meta.get("plot", "")
-        text = plot or story or cItem.get("desc", "")
-        if plot and story and story != plot:
-            text = "%s[/br][/br]%s" % (plot, story)
-        icon = meta.get("poster") or cItem.get("icon", "")
-        return [{"title": cItem.get("title", ""), "text": text, "images": [{"title": "", "url": icon}] if icon else [], "other_info": info}]
+        return metaArticle(cItem, meta, story, info=info)
 
     ###################################################
     # service

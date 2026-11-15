@@ -14,7 +14,7 @@ from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT
 from Plugins.Extensions.IPTVPlayer.components.ihost import CHostBase, CBaseHostClass
 from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import GetAlternativeProxyChoices, GetAlternativeProxyList, GetAlternativeProxyUrl, IsSidecarEnabled
 from Plugins.Extensions.IPTVPlayer.components.captcha_helper import CaptchaHelper
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import CSelOneLink, printDBG, printExc, MergeDicts, readCFG, GetIconDir
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import CSelOneLink, printDBG, printExc, MergeDicts, readCFG
 from Plugins.Extensions.IPTVPlayer.tools.iptvnaming import normalizeMediathekTitle, formatSxxExx
 from Plugins.Extensions.IPTVPlayer.tools.iptvpaging import addPagingItems, isJumpItem, jumpTarget, stripPagerKeys
 from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedhelper import IPTVWatchedHelper
@@ -155,7 +155,6 @@ class TvpVod(GenericFolderWatchedScraperMixin, CBaseHostClass, CaptchaHelper):
         proxyUrl = GetProxyUrl()
         CBaseHostClass.__init__(self, {'history': 'TvpVod', 'cookie': 'tvpvod.cookie', 'proxyURL': proxyUrl, 'useProxy': proxyUrl != ''})
         self.MAIN_URL = 'https://vod.tvp.pl/'
-        self.DEFAULT_ICON_URL = "file://" + GetIconDir("PlayerSelector/tvpvod135.png")
         self.HTTP_HEADER = self.cm.getDefaultHeader(browser="chrome")
         self.defaultParams = {'with_metadata': True, 'use_cookie': True, 'load_cookie': True, 'save_cookie': True, 'cookiefile': self.COOKIE_FILE, 'header': self.HTTP_HEADER}
         self.FormatBitrateMap = [("360000", "320x180"), ("590000", "398x224"), ("820000", "480x270"), ("1250000", "640x360"),
@@ -169,11 +168,6 @@ class TvpVod(GenericFolderWatchedScraperMixin, CBaseHostClass, CaptchaHelper):
     ###################################################
     # helpers
     ###################################################
-    def getPage(self, url, addParams=None, post_data=None):
-        if addParams is None:
-            addParams = dict(self.defaultParams)
-        return self.cm.getPage(url, addParams, post_data)
-
     def _getJson(self, url, params=None):
         sts, data = self.getPage(url, params)
         if not sts:
@@ -248,11 +242,8 @@ class TvpVod(GenericFolderWatchedScraperMixin, CBaseHostClass, CaptchaHelper):
         return ''
 
     def getFavouriteData(self, cItem):
-        try:
-            if cItem.get('type') == 'video':
-                return json_dumps(dict((key, cItem[key]) for key in self.FAV_FIELDS if key in cItem))
-        except Exception:
-            printExc()
+        if cItem.get('type') == 'video':
+            return self.getFavouriteFieldsData(cItem)
         return CBaseHostClass.getFavouriteData(self, cItem)
 
     def getLinksForFavourite(self, fav_data):

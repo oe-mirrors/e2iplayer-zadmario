@@ -31,7 +31,7 @@ from Plugins.Extensions.IPTVPlayer.libs.e2ijson import dumps as json_dumps, load
 from Plugins.Extensions.IPTVPlayer.libs.urlmetahelper import buildSidecarFromItem, applySidecarToLinks, sidecarFromUrlMeta, decorateResolvedLinkItems
 from Plugins.Extensions.IPTVPlayer.libs.urlparserhelper import getDirectM3U8Playlist, getMPDLinksWithMeta, requireDownloaderForDisguisedHls
 from Plugins.Extensions.IPTVPlayer.tools.iptvpaging import addPagingItems
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, GetIconDir
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 
 
@@ -84,7 +84,6 @@ class YacineTV(CBaseHostClass):
     def __init__(self):
         CBaseHostClass.__init__(self, {"history": "yacinetv", "cookie": "yacinetv.cookie"})
         self.MAIN_URL = gettytul()
-        self.DEFAULT_ICON_URL = "file://" + GetIconDir("PlayerSelector/yacinetv135.png")
         self.HEADER = self.cm.getDefaultHeader(browser="chrome")
         self.apiDomain = API_DOMAIN
         self.cache = {}
@@ -165,11 +164,8 @@ class YacineTV(CBaseHostClass):
         return strwithmeta(url, {"User-Agent": self.HEADER.get("User-Agent")})
 
     def getFavouriteData(self, cItem):
-        try:
-            if cItem.get("category") in ("yc_channel", "yc_cat"):
-                return json_dumps(dict((key, cItem[key]) for key in self.FAV_FIELDS if key in cItem))
-        except Exception:
-            printExc()
+        if cItem.get("category") in ("yc_channel", "yc_cat"):
+            return self.getFavouriteFieldsData(cItem)
         return CBaseHostClass.getFavouriteData(self, cItem)
 
     ###################################################

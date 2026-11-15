@@ -13,7 +13,7 @@ LAST_MODIFIED = "08.10.2026"
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _, SetIPTVPlayerLastHostError
 from Plugins.Extensions.IPTVPlayer.components.ihost import CHostBase, CBaseHostClass
 from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import IsSidecarEnabled
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, rm, GetIconDir
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, rm
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.tools.iptvpaging import addPagingItems, isJumpItem, jumpTarget
 from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedhelper import IPTVWatchedHelper
@@ -58,6 +58,7 @@ def gettytul():
 
 
 class OrthoBullets(GenericFolderWatchedScraperMixin, CBaseHostClass):
+    USE_CF_PROTECTION = True
     PAGE_SIZE = 50  # videos per list page of the site
 
     def __init__(self):
@@ -68,7 +69,6 @@ class OrthoBullets(GenericFolderWatchedScraperMixin, CBaseHostClass):
         self.HEADER = {'User-Agent': self.USER_AGENT, 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'}
 
         self.MAIN_URL = 'https://www.orthobullets.com/'
-        self.DEFAULT_ICON_URL = 'file://' + GetIconDir('PlayerSelector/orthobulletscom135.png')
 
         self.defaultParams = {'header': self.HEADER, 'use_cookie': True, 'load_cookie': True, 'save_cookie': True, 'cookiefile': self.COOKIE_FILE}
         self.loggedIn = None
@@ -130,18 +130,6 @@ class OrthoBullets(GenericFolderWatchedScraperMixin, CBaseHostClass):
         # the category lists are static urls: favourites reopen them as they are
         for item in self.CATEGORIES_TAB + self.SPECIALITY_TAB:
             item['good_for_fav'] = True
-
-    def getPage(self, baseUrl, addParams=None, post_data=None):
-        if addParams is None:
-            addParams = dict(self.defaultParams)
-
-        def _getFullUrl(url):
-            if self.cm.isValidUrl(url):
-                return url
-            else:
-                return urljoin(baseUrl, url)
-        addParams['cloudflare_params'] = {'domain': self.up.getDomain(baseUrl), 'cookie_file': self.COOKIE_FILE, 'User-Agent': self.USER_AGENT, 'full_url_handle': _getFullUrl}
-        return self.cm.getPageCFProtection(baseUrl, addParams, post_data)
 
     @staticmethod
     def _baseListUrl(url):

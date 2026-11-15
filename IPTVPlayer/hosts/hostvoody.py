@@ -14,11 +14,11 @@ from Plugins.Extensions.IPTVPlayer.components.iptvconfigmenu import IsMediaNamin
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import SetIPTVPlayerLastHostError
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
 from Plugins.Extensions.IPTVPlayer.libs.moviemeta import LATIN_ONLY, getMeta, getMetaByImdbId, isLatinTitle
-from Plugins.Extensions.IPTVPlayer.libs.urlmetahelper import applySidecarToLinks, buildSidecarFromItem, decorateResolvedLinkItems, sidecarFromUrlMeta, sidecarMetaQuery
+from Plugins.Extensions.IPTVPlayer.libs.urlmetahelper import applySidecarToLinks, buildSidecarFromItem, sidecarMetaQuery
 from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str
 from Plugins.Extensions.IPTVPlayer.tools.iptvnaming import formatSxxExx
 from Plugins.Extensions.IPTVPlayer.tools.iptvpaging import addPagingItems, isJumpItem, jumpTarget
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import GetIconDir, printDBG, printExc
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedfoldermixin import GenericFolderWatchedHostMixin, GenericFolderWatchedScraperMixin
 from Plugins.Extensions.IPTVPlayer.tools.iptvwatchedhelper import IPTVWatchedHelper
@@ -52,7 +52,6 @@ class Voody(GenericFolderWatchedScraperMixin, CBaseHostClass):
         self.defaultParams = {"header": self.HEADER, "use_cookie": True, "load_cookie": True, "save_cookie": True, "cookiefile": self.COOKIE_FILE}
         self.seasonsCache = {}
         self.missingEmbeds = set()  # coverapi players that answer 404 (no stream for the title)
-        self.DEFAULT_ICON_URL = "file://" + GetIconDir("PlayerSelector/voody135.png")
         self.MAIN_URL = _mainUrl()
         self.MENU = [{"category": "list_items", "title": _("Movies"), "url": self.getFullUrl("/load/")},
                      {"category": "list_items", "title": _("Recommended"), "url": self.getFullUrl("/load/top_250_movies/")},
@@ -362,13 +361,6 @@ class Voody(GenericFolderWatchedScraperMixin, CBaseHostClass):
             meta.update({"Season": season, "Episode": episode})
         urltab = [{"name": "coverapi", "url": strwithmeta(embed, meta), "need_resolve": 1}]
         return applySidecarToLinks(urltab, buildSidecarFromItem(cItem, IsSidecarEnabled(), desc or cItem.get("desc", ""), metaQuery))
-
-    def getVideoLinks(self, videoUrl):
-        printDBG("Voody.getVideoLinks [%s]" % videoUrl)
-        if self.cm.isValidUrl(videoUrl):
-            sidecar = sidecarFromUrlMeta(videoUrl, IsSidecarEnabled())
-            return decorateResolvedLinkItems(self.up.getVideoLinkExt(videoUrl), sidecar)
-        return []
 
     ###################################################
     # INFO
