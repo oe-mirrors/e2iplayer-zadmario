@@ -7854,3 +7854,20 @@ msgid "You can install PyCurl from the image feed to fix this problem: %s"
 msgstr ""
 "Sie können PyCurl aus dem Image-Feed installieren, um dieses Problem zu "
 "beheben: %s"
+
+msgid "Extra large"
+msgstr "Extra groß"
+
+msgid "Episodes:"
+msgstr "Episoden:"
+
+msgid "Could not read the server list of the page."
+msgstr "Die Serverliste der Seite konnte nicht gelesen werden."
+
+msgid "The hoster is still processing this video. Please try again later."
+msgstr ""
+"Der Hoster verarbeitet dieses Video noch. Bitte versuchen Sie es später "
+"erneut."
+
+msgid "Restart Enigma2 (GUI) to load the new subtitles parser."
+msgstr "Starten Sie Enigma2 (GUI) neu, um den neuen Untertitel-Parser zu laden."
