@@ -88,7 +88,7 @@ def FindCachedIcon(url):
         if not url or url.startswith(('file://', 'data:')):
             return ''
         name = strDecode(hexlify(MD5()(url))) + '.jpg'
-        base = config.plugins.iptvplayer.CacheDir.value
+        base = config.plugins.iptvplayer.SciezkaCache.value
         if not os_path.isdir(base):
             return ''
         for entry in sorted(GetIconsDirs(base), reverse=True):
