@@ -127,9 +127,16 @@ echo "$out" | grep -qF '"qualities":[500, 1500]' || fail "f4mdump manifest"
 log "hlsdl"
 "$OUT/hlsdl" -h > hlsdl.out 2>&1 || true
 head -n 3 hlsdl.out
-# same stream and checksum as the hlsdl job of e2iplayer-deps (AES-128 TS over HTTPS)
-timeout 900 "$OUT/hlsdl" -b -o test.ts "https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_4x3/bipbop_4x3_variant.m3u8" > hlsdl.log 2>&1 \
+# same stream and checksum as the hlsdl job of e2iplayer-deps (AES-128 TS over HTTPS), called like the
+# download manager does (iptvdh.getBaseHLSDLCmd + hlsdownloader.start): -q, every option before the url
+# (musl getopt stops at the first argument that is no option), status JSON lines on stderr
+rm -f test.ts
+timeout 900 "$OUT/hlsdl" -q -f -b -u "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:144.0) Gecko/20100101 Firefox/144.0" \
+    -h "Referer: https://devstreaming-cdn.apple.com/" -R -o test.ts \
+    "https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_4x3/bipbop_4x3_variant.m3u8" > /dev/null 2> hlsdl.log \
     || { tail -n 20 hlsdl.log; fail "hlsdl download"; }
+# hlsdl exits 0 after its help text when it cannot parse the call: no status line means no download
+grep -q '"t_d":' hlsdl.log || { tail -n 20 hlsdl.log; fail "hlsdl status lines (plugin call)"; }
 echo "6bf11a9a4be02443d4790e43e6569a614128bad453c5cb327ec74031f6ea6382  test.ts" | sha256sum -c - || fail "hlsdl output differs"
 
 log "all tests passed"
