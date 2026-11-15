@@ -8,7 +8,8 @@ sys.path.insert(0, os.getcwd())
 import _subparser  # noqa: E402
 
 print("Python %s, _subparser %s" % (sys.version.split()[0], _subparser.version()))
-assert float(_subparser.version()) >= 0.5, "the setup wants >= 0.5"
+# compared part by part like the setup (_verTuple): "0.9.1" is no float, "0.10" no smaller than "0.5"
+assert tuple(int(p) for p in _subparser.version().split(".")) >= (0, 5), "the setup wants >= 0.5"
 
 srt = "1\n00:00:01,000 --> 00:00:02,000\nHello world\n\n2\n00:00:03,000 --> 00:00:04,500\n<i>second</i> cue\n\n"
 r = _subparser.parse(srt, 0, 1, 1, 12, 138)
