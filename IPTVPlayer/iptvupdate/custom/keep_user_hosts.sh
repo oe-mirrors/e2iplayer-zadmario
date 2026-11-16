@@ -5,7 +5,7 @@
 # More files: add their paths (relative to IPTVPlayer/) to KEEP_FILES.
 
 # the script keeps itself, so it also survives an update to a version without it
-KEEP_FILES="hosts/hostxxx.py libs/xxxparser.py iptvupdate/custom/keep_user_hosts.sh"
+KEEP_FILES="hosts/hostxxx.py libs/xxxparser.py libs/stripchatrelay.py iptvupdate/custom/keep_user_hosts.sh"
 
 for file in $KEEP_FILES; do
 	if [ -f "$1/$file" ] && [ ! -f "$2/$file" ]; then
