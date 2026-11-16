@@ -9,7 +9,7 @@
 ###################################################
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, mkdirs, rmtree, FreeSpace, formatBytes, iptv_system, \
                                                                    GetIPTVDMImgDir, GetIPTVPlayerVerstion, GetShortPythonVersion, GetTmpDir, \
-                                                                   GetHostsList, GetEnabledHostsList, WriteTextFile, GITHUB_UPDATE_REPO
+                                                                   GetHostsList, GetEnabledHostsList, WriteTextFile, GITHUB_UPDATE_REPO, IsRealStoragePresent
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import enum
 from Plugins.Extensions.IPTVPlayer.iptvupdate.iptvlist import IPTVUpdateList
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdownloadercreator import UpdateDownloaderCreator
@@ -32,7 +32,7 @@ from Components.Label import Label
 from Tools.BoundFunction import boundFunction
 from Tools.Directories import resolveFilename, SCOPE_PLUGINS
 
-from os import path as os_path, listdir as os_listdir
+from os import path as os_path, listdir as os_listdir, access as os_access, W_OK
 ###################################################
 
 
@@ -268,6 +268,8 @@ class UpdateMainAppImpl(IUpdateObjectInterface):
 
         self.sourceArchive = None
         self.destinationArchive = None
+        # where the archive is unpacked: the folder for temporary data, or a disk when that one is too small
+        self.unpackDir = None
 
         self.messages = {}
         self.messages['completed'] = _("Completed.")
@@ -337,6 +339,7 @@ class UpdateMainAppImpl(IUpdateObjectInterface):
             self.session.openWithCallback(self.doRestart, MessageBox, _("Update completed successfully. For the moment, the system will reboot."), type=MessageBox.TYPE_INFO, timeout=10)
             return False
         else:
+            self.clearUnpackDir()
             message = errorMsg
             # Failed message:
             message += "\n\n" + _("Update failed.\nCheck the status by selecting interesting and pressing OK.")
@@ -404,7 +407,19 @@ class UpdateMainAppImpl(IUpdateObjectInterface):
         self.downloader.start(self.serversList[self.currServIdx]['url'], self.sourceArchive)
 
     def stepUnpackArchive(self):
-        self.destinationArchive = os_path.join(self.tmpDir, 'iptv_archive')
+        # the unpacked archive needs about twice its size (19 MB -> 39 MB, 11/2026); /tmp is a tmpfs in RAM on most
+        # images and too small for that on boxes with little RAM ("No space left on device" from tar, "Return code 2")
+        try:
+            requiredSpace = int(os_path.getsize(self.sourceArchive) * 2.5)
+        except Exception:
+            printExc()
+            requiredSpace = 0
+        self.unpackDir = self.__getUnpackDir(requiredSpace)
+        if not self.unpackDir:
+            sts, msg = self.checkForFreeSpace(self.tmpDir, requiredSpace)
+            self.stepFinished(-1, msg + '\n' + self.__tmpFolderHint())
+            return
+        self.destinationArchive = os_path.join(self.unpackDir, 'iptv_archive')
         self.ExtensionTmpPath = os_path.join(self.destinationArchive, self.serversList[self.currServIdx]['subdir'])
         printDBG('UpdateMainAppImpl.stepUnpackArchive: sourceArchive[%s] -> destinationArchive[%s] -> ExtensionTmpPath[%s]' % (self.sourceArchive, self.destinationArchive, self.ExtensionTmpPath))
         sts, msg = self.createPath(self.destinationArchive)
@@ -412,8 +427,43 @@ class UpdateMainAppImpl(IUpdateObjectInterface):
             self.stepFinished(-1, msg)
             return
 
-        cmd = 'rm -f "%s/*" > /dev/null 2>&1; tar -xzf "%s" -C "%s" 2>&1; PREV_RET=$?; rm -f "%s" > /dev/null 2>&1; (exit $PREV_RET)' % (self.destinationArchive, self.sourceArchive, self.destinationArchive, self.sourceArchive)
+        # (the glob outside the quotes: "dir/*" in quotes removed nothing)
+        cmd = 'rm -rf "%s"/* > /dev/null 2>&1; tar -xzf "%s" -C "%s" 2>&1; PREV_RET=$?; rm -f "%s" > /dev/null 2>&1; (exit $PREV_RET)' % (self.destinationArchive, self.sourceArchive, self.destinationArchive, self.sourceArchive)
         self.cmd = iptv_system(cmd, self.__unpackCmdFinished)
+
+    def __getUnpackDir(self, requiredSpace):
+        # the folder for temporary data when it has room, else a writable mounted disk (HDD, USB stick) with room;
+        # None when there is none
+        if not requiredSpace or FreeSpace(self.tmpDir, requiredSpace, 1):
+            return self.tmpDir
+        mountPoints = ['/media/hdd', '/hdd', '/media/usb']
+        try:
+            with open('/proc/mounts') as f:
+                for line in f.read().splitlines():
+                    parts = line.split()
+                    if len(parts) > 1 and parts[1].startswith('/media/'):
+                        mountPoints.append(parts[1].replace('\\040', ' '))
+        except Exception:
+            printExc()
+        for mountPoint in mountPoints:
+            try:
+                if os_path.isdir(mountPoint) and os_access(mountPoint, W_OK) and IsRealStoragePresent(mountPoint) and FreeSpace(mountPoint, requiredSpace, 1):
+                    printDBG('UpdateMainAppImpl: [%s] too small, unpacking on [%s]' % (self.tmpDir, mountPoint))
+                    return os_path.join(mountPoint, '.iptv_update')
+            except Exception:
+                printExc()
+        return None
+
+    def __tmpFolderHint(self):
+        return _('Set "Folder for temporary data" in the E2iPlayer settings to a USB stick or a hard disk.')
+
+    def clearUnpackDir(self):
+        # the unpacked archive on a disk (the folder for temporary data goes with clearTmpData)
+        if self.unpackDir and self.unpackDir != self.tmpDir:
+            try:
+                rmtree(self.unpackDir)
+            except Exception:
+                printExc('WARNING')
 
     def stepCheckFiles(self):
         code, msg = self.checkVersionFile(os_path.join(self.ExtensionTmpPath, 'IPTVPlayer'))
@@ -541,6 +591,7 @@ class UpdateMainAppImpl(IUpdateObjectInterface):
             rmtree(self.tmpDir)
         except Exception:
             printExc('WARNING')
+        self.clearUnpackDir()
 
     ##############################################################################
     # SERWERS LISTS STEP'S PRIVATES METHODS
@@ -653,6 +704,8 @@ class UpdateMainAppImpl(IUpdateObjectInterface):
             sts, msg = self.checkForFreeSpace(self.tmpDir, remoteFileSize - localFileSize)
             if sts:
                 msg = _("Problem with downloading the packet:\n[%s].") % url
+            else:
+                msg += '\n' + self.__tmpFolderHint()
             self.stepFinished(-1, msg)
         else:
             self.stepFinished(0, _("Update packet was downloaded successfully."))
@@ -750,7 +803,8 @@ class UpdateMainAppImpl(IUpdateObjectInterface):
             msg = self.messages['problem_install'] % (status, outData)
             self.stepFinished(-1, msg)
         else:
-            self.cmd = iptv_system('rm -rf ' + self.tmpDir + " && sync", self.__doSyncCallBack)
+            unpackDir = self.unpackDir if self.unpackDir and self.unpackDir != self.tmpDir else ''
+            self.cmd = iptv_system('rm -rf "%s" %s && sync' % (self.tmpDir, '"%s"' % unpackDir if unpackDir else ''), self.__doSyncCallBack)
         return
 
     def __doSyncCallBack(self, status, outData):
