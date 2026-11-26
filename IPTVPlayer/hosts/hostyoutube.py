@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
-LAST_MODIFIED = "02.11.2026"
+LAST_MODIFIED = "25.11.2026"
+# 24.11.2026 - every video / Short row (channel tabs, playlists, search, signed-in feeds): the "Newest videos" short info
+# 23.11.2026 - Shorts in the signed-in feeds (My subscriptions ...): channel, date, length and views
+# 19.11.2026 - original video titles instead of YouTube's machine translation (RSS feed, all with an own Data API key)
 # 04.11.2026 - user links: channel rows and groups show the channel picture, video rows their thumbnail
 # 02.11.2026 - channel: all tabs of the channel incl. Playlists and Home; a link to a tab opens that tab; playlists with next pages
 # 11.10.2026 - channel: "Shorts" folder (Shorts tab); Shorts and channels get their own list icons (ShortItem.png, ChannelItem.png);
@@ -10,11 +13,12 @@ LAST_MODIFIED = "02.11.2026"
 ###################################################
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
 from Plugins.Extensions.IPTVPlayer.components.ihost import CHostBase, CBaseHostClass, CDisplayListItem, ArticleContent, RetHost
-from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, IsExecutable, printExc, byteify, GetSearchHistoryDir, E2ColoR, GetCacheSubDir
+from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, IsExecutable, printExc, byteify, E2ColoR, GetCacheSubDir
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import strwithmeta
 from Plugins.Extensions.IPTVPlayer.tools.iptvfilehost import IPTVFileHost
 from Plugins.Extensions.IPTVPlayer.libs.youtubeparser import YouTubeParser
 from Plugins.Extensions.IPTVPlayer.libs.youtube_oauth import YouTubeOAuth
+from Plugins.Extensions.IPTVPlayer.libs import ytchannelfeed
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_quote_plus
 from Plugins.Extensions.IPTVPlayer.p2p3.manipulateStrings import ensure_str
 from Plugins.Extensions.IPTVPlayer.libs.urlmetahelper import buildSidecar, buildYoutubeOptions, decorateYoutubeUrl, decorateYoutubeLinkItems
@@ -35,7 +39,6 @@ except Exception:
     import simplejson as json
 import re
 import os
-import codecs
 import threading
 import time
 from Components.config import config, ConfigDirectory, ConfigYesNo, ConfigSelection, getConfigListEntry
@@ -50,8 +53,6 @@ from Screens.MessageBox import MessageBox
 from Components.ActionMap import ActionMap
 from Components.Label import Label
 from Components.ScrollLabel import ScrollLabel
-from Screens.VirtualKeyBoard import VirtualKeyBoard
-from Components.MenuList import MenuList
 
 ###################################################
 
@@ -196,6 +197,9 @@ def GetConfigList():
     optionList.append(getConfigListEntry(_("Default video quality:"), config.plugins.iptvplayer.ytDefaultformat))
     optionList.append(getConfigListEntry(_("Use default video quality:"), config.plugins.iptvplayer.ytUseDF))
     optionList.append(getConfigListEntry(_("Display language:"), config.plugins.iptvplayer.youtube_ui_language))
+    optionList.append(getConfigListEntry(_("Original title") + ":", config.plugins.iptvplayer.youtube_original_titles))
+    # the same key as in the MusicBox settings (iptvconfig); empty = the RSS feed only (15 newest per channel)
+    optionList.append(getConfigListEntry("https://youtube.com/ " + _("API Key"), config.plugins.iptvplayer.api_key_youtube))
     optionList.append(getConfigListEntry(_("Add channel name to downloaded file") + ":", config.plugins.iptvplayer.youtube_download_channel_name))
     optionList.append(getConfigListEntry(_("Create MKV with chapter marks from description") + ":", config.plugins.iptvplayer.youtube_mkv_chapters))
     optionList.append(getConfigListEntry(_("Create Enigma2 .cuts chapter marks") + ":", config.plugins.iptvplayer.youtube_enigma2_cuts))
@@ -569,7 +573,7 @@ class Youtube(CBaseHostClass):
         sidecarImg = ""
 
         try:
-            article = self.getArticleContent(cItem)
+            article = self.getArticleContent(cItem, forSidecar=True)
             if article and isinstance(article, list):
                 articleItem = article[0]
                 try:
@@ -655,6 +659,7 @@ class Youtube(CBaseHostClass):
                          "desc": _("This feed is empty, or the YouTube sign-in has expired - sign out and in again.")})
             return
         self._injectChannelNameToItems(tmp, cItem.get("channel_title", ""))
+        self._describeVideos(tmp)
         self.watchedHelper.updateHostListFlags(self, tmp, self._getWatchedKeyForItem)
         for item in tmp:
             item.update({"name": "category"})
@@ -742,7 +747,6 @@ class Youtube(CBaseHostClass):
         printDBG("Youtube.listCategory cItem[%s]" % cItem)
 
         sortList = "file" != config.plugins.iptvplayer.youtube_userlinks_order.value
-        groupList = True
         avatars = self._readAvatars()
         if "sub_file_category" not in cItem:
             self.currFileHost = IPTVFileHost()
@@ -820,6 +824,7 @@ class Youtube(CBaseHostClass):
         url = cItem.get("url", "")
         search_type = cItem.get("search_type", "")
         tmpList = self.ytp.getSearchResult(urllib_quote_plus(pattern), search_type if search_type else "video", page, "search_next_page", config.plugins.iptvplayer.ytSortBy.value, url)
+        self._describeVideos(tmpList)
 
         currentChannel = cItem.get("channel", "")
         currentContextTitle = cItem.get("context_title", "")
@@ -892,7 +897,18 @@ class Youtube(CBaseHostClass):
             params = {"name": "category", "category": "feeds_video", "title": title, "pattern": pattern, "search_type": search_type, "page": "1", "url": ""}
             self.addDir(params)
 
-    def _prepareListItems(self, items, defaultChannel):
+    def _describeVideos(self, items):
+        # one short info for every video / Short row, as the favourites "Newest videos" list shows it:
+        # channel / upload date (age) / length | Short | views - the list pages only carry parts of it,
+        # in a different order per page type (one cached player request per video)
+        try:
+            ytchannelfeed.describeVideos([item for item in items if item.get("type", "") == "video"])
+        except Exception:
+            printExc()
+
+    def _prepareListItems(self, items, defaultChannel, describe=True):
+        if describe:
+            self._describeVideos(items)
         self._injectChannelNameToItems(items, defaultChannel)
         self.watchedHelper.updateHostListFlags(self, items, self._getWatchedKeyForItem)
         for item in items:
@@ -926,8 +942,10 @@ class Youtube(CBaseHostClass):
 
     def listChannelHome(self, cItem, url):
         channelName = cItem.get("channel_title", "")
-        for shelf in self.ytp.getChannelHomeShelves(url):
-            self.addDir({"name": "category", "good_for_fav": False, "category": "sub_items", "title": shelf["title"] or cItem.get("title", ""), "icon": cItem.get("icon", ""), "sub_items": self._prepareListItems(shelf["items"], channelName)})
+        shelves = self.ytp.getChannelHomeShelves(url)
+        self._describeVideos([item for shelf in shelves for item in shelf["items"]])  # all shelves in one parallel run
+        for shelf in shelves:
+            self.addDir({"name": "category", "good_for_fav": False, "category": "sub_items", "title": shelf["title"] or cItem.get("title", ""), "icon": cItem.get("icon", ""), "sub_items": self._prepareListItems(shelf["items"], channelName, False)})
 
     def getVideos(self, cItem):
         printDBG("Youtube.getVideos cItem[%s]" % (cItem))
@@ -962,6 +980,7 @@ class Youtube(CBaseHostClass):
             tmpList = self.ytp.getSearchResult(urllib_quote_plus(pattern), searchType, page, "search", config.plugins.iptvplayer.ytSortBy.value, url)
         else:
             tmpList = self.ytp.getSearchResult(urllib_quote_plus(pattern), searchType, page, "search", config.plugins.iptvplayer.ytSortBy.value)
+        self._describeVideos(tmpList)
 
         for item in tmpList:
             item.update({"name": "category"})
@@ -1110,7 +1129,9 @@ class Youtube(CBaseHostClass):
             printExc()
         return str(value or "")
 
-    def getArticleContent(self, cItem):
+    def getArticleContent(self, cItem, forSidecar=False):
+        # forSidecar: the text for the sidecar .txt / the player's chapters keeps every "|" of the description; on the
+        # INFO page "|" breaks the line, there the channel name and the description get "/" instead
         printDBG("Youtube.getArticleContent START")
         retTab = []
         try:
@@ -1120,12 +1141,12 @@ class Youtube(CBaseHostClass):
             videoId = self._getVideoIdFromItem(cItem)
             channelName = self._getInitialChannelName(cItem)
 
-            channelName, absolutePublished, text = self._enrichArticleFromWatchPage(videoId, channelName, shortText)
+            channelName, absolutePublished, text = self._enrichArticleFromWatchPage(videoId, channelName, shortText, not forSidecar)
 
             channelName = str(channelName or "")
             text = str(text or "")
             if channelName:
-                text = channelName + "\n" + text
+                text = (channelName if forSidecar else channelName.replace("|", "/")) + "\n" + text
 
             richDescParams = self._buildArticleRichDescParams(absolutePublished, cItem, videoId, channelName)
 
@@ -1150,10 +1171,11 @@ class Youtube(CBaseHostClass):
             return cItem.get("context_title", "")
         return ""
 
-    def _enrichArticleFromWatchPage(self, videoId, channelName, shortText):
+    def _enrichArticleFromWatchPage(self, videoId, channelName, shortText, escapePipes=False):
         # Returns (channelName, absolutePublished, text): text starts as
         # shortText and gets the release line patched in / the full
         # description appended once the watch page data comes back.
+        # escapePipes: "|" of the description as "/" (INFO page, see getArticleContent)
         text = shortText
         absolutePublished = ""
         if not videoId:
@@ -1162,6 +1184,8 @@ class Youtube(CBaseHostClass):
         try:
             watchData = self.ytp._getWatchPageData(videoId)
             fullText = str(watchData.get("fullDescription", "") or "")
+            if escapePipes:
+                fullText = fullText.replace("|", "/")
             absolutePublished = self._normalizePublishedDate(watchData.get("absolutePublished", ""))
             parserChannelName = str(watchData.get("channelName", "") or "")
 

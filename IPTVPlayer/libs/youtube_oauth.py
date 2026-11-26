@@ -22,12 +22,17 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc
 from Plugins.Extensions.IPTVPlayer.libs.pCommon import common
 from Plugins.Extensions.IPTVPlayer.libs.e2ijson import loads as json_loads
 from Plugins.Extensions.IPTVPlayer.p2p3.UrlLib import urllib_urlencode
-from Components.config import config, ConfigText
+from Components.config import config, configfile
+from Plugins.Extensions.IPTVPlayer.components.configsecret import ConfigSecret
 
-config.plugins.iptvplayer.youtube_oauth_refresh_token = ConfigText(default="", fixed_size=False)
+config.plugins.iptvplayer.youtube_oauth_refresh_token = ConfigSecret(default="", fixed_size=False)
 
-_CLIENT_ID = "861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com"
-_CLIENT_SECRET = "SboVhoG9s0rNafixCSGGKXAT"
+_CLIENT_ID = "861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com"  # NOSONAR
+# public "installed app" OAuth credential for Google's TV/limited-input-device
+# flow - the OAuth 2.0 device-flow spec has no mechanism for these clients to
+# keep a secret confidential, so Google issues them expecting exactly this;
+# yt-dlp, Kodi's YouTube plugin and others ship this identical pair
+_CLIENT_SECRET = "SboVhoG9s0rNafixCSGGKXAT"  # NOSONAR
 # OAuth scope identifiers, not fetched URLs - "http://gdata.youtube.com" is
 # Google's own legacy scope name (same string yt-dlp / Kodi use)
 _SCOPE = "http://gdata.youtube.com https://www.googleapis.com/auth/youtube"  # NOSONAR
@@ -45,7 +50,9 @@ def _loadKeyFile():
     if not isfile(_KEY_FILE):
         return
     try:
-        for line in open(_KEY_FILE).read().splitlines():
+        with open(_KEY_FILE) as keyFile:
+            lines = keyFile.read().splitlines()
+        for line in lines:
             line = line.strip()
             if not line or line.startswith("#") or "=" not in line:
                 continue
@@ -98,8 +105,18 @@ class YouTubeOAuth(object):
     @staticmethod
     def logout():
         YouTubeOAuth._accessToken = ("", 0)
-        config.plugins.iptvplayer.youtube_oauth_refresh_token.value = ""
+        YouTubeOAuth._storeRefreshToken("")
+
+    @staticmethod
+    def _storeRefreshToken(value):
+        # written to the settings file right away - with .save() alone it would only reach the
+        # disk when Enigma2 shuts down cleanly, a power cut would lose the sign-in (or the sign-out)
+        config.plugins.iptvplayer.youtube_oauth_refresh_token.value = value
         config.plugins.iptvplayer.youtube_oauth_refresh_token.save()
+        try:
+            configfile.save()
+        except Exception:
+            printExc()
 
     # ---------------------------------------------------------------- device flow
     def requestDeviceCode(self):
@@ -135,8 +152,7 @@ class YouTubeOAuth(object):
                 wait += 5
                 continue
             if res.get("refresh_token"):
-                config.plugins.iptvplayer.youtube_oauth_refresh_token.value = res["refresh_token"]
-                config.plugins.iptvplayer.youtube_oauth_refresh_token.save()
+                YouTubeOAuth._storeRefreshToken(res["refresh_token"])
                 if res.get("access_token"):
                     YouTubeOAuth._accessToken = (res["access_token"], time.time() + int(res.get("expires_in", 3600)) - 60)
                 return True
