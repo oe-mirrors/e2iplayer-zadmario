@@ -289,6 +289,9 @@ config.plugins.iptvplayer.myjd_login = ConfigText(default="", fixed_size=False)
 config.plugins.iptvplayer.myjd_password = ConfigText(default="", fixed_size=False)
 config.plugins.iptvplayer.myjd_jdname = ConfigText(default="", fixed_size=False)
 
+# YouTube Data API key: the YouTube settings (original titles) and MusicBox share it
+config.plugins.iptvplayer.api_key_youtube = ConfigSecret(default="", fixed_size=False)
+
 # Update
 config.plugins.iptvplayer.autoCheckForUpdate = ConfigYesNo(default=True)
 config.plugins.iptvplayer.updateLastCheckedVersion = ConfigText(default="00.00.00.00", fixed_size=False)
