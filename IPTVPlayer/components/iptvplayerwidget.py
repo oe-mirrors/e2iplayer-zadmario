@@ -2583,6 +2583,8 @@ class E2iPlayerWidget(Screen):
                         gstAdditionalParams['cover_path'] = self.iconMenager.getIconPathFromAAueue(iconUrl)
                 except Exception:
                     printExc()
+                # MENU -> "Description" in the player when the link has no description of its own
+                gstAdditionalParams['info_description'] = getattr(self.currItem, 'description', '') or ''
                 if self.currItem.type == CDisplayListItem.TYPE_AUDIO:
                     gstAdditionalParams['show_iframe'] = config.plugins.iptvplayer.show_iframe.value
                     gstAdditionalParams['iframe_file_start'] = config.plugins.iptvplayer.iframe_file.value
