@@ -452,6 +452,8 @@ class E2iPlayerWidget(Screen):
         self.canRandomizeList = False
 
         self.prevVideoMode = None
+        # MENU -> "Trailer" (iptvtrailer.py), made on first use
+        self.trailer = None
         # no handleTimeout: we act on every press immediately (list jump,
         # not text composition), so the commit-after-timeout callback and
         # its eTimer aren't needed - only the digit-cycling in getKey() is.
@@ -528,6 +530,9 @@ class E2iPlayerWidget(Screen):
             printExc()
 
     def __onClose(self):
+        if self.trailer is not None:
+            self.trailer.close()
+            self.trailer = None
         # a PIN protected host asks again on the next start
         ClearUnlockedHosts()
         self.stopTorrServer()
@@ -1744,9 +1749,114 @@ class E2iPlayerWidget(Screen):
             else:
                 self.session.open(MessageBox, _("Pin incorrect!"), type=MessageBox.TYPE_INFO, timeout=5)
 
-    def leaveArticleView(self):
-        printDBG("leaveArticleView")
-        pass
+    def leaveArticleView(self, answer=None):
+        printDBG("leaveArticleView answer[%r]" % (answer,))
+        if answer == 'trailer':
+            try:
+                self.startTrailer()
+            except Exception:
+                printExc()
+
+    ###################################################
+    # trailer of the selected row (components/iptvtrailer.py): MENU -> "Trailer", blue key of the INFO page
+    ###################################################
+    def _rawRow(self, item):
+        # the host's own item dict of a row, None if unknown; in the favourites the dict of the favourite's own host
+        try:
+            idx = item.itemIdx
+            if 'favourites' == self.hostName:
+                favHost = self.host.host
+                if not favHost.isQuestMode():
+                    params = favHost.currList[idx] if 0 <= idx < len(favHost.currList) else {}
+                    return params.get('yt_item') or params.get('fav_item')
+                guest = favHost.getCurrentGuestHost()
+                getRaw = getattr(guest, '_getRawRow', None)
+                if callable(getRaw):
+                    return getRaw(idx)
+                rows = getattr(guest, 'currList', None) or []
+                return rows[idx] if 0 <= idx < len(rows) else None
+            return self.host._getRawRow(idx)
+        except Exception:
+            printExc()
+            return None
+
+    def _rowHostName(self, item):
+        # the host a row comes from: in the favourites the favourite's own host
+        if 'favourites' != self.hostName:
+            return self.hostName
+        try:
+            favHost = self.host.host
+            if favHost.isQuestMode():
+                return favHost.getCurrentGuestHostName()
+            return favHost.currList[item.itemIdx].get('host', '')
+        except Exception:
+            return ''
+
+    def canShowTrailer(self, item=None):
+        # films and series: a video row or a folder that can go into the favourites; no live stream (TV channel,
+        # radio) and no row that cannot be a favourite (a match, a clip). A folder must look like a title: the
+        # host's meta fields (libs/moviemeta) or a picture of its own in the host's row (the list row gets the host
+        # logo when it has none) - a list folder like "Trending Movie" or "Action" can be a favourite too, but has
+        # neither
+        item = self.getSelItem() if item is None else item
+        if not isinstance(item, CDisplayListItem) or self.hostName in ('xxx', 'youtube') or self._rowHostName(item) in ('xxx', 'youtube'):
+            return False
+        if item.type not in (CDisplayListItem.TYPE_VIDEO, CDisplayListItem.TYPE_CATEGORY) or not item.isGoodForFavourites:
+            return False
+        rawItem = self._rawRow(item)
+        rawItem = rawItem if isinstance(rawItem, dict) else {}
+        if rawItem.get('live') or rawItem.get('is_live'):
+            return False
+        if item.type == CDisplayListItem.TYPE_CATEGORY:
+            return bool(rawItem.get('meta_type') or rawItem.get('meta_title') or rawItem.get('icon'))
+        return True
+
+    def startTrailer(self):
+        item = self.getSelItem()
+        if not self.canShowTrailer(item):
+            return
+        if self.trailer is None:
+            from Plugins.Extensions.IPTVPlayer.components.iptvtrailer import IPTVTrailer
+            self.trailer = IPTVTrailer(self)
+        self.stopAutoPlaySequencer()
+        self.trailer.start(item.name, self._rawRow(item))
+
+    def playTrailer(self, urls, title, iconUrl=''):  # iconUrl: unused, the signature of IPTVTrailer
+        # like playVideo() without buffering, the watched / started marks and CH+/CH- zapping. urls: the links of the
+        # resolver, best first; only exteplayer3 plays YouTube's separate audio / video (merge://) directly, the
+        # other players get the first link with both in one stream
+        player = self.getMoviePlayer(False, self.useAlternativePlayer)
+        url = urls[0]
+        if player.value != 'exteplayer':
+            url = next((u for u in urls if not u.startswith('merge://')), url)
+        url = urlparser.decorateUrl(url)
+        self.prevVideoMode = GetE2VideoMode()
+        printDBG("E2iPlayerWidget.playTrailer player[%s] title[%s]" % (player.value, title))
+        self.session.nav.stopService()
+        if "mini" == player.value:
+            self.session.openWithCallback(self.leaveTrailerPlayer, IPTVMiniMoviePlayer, url, title)
+        elif "standard" == player.value:
+            self.session.openWithCallback(self.leaveTrailerPlayer, IPTVStandardMoviePlayer, url, title)
+        else:
+            params = {'defaul_videomode': self.prevVideoMode, 'host_name': self.hostName,
+                      'external_sub_tracks': url.meta.get('external_sub_tracks', []), 'iptv_refresh_cmd': url.meta.get('iptv_refresh_cmd', '')}
+            playerVal = 'eplayer'
+            if "extgstplayer" == player.value:
+                playerVal = 'gstplayer'
+                params.update({'download-buffer-path': '', 'ring-buffer-max-size': 0})
+                if 'sh4' == config.plugins.iptvplayer.plarform.value:
+                    # the default buffer of gstplayer, as in playVideo (small amount of RAM)
+                    params.update({'buffer-duration': -1, 'buffer-size': 0})
+                else:
+                    params.update({'buffer-duration': 18000, 'buffer-size': 10240})  # 300 min, 10 MB
+            self.session.openWithCallback(self.leaveTrailerPlayer, IPTVExtMoviePlayer, url, title, None, playerVal, params)
+
+    def leaveTrailerPlayer(self, *args, **kwargs):
+        videoMode = GetE2VideoMode()
+        if None not in [self.prevVideoMode, videoMode] and self.prevVideoMode != videoMode:
+            SetE2VideoMode(self.prevVideoMode)
+        if not config.plugins.iptvplayer.disable_live.value:
+            self.session.nav.playService(self.currentService)
 
     def showArticleContent(self, ret):
         printDBG("showArticleContent")
@@ -1762,9 +1872,10 @@ class E2iPlayerWidget(Screen):
             artItem = ret.value[0]
         if None is not artItem:
             if len(artItem.images) and artItem.images[0]['url'].startswith('http'):
-                self.session.openWithCallback(self.leaveArticleView, IPTVArticleRichVisualizer, artItem, {'buffering_path': config.plugins.iptvplayer.bufferingPath.value})
+                self.session.openWithCallback(self.leaveArticleView, IPTVArticleRichVisualizer, artItem, {'buffering_path': config.plugins.iptvplayer.bufferingPath.value,
+                                                                                                        'trailer': self.canShowTrailer()})
             else:
-                self.session.openWithCallback(self.leaveArticleView, ArticleView, artItem)
+                self.session.openWithCallback(self.leaveArticleView, ArticleView, artItem, {'trailer': self.canShowTrailer()})
 
     def selectMainVideoLinks(self, ret):
         printDBG("selectMainVideoLinks")
@@ -3196,6 +3307,11 @@ class E2iPlayerWidget(Screen):
                 except Exception:
                     printExc()
                 self._addRemoveFavouriteOption(options)
+                try:
+                    if self.canShowTrailer():
+                        options.append(IPTVChoiceBoxItem(_("Trailer"), "", {'e2i_menu_action': 'TRAILER'}))
+                except Exception:
+                    printExc()
             if len(options):
                 self.stopAutoPlaySequencer()
                 self.session.openWithCallback(self.requestCustomActionFromHost, IPTVChoiceBoxWidget, {'width': 600, 'current_idx': 0, 'title': _("Select action"), 'options': options})
@@ -3209,6 +3325,9 @@ class E2iPlayerWidget(Screen):
             if menuAction == 'ADD_FAV':
                 currSelIndex = self.canByAddedToFavourites()[0]
                 self.requestListFromHost('ForFavItem', currSelIndex, '')
+                return
+            elif menuAction == 'TRAILER':
+                self.startTrailer()
                 return
             elif menuAction == 'REMOVE_FAV_HOST':
                 self.session.openWithCallback(boundFunction(self.removeFavouriteOfHostItem, ret.privateData), MessageBox, _('Definitely remove from favourites?'), type=MessageBox.TYPE_YESNO, timeout=10)

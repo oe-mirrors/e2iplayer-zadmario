@@ -3,6 +3,7 @@
 # LOCAL import
 ###################################################
 from Plugins.Extensions.IPTVPlayer.components.ihost import ArticleContent
+from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc
 ###################################################
 
@@ -11,6 +12,7 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc
 ###################################################
 from Screens.Screen import Screen
 from Components.ActionMap import ActionMap
+from Components.Label import Label
 from Components.ScrollLabel import ScrollLabel
 from enigma import getDesktop
 ###################################################
@@ -25,10 +27,21 @@ class ArticleView(Screen):
             <widget name="text" position="10,10" size="%d,%d" font="Regular;24" />
         </screen>""" % (sz_w, sz_h, sz_w - 20, sz_h - 20)
 
-    def __init__(self, session, artItem):
+    def __init__(self, session, artItem, addParams=None):
         printDBG("ArticleView.__init__ -------------------------------")
         self.session = session
+        # blue = "Trailer" (a film / series row of the list): closes with 'trailer', the list looks for it
+        self.withTrailer = bool((addParams or {}).get('trailer'))
+        if self.withTrailer:
+            self.skin = """
+        <screen position="center,center" size="%d,%d" title="Info..." >
+            <widget name="text" position="10,10" size="%d,%d" font="Regular;24" />
+            <widget name="key_blue" position="10,%d" size="%d,32" font="Regular;24" halign="right" valign="center" transparent="1" foregroundColor="blue" />
+        </screen>""" % (self.sz_w, self.sz_h, self.sz_w - 20, self.sz_h - 60, self.sz_h - 42, self.sz_w - 20)
         Screen.__init__(self, session)
+        if self.withTrailer:
+            self["key_blue"] = Label(_("Trailer"))
+            self["trailerActions"] = ActionMap(['ColorActions'], {"blue": self.trailer}, -1)
 
         self["text"] = ScrollLabel("")
         self["actions"] = ActionMap(["WizardActions", "DirectionActions"],
@@ -63,3 +76,6 @@ class ArticleView(Screen):
 
     def cancel(self):
         self.close()
+
+    def trailer(self):
+        self.close('trailer')

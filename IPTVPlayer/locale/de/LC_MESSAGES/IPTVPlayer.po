@@ -7871,3 +7871,80 @@ msgstr ""
 
 msgid "Restart Enigma2 (GUI) to load the new subtitles parser."
 msgstr "Starten Sie Enigma2 (GUI) neu, um den neuen Untertitel-Parser zu laden."
+
+msgid "Below the picture"
+msgstr "Unter dem Bild"
+
+msgid "Centered"
+msgstr "Zentriert"
+
+msgid "Chapter"
+msgstr "Kapitel"
+
+msgid "Chapters"
+msgstr "Kapitel"
+
+msgid "Description"
+msgstr "Beschreibung"
+
+msgid "Language of the details"
+msgstr "Sprache der Details"
+
+msgid "Large cover, info on the right: alignment"
+msgstr "Großes Cover, Infos rechts: Ausrichtung"
+
+msgid "Large cover, info on the right: labels"
+msgstr "Großes Cover, Infos rechts: Beschriftung"
+
+msgid "Large cover, info on the right: lines"
+msgstr "Großes Cover, Infos rechts: Linien"
+
+msgid "Large cover, info on the right: title"
+msgstr "Großes Cover, Infos rechts: Titel"
+
+msgid "Loading..."
+msgstr "Lade..."
+
+msgid "Looking for trailers..."
+msgstr "Suche nach Trailern..."
+
+#, python-format
+msgid "No trailer found for \"%s\"."
+msgstr "Kein Trailer für \"%s\" gefunden."
+
+msgid "Original"
+msgstr "Original"
+
+msgid "Play the first trailer at once"
+msgstr "Ersten Trailer sofort abspielen"
+
+msgid ""
+"Set \"Folder for temporary data\" in the E2iPlayer settings to a USB "
+"stick or a hard disk."
+msgstr ""
+"Stellen Sie in den E2iPlayer-Einstellungen das \"Temp-Verzeichnis\" auf "
+"einen USB-Stick oder eine Festplatte."
+
+msgid "Size"
+msgstr "Größe"
+
+msgid "The site's web player key could not be read - please try again later."
+msgstr ""
+"Der Schlüssel des Web-Players der Seite konnte nicht gelesen werden - "
+"bitte versuchen Sie es später erneut."
+
+msgid ""
+"The stream server does not answer at the moment. Try another link or "
+"later."
+msgstr ""
+"Der Stream-Server antwortet zurzeit nicht. Versuchen Sie einen anderen "
+"Link oder später erneut."
+
+msgid "Trailer language"
+msgstr "Trailersprache"
+
+msgid "Whole width"
+msgstr "Ganze Breite"
+
+msgid "Words added to the trailer search (empty = automatic)"
+msgstr "Zusätzliche Wörter für die Trailersuche (leer = automatisch)"

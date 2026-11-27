@@ -37,7 +37,16 @@ LCD_SIDE_ROW_CHOICES = [('none', _('None')), ('clock', _('Time')), ('date', _('D
 config.plugins.iptvplayer.lcd_side_row1 = ConfigSelection(default="clock", choices=LCD_SIDE_ROW_CHOICES)
 config.plugins.iptvplayer.lcd_side_row2 = ConfigSelection(default="end", choices=LCD_SIDE_ROW_CHOICES)
 config.plugins.iptvplayer.lcd_side_row3 = ConfigSelection(default="remaining", choices=LCD_SIDE_ROW_CHOICES)
-config.plugins.iptvplayer.lcd_side_row4 = ConfigSelection(default="percent", choices=LCD_SIDE_ROW_CHOICES)
+config.plugins.iptvplayer.lcd_side_row4 = ConfigSelection(default="none", choices=LCD_SIDE_ROW_CHOICES)
+LCD_SIDE_SIZE_CHOICES = [(str(p), '%d %%' % p) for p in (50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150)]
+config.plugins.iptvplayer.lcd_side_size1 = ConfigSelection(default="100", choices=LCD_SIDE_SIZE_CHOICES)
+config.plugins.iptvplayer.lcd_side_size2 = ConfigSelection(default="100", choices=LCD_SIDE_SIZE_CHOICES)
+config.plugins.iptvplayer.lcd_side_size3 = ConfigSelection(default="100", choices=LCD_SIDE_SIZE_CHOICES)
+config.plugins.iptvplayer.lcd_side_size4 = ConfigSelection(default="100", choices=LCD_SIDE_SIZE_CHOICES)
+config.plugins.iptvplayer.lcd_side_title = ConfigSelection(default="full", choices=[('full', _('Whole width')), ('picture', _('Below the picture'))])
+config.plugins.iptvplayer.lcd_side_labels = ConfigYesNo(default=False)
+config.plugins.iptvplayer.lcd_side_align = ConfigSelection(default="right", choices=[('right', _('Right')), ('center', _('Centered'))])
+config.plugins.iptvplayer.lcd_side_lines = ConfigYesNo(default=True)
 config.plugins.iptvplayer.lcd_bar_color = ConfigSelection(default="red", choices=[('red', _('Red')), ('green', _('Green')), ('blue', _('Blue')), ('yellow', _('Yellow')), ('orange', _('Orange')), ('cyan', _('Cyan')), ('magenta', _('Magenta')), ('white', _('White'))])
 config.plugins.iptvplayer.lcd_bar_frame = ConfigSelection(default="white", choices=[('white', _('White')), ('grey', _('Grey')), ('same', _('Same as the bar')), ('none', _('No frame'))])
 config.plugins.iptvplayer.use_clear_iframe = ConfigYesNo(default=False)
@@ -350,10 +359,17 @@ class ConfigExtMoviePlayer(ConfigBaseWidget, ConfigExtMoviePlayerBase):
             if coverSize == 'poster':
                 list.append(getConfigListEntry("        " + _("Large cover: size of the times below the bar"), config.plugins.iptvplayer.lcd_poster_time))
             if coverSize == 'side':
-                list.append(getConfigListEntry("        " + _("Large cover, info on the right: row 1"), config.plugins.iptvplayer.lcd_side_row1))
-                list.append(getConfigListEntry("        " + _("Large cover, info on the right: row 2"), config.plugins.iptvplayer.lcd_side_row2))
-                list.append(getConfigListEntry("        " + _("Large cover, info on the right: row 3"), config.plugins.iptvplayer.lcd_side_row3))
-                list.append(getConfigListEntry("        " + _("Large cover, info on the right: row 4"), config.plugins.iptvplayer.lcd_side_row4))
+                list.append(getConfigListEntry("        " + _("Large cover, info on the right: title"), config.plugins.iptvplayer.lcd_side_title))
+                rowLabels = (_("Large cover, info on the right: row 1"), _("Large cover, info on the right: row 2"),
+                             _("Large cover, info on the right: row 3"), _("Large cover, info on the right: row 4"))
+                for idx, label in enumerate(rowLabels, 1):
+                    row = getattr(config.plugins.iptvplayer, 'lcd_side_row%d' % idx)
+                    list.append(getConfigListEntry("        " + label, row))
+                    if row.value != 'none':
+                        list.append(getConfigListEntry("            " + _("Size"), getattr(config.plugins.iptvplayer, 'lcd_side_size%d' % idx)))
+                list.append(getConfigListEntry("        " + _("Large cover, info on the right: labels"), config.plugins.iptvplayer.lcd_side_labels))
+                list.append(getConfigListEntry("        " + _("Large cover, info on the right: alignment"), config.plugins.iptvplayer.lcd_side_align))
+                list.append(getConfigListEntry("        " + _("Large cover, info on the right: lines"), config.plugins.iptvplayer.lcd_side_lines))
             list.append(getConfigListEntry("    " + _("Progress bar color on the LCD"), config.plugins.iptvplayer.lcd_bar_color))
             list.append(getConfigListEntry("    " + _("Progress bar frame on the LCD"), config.plugins.iptvplayer.lcd_bar_frame))
         if 1:#IsExecutable(config.plugins.iptvplayer.exteplayer3path.value):
