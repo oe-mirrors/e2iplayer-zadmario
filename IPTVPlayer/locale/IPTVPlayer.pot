@@ -6728,3 +6728,74 @@ msgstr ""
 
 msgid "Restart Enigma2 (GUI) to load the new subtitles parser."
 msgstr ""
+
+msgid "Below the picture"
+msgstr ""
+
+msgid "Centered"
+msgstr ""
+
+msgid "Chapter"
+msgstr ""
+
+msgid "Chapters"
+msgstr ""
+
+msgid "Description"
+msgstr ""
+
+msgid "Language of the details"
+msgstr ""
+
+msgid "Large cover, info on the right: alignment"
+msgstr ""
+
+msgid "Large cover, info on the right: labels"
+msgstr ""
+
+msgid "Large cover, info on the right: lines"
+msgstr ""
+
+msgid "Large cover, info on the right: title"
+msgstr ""
+
+msgid "Loading..."
+msgstr ""
+
+msgid "Looking for trailers..."
+msgstr ""
+
+#, python-format
+msgid "No trailer found for \"%s\"."
+msgstr ""
+
+msgid "Original"
+msgstr ""
+
+msgid "Play the first trailer at once"
+msgstr ""
+
+msgid ""
+"Set \"Folder for temporary data\" in the E2iPlayer settings to a USB "
+"stick or a hard disk."
+msgstr ""
+
+msgid "Size"
+msgstr ""
+
+msgid "The site's web player key could not be read - please try again later."
+msgstr ""
+
+msgid ""
+"The stream server does not answer at the moment. Try another link or "
+"later."
+msgstr ""
+
+msgid "Trailer language"
+msgstr ""
+
+msgid "Whole width"
+msgstr ""
+
+msgid "Words added to the trailer search (empty = automatic)"
+msgstr ""

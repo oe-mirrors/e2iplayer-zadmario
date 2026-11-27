@@ -341,6 +341,12 @@ config.plugins.iptvplayer.meta_omdb_apikey = ConfigText(default="", fixed_size=F
 # 16:9 pictures (an episode's still, a title's backdrop) from the same services instead of the portrait poster: list icons of
 # the hosts which set them, the info picture and the download sidecar .jpg
 config.plugins.iptvplayer.meta_images_169 = ConfigYesNo(default=False)
+# MENU -> "Trailer" of a list row / blue key of the INFO page (components/iptvtrailer.py): the trailer in the language
+# of the details (auto = E2iPlayer's), a fixed language or the original one; the words added to the YouTube search
+# (empty = the usual ones of the language, e.g. "Trailer Deutsch"); play the first hit at once instead of the list
+config.plugins.iptvplayer.trailer_language = ConfigSelection(default="auto", choices=[("auto", _("Language of the details")), ("original", _("Original")), ("ar", _("Arabic")), ("cs", _("Czech")), ("de", _("German")), ("el", _("Greek")), ("en", _("English")), ("es", _("Spanish")), ("fr", _("French")), ("hu", _("Hungarian")), ("it", _("Italian")), ("nl", _("Dutch")), ("pl", _("Polish")), ("pt", _("Portuguese")), ("ru", _("Russian")), ("tr", _("Turkish")), ("uk", _("Ukrainian"))])
+config.plugins.iptvplayer.trailer_search_suffix = ConfigText(default="", fixed_size=False)
+config.plugins.iptvplayer.trailer_autoplay = ConfigYesNo(default=False)
 
 # folder of the account files of hosts like hostxtream / hoststalker (<ConfigDir>/IPTVAccounts/), same place as in
 # the python3 branch; no settings row - zadmario keeps its own settings files in GetConfigDir()
@@ -755,6 +761,10 @@ class ConfigMenu(ConfigBaseWidget):
             if cp.meta_omdb.value:
                 list.append(getConfigListEntry("    " + _("OMDb API key (free at omdbapi.com)"), cp.meta_omdb_apikey))
             list.append(getConfigListEntry(_("Use 16:9 pictures (per episode) instead of the portrait poster"), cp.meta_images_169))
+            # MENU -> "Trailer" (components/iptvtrailer.py): TMDb with the key above, else a YouTube search
+            list.append(getConfigListEntry(_("Trailer language"), cp.trailer_language))
+            list.append(getConfigListEntry(_("Words added to the trailer search (empty = automatic)"), cp.trailer_search_suffix))
+            list.append(getConfigListEntry(_("Play the first trailer at once"), cp.trailer_autoplay))
 
         list.append(getConfigListEntry('\\c00289496' + _("----- TORRENT CONFIGURATION (OK) -----"), config.plugins.iptvplayer.torrConfVisible))
         if torrConfVisible: #TORRENT CONFIGURATION - libs/torrserver.py

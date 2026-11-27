@@ -875,7 +875,13 @@ class YouTubeParser:
         lang = "en"
         region = "US"
         try:
-            selectedLang = ensure_str(config.plugins.iptvplayer.youtube_ui_language.value).lower()
+            # the setting of the YouTube host; it does not exist when the host was not loaded (trailer search from
+            # another host) - then the language of the receiver
+            try:
+                setting = config.plugins.iptvplayer.youtube_ui_language
+            except (AttributeError, KeyError):
+                setting = None
+            selectedLang = ensure_str(setting.value if setting is not None else '').lower()
             if selectedLang and selectedLang != "system":
                 return selectedLang, _YT_LANG_DEFAULT_REGION.get(selectedLang, selectedLang.upper())
             locale = ensure_str(language.getLanguage())

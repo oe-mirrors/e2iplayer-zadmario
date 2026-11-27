@@ -80,6 +80,9 @@ class IPTVArticleRichVisualizer(Screen):
                 if 0 == idx:
                     skin += """<widget name="page_marker" zPosition="3" position="%d,%d" size="%d,%d" transparent="1" alphatest="blend" />""" % (pageItemX, self.richDesc['page_item_start_y'], self.richDesc['page_item_size'], self.richDesc['page_item_size'])
                 skin += """<ePixmap zPosition="2" position="%d,%d" size="%d,%d" pixmap="%s" transparent="1" alphatest="blend" />\n""" % (pageItemX, self.richDesc['page_item_start_y'], self.richDesc['page_item_size'], self.richDesc['page_item_size'], GetIconDir('radio_button_off.png'))
+        if self.withTrailer:
+            # blue = "Trailer" (a film / series row of the list): closes with 'trailer', the list looks for it
+            skin += """<widget name="key_blue" position="10,585" zPosition="2" size="236,32" valign="center" halign="center" font="Regular;24" transparent="1" foregroundColor="blue" />"""
         skin += '</screen>'
         self.skin = skin
         self.skinName = "IPTVArticleRichVisualizerWidget"
@@ -87,6 +90,7 @@ class IPTVArticleRichVisualizer(Screen):
     def __init__(self, session, artItem, addParams):
         self.session = session
         self.artItem = artItem
+        self.withTrailer = bool(addParams.get('trailer'))
 
         #############################################
         # calculate num of rich desc items and pages
@@ -166,6 +170,10 @@ class IPTVArticleRichVisualizer(Screen):
             "up": self.key_up,
             "down": self.key_down,
         }, -1)
+
+        if self.withTrailer:
+            self["key_blue"] = Label(_("Trailer"))
+            self["trailerActions"] = ActionMap(['ColorActions'], {"blue": self.key_trailer}, -1)
 
         self.onClose.append(self.__onClose)
         #self.onShow.append(self.onStart)
@@ -421,6 +429,9 @@ class IPTVArticleRichVisualizer(Screen):
 
     def key_back(self):
         self.close()
+
+    def key_trailer(self):
+        self.close('trailer')
 
     def key_left(self):
         self.prevRichDescPage()

@@ -99,6 +99,15 @@ class IPTVDMApi():
     def stopDownloadItem(self, downloadIdx):
         listUDIdx = self.findIdxInQueueUD(downloadIdx)
         if -1 < listUDIdx and None is not self.queueUD[listUDIdx].downloader:
+            downloader = self.queueUD[listUDIdx].downloader
+            try:
+                # a live recording of hlsdl: only hlsdl is ended, the file gets the remux of a complete download
+                # and the downloader reports the finish itself afterwards (onFinish -> cmdFinished)
+                if hasattr(downloader, 'stopLiveRecording') and downloader.stopLiveRecording():
+                    self.listChanged()
+                    return
+            except Exception:
+                printExc()
             self.queueUD[listUDIdx].downloader.terminate()
             # give some time to finish
             sleep(1)
