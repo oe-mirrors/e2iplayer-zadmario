@@ -7948,3 +7948,57 @@ msgstr "Ganze Breite"
 
 msgid "Words added to the trailer search (empty = automatic)"
 msgstr "Zusätzliche Wörter für die Trailersuche (leer = automatisch)"
+
+msgid "A GStreamer plugin for this format is missing."
+msgstr "Für dieses Format fehlt ein GStreamer-Plugin."
+
+#, python-format
+msgid "Convert %s to"
+msgstr "%s umwandeln in"
+
+#, python-format
+msgid "Convert %s to %s"
+msgstr "%s in %s umwandeln"
+
+msgid "Could not resolve host."
+msgstr "Host konnte nicht aufgelöst werden."
+
+msgid "Dual mono"
+msgstr "Dual Mono"
+
+msgid "HLS/DASH quality chosen by the player"
+msgstr "Vom Player gewählte HLS/DASH-Qualität"
+
+msgid "Lowest"
+msgstr "Niedrigste"
+
+msgid "Only forced subtitles"
+msgstr "Nur erzwungene Untertitel"
+
+msgid "Only the default audio of HLS streams"
+msgstr "Nur die Standard-Tonspur von HLS-Streams"
+
+msgid "Operation timed out."
+msgstr "Zeitüberschreitung."
+
+msgid "Resolution limit for H.264"
+msgstr "Auflösungsgrenze für H.264"
+
+msgid "Stereo"
+msgstr "Stereo"
+
+msgid "The connection to the server was interrupted."
+msgstr "Die Verbindung zum Server wurde unterbrochen."
+
+msgid "The player cannot play this format."
+msgstr "Der Player kann dieses Format nicht abspielen."
+
+#, python-format
+msgid "The server answers with an error (HTTP %s)."
+msgstr "Der Server antwortet mit einem Fehler (HTTP %s)."
+
+msgid "The stream data cannot be read."
+msgstr "Die Stream-Daten können nicht gelesen werden."
+
+msgid "Unsupported protocol."
+msgstr "Nicht unterstütztes Protokoll."

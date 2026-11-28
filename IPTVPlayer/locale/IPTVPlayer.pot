@@ -6799,3 +6799,57 @@ msgstr ""
 
 msgid "Words added to the trailer search (empty = automatic)"
 msgstr ""
+
+msgid "A GStreamer plugin for this format is missing."
+msgstr ""
+
+#, python-format
+msgid "Convert %s to"
+msgstr ""
+
+#, python-format
+msgid "Convert %s to %s"
+msgstr ""
+
+msgid "Could not resolve host."
+msgstr ""
+
+msgid "Dual mono"
+msgstr ""
+
+msgid "HLS/DASH quality chosen by the player"
+msgstr ""
+
+msgid "Lowest"
+msgstr ""
+
+msgid "Only forced subtitles"
+msgstr ""
+
+msgid "Only the default audio of HLS streams"
+msgstr ""
+
+msgid "Operation timed out."
+msgstr ""
+
+msgid "Resolution limit for H.264"
+msgstr ""
+
+msgid "Stereo"
+msgstr ""
+
+msgid "The connection to the server was interrupted."
+msgstr ""
+
+msgid "The player cannot play this format."
+msgstr ""
+
+#, python-format
+msgid "The server answers with an error (HTTP %s)."
+msgstr ""
+
+msgid "The stream data cannot be read."
+msgstr ""
+
+msgid "Unsupported protocol."
+msgstr ""
