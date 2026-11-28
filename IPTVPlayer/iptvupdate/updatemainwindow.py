@@ -9,13 +9,17 @@
 ###################################################
 from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, mkdirs, rmtree, FreeSpace, formatBytes, iptv_system, \
                                                                    GetIPTVDMImgDir, GetIPTVPlayerVerstion, GetShortPythonVersion, GetTmpDir, \
-                                                                   GetHostsList, GetEnabledHostsList, WriteTextFile, GITHUB_UPDATE_REPO, IsRealStoragePresent
+                                                                   GetHostsList, GetEnabledHostsList, WriteTextFile, GITHUB_UPDATE_REPO, IsRealStoragePresent, \
+                                                                   eConnectCallback
 from Plugins.Extensions.IPTVPlayer.tools.iptvtypes import enum
 from Plugins.Extensions.IPTVPlayer.iptvupdate.iptvlist import IPTVUpdateList
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdownloadercreator import UpdateDownloaderCreator
+from Plugins.Extensions.IPTVPlayer.iptvdm.basedownloader import BaseDownloader
+from Plugins.Extensions.IPTVPlayer.iptvdm.pwgetdownloader import PwgetDownloader
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdh import DMHelper
 from Plugins.Extensions.IPTVPlayer.libs.pCommon import CParsingHelper
 
+from Plugins.Extensions.IPTVPlayer.components.asynccall import AsyncMethod
 from Plugins.Extensions.IPTVPlayer.components.articleview import ArticleView
 from Plugins.Extensions.IPTVPlayer.components.ihost import ArticleContent
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
@@ -31,9 +35,73 @@ from Components.ActionMap import ActionMap
 from Components.Label import Label
 from Tools.BoundFunction import boundFunction
 from Tools.Directories import resolveFilename, SCOPE_PLUGINS
+from enigma import eTimer
 
 from os import path as os_path, listdir as os_listdir, access as os_access, W_OK
 ###################################################
+
+
+class PyCurlUpdateDownloader(BaseDownloader):
+    # an update file over pycurl, the HTTP stack of the hosts - when the box's wget fails at GitHub (an old wget
+    # without TLS 1.2/SNI, a Busybox wget without https); the download runs in a plugin worker thread (AsyncMethod,
+    # pycurl needs its thread data), its end is polled in the main thread
+    def __init__(self):
+        BaseDownloader.__init__(self)
+        self.call = None
+        self.result = {}
+        self.timer = None
+        self.timer_conn = None
+
+    def getName(self):
+        return "pycurl"
+
+    def start(self, url, filePath, params={}):
+        self.url = url
+        self.filePath = filePath
+        self.status = DMHelper.STS.DOWNLOADING
+        result = self.result
+
+        def download():
+            from Plugins.Extensions.IPTVPlayer.libs.pCommon import common
+            addParams = {'header': {'User-Agent': BaseDownloader.DOWNLOAD_PARAMS['User-Agent']}, 'return_data': False,
+                         'ignore_http_code_ranges': [], 'timeout': 30}
+            result.update(common().saveWebFileWithPyCurl(filePath, url, addParams))
+
+        self.call = AsyncMethod(download)()
+        self.timer = eTimer()
+        self.timer_conn = eConnectCallback(self.timer.timeout, self._checkFinished)
+        self.timer.start(200)
+        self.onStart()
+        return BaseDownloader.CODE_OK
+
+    def _stopPolling(self):
+        if self.timer:
+            self.timer.stop()
+        self.timer_conn = None
+        self.timer = None
+        self.call = None
+
+    def _checkFinished(self):
+        if self.call is None or self.call.isAlive():
+            return
+        self._stopPolling()
+        self.updateStatistic()
+        printDBG('PyCurlUpdateDownloader url[%s] result[%r] localFileSize[%d]' % (self.url, self.result, self.localFileSize))
+        if self.result.get('sts') and 0 < self.localFileSize:
+            self.status = DMHelper.STS.DOWNLOADED
+        else:
+            self.status = DMHelper.STS.ERROR
+        self.onFinish()
+
+    def _terminate(self):
+        if DMHelper.STS.DOWNLOADING != self.status:
+            return BaseDownloader.CODE_NOT_DOWNLOADING
+        call = self.call
+        self._stopPolling()
+        if call:
+            call.kill()
+        self.status = DMHelper.STS.INTERRUPTED
+        return BaseDownloader.CODE_OK
 
 
 class IPTVUpdateWindow(Screen):
@@ -396,15 +464,25 @@ class UpdateMainAppImpl(IUpdateObjectInterface):
             self.stepFinished(-1, msg)
             return
         serverUrl = "https://raw.githubusercontent.com/{0}/master/IPTVPlayer/version.py".format(GITHUB_UPDATE_REPO)
-        self.downloader = UpdateDownloaderCreator(serverUrl)
-        self.downloader.subscribersFor_Finish.append(boundFunction(self.downloadFinished, self.__serversListGitlabFinished, None))
-        self.downloader.start(serverUrl, os_path.join(self.tmpDir, 'lastversion.py'))
+        self.startDownload(serverUrl, os_path.join(self.tmpDir, 'lastversion.py'), self.__serversListGitlabFinished)
 
     def stepGetArchive(self):
-        self.downloader = UpdateDownloaderCreator(self.serversList[self.currServIdx]['url'])
-        self.downloader.subscribersFor_Finish.append(boundFunction(self.downloadFinished, self.__archiveDownloadFinished, None))
         self.sourceArchive = os_path.join(self.tmpDir, 'iptvplayer_archive.tar.gz')
-        self.downloader.start(self.serversList[self.currServIdx]['url'], self.sourceArchive)
+        self.startDownload(self.serversList[self.currServIdx]['url'], self.sourceArchive, self.__archiveDownloadFinished)
+
+    def startDownload(self, url, filePath, callBackFun):
+        # the box's downloader first (wget for https), then pycurl and pwget when it fails
+        first = UpdateDownloaderCreator(url)
+        self.downloadChain = [first] + [cls for cls in (PyCurlUpdateDownloader, PwgetDownloader) if not isinstance(first, cls)]
+        self.nextDownload(url, filePath, callBackFun)
+
+    def nextDownload(self, url, filePath, callBackFun):
+        self.downloader = self.downloadChain.pop(0)
+        if not isinstance(self.downloader, BaseDownloader):
+            self.downloader = self.downloader()
+        printDBG('UpdateMainAppImpl.nextDownload [%s] url[%s]' % (self.downloader.getName(), url))
+        self.downloader.subscribersFor_Finish.append(boundFunction(self.downloadFinished, callBackFun, None))
+        self.downloader.start(url, filePath)
 
     def stepUnpackArchive(self):
         # the unpacked archive needs about twice its size (19 MB -> 39 MB, 11/2026); /tmp is a tmpfs in RAM on most
@@ -583,6 +661,11 @@ class UpdateMainAppImpl(IUpdateObjectInterface):
         self.downloader.subscribersFor_Finish = []
         if self.terminating:
             printDBG('UpdateMainAppImpl.downloadFinished closing')
+            return
+        if DMHelper.STS.DOWNLOADED != status and getattr(self, 'downloadChain', None):
+            # also with a file on disk: GitHub sends no size for the archive, a cut one would only fail at tar
+            printDBG('UpdateMainAppImpl.downloadFinished [%s] failed (localFileSize[%d]), next downloader' % (self.downloader.getName(), self.downloader.getLocalFileSize(True)))
+            self.nextDownload(self.downloader.getUrl(), self.downloader.getFullFileName(), callBackFun)
             return
         callBackFun(arg, status)
 
