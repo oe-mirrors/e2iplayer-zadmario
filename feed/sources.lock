@@ -29,7 +29,7 @@ CURL_SHA256=8dadd7d2536a314f982ad05a651b713f426bf7d02cc2c76cffb9796f2218e6c5
 
 # hlsdl, cmdwrap, lsdir, f4mdump, e2ipow, exteplayer3png: oe-mirrors/e2iplayer-deps master
 DEPS_GIT=https://github.com/oe-mirrors/e2iplayer-deps.git
-DEPS_REV=c44de03bad2d16f93c8a1c94c97d781586791cc2
+DEPS_REV=da0bae214e284e893e386b83cd78b8f128a42fab
 
 # gst-ifdsrc: oe-mirrors/iptvplayer-bin-components master (oe-alliance gst-ifdsrc_git.bb)
 BINCOMP_GIT=https://github.com/oe-mirrors/iptvplayer-bin-components.git
