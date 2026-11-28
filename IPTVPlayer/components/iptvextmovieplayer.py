@@ -19,7 +19,8 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvtools import printDBG, printExc, Ge
                                                           GetE2VideoAspectChoices, GetE2VideoAspect, SetE2VideoAspect, GetE2VideoPolicyChoices, \
                                                           GetE2VideoPolicy, SetE2VideoPolicy, GetDefaultLang, GetPolishSubEncoding, E2PrioFix, iptv_system, \
                                                           GetE2AudioCodecMixOption, SetE2AudioCodecMixOption, CreateTmpFile, GetTmpDir, IsExecutable, MapUcharEncoding, \
-                                                          GetE2VideoModeChoices, GetE2VideoMode, SetE2VideoMode, StripColorCodes
+                                                          GetE2VideoModeChoices, GetE2VideoMode, SetE2VideoMode, StripColorCodes, \
+                                                          ExtePlayer3Cap, ExtePlayer3Version
 from Plugins.Extensions.IPTVPlayer.tools.iptvsubtitles import IPTVSubtitlesHandler, IPTVEmbeddedSubtitlesHandler
 from Plugins.Extensions.IPTVPlayer.tools.iptvmoviemetadata import IPTVMovieMetaDataHandler
 from Plugins.Extensions.IPTVPlayer.components.iptvplayerinit import TranslateTXT as _
@@ -71,6 +72,97 @@ import socket
 ###################################################
 
 
+###################################################
+# the error messages of the players in plain words: exteplayer3 sends FFmpeg's text and code ({"FF_ERROR": {"msg",
+# "code"}}), gstplayer GStreamer's text (GST_ERROR, GST_MISSING_PLUGIN) - both English and technical. The player
+# screen puts the explanation in front of the original message, which stays for the log / a forum post.
+###################################################
+def _ffErrTag(a, b, c, d):
+    # FFERRTAG of libavutil/error.h
+    return -(a | (ord(b) << 8) | (ord(c) << 16) | (ord(d) << 24))
+
+
+FF_HTTP_ERRORS = {_ffErrTag(0xF8, '4', '0', '0'): '400', _ffErrTag(0xF8, '4', '0', '1'): '401', _ffErrTag(0xF8, '4', '0', '3'): '403',
+                  _ffErrTag(0xF8, '4', '0', '4'): '404', _ffErrTag(0xF8, '4', '2', '9'): '429', _ffErrTag(0xF8, '4', 'X', 'X'): '4XX',
+                  _ffErrTag(0xF8, '5', 'X', 'X'): '5XX'}
+FF_INVALIDDATA = _ffErrTag(ord('I'), 'N', 'D', 'A')
+FF_UNPLAYABLE = (_ffErrTag(0xF8, 'D', 'E', 'M'), _ffErrTag(0xF8, 'D', 'E', 'C'), _ffErrTag(0xF8, 'S', 'T', 'R'))
+FF_PROTOCOL_NOT_FOUND = _ffErrTag(0xF8, 'P', 'R', 'O')
+# AVERROR(errno) of Linux: ETIMEDOUT, ECONNREFUSED / ENETUNREACH / EHOSTUNREACH, EIO / ECONNRESET / EPIPE, EACCES
+FF_TIMEDOUT = -110
+FF_CONNECT_FAILED = (-111, -101, -113)
+FF_CONNECTION_LOST = (-5, -104, -32)
+FF_EACCES = -13
+# (pattern of the player's text, kind) - for gstplayer and FF_ERROR messages without a known code
+PLAYER_ERROR_PATTERNS = (
+    (r'No key for KID', 'drm'),
+    (r'\b(?:timed out|timeout)\b', 'timeout'),
+    (r'resolve (?:host|server)|Name or service not known|Could not resolve', 'resolve'),
+    (r'\b40[13]\b|Forbidden|Unauthori[sz]ed', 'forbidden'),
+    (r'\b404\b|Not Found', 'notfound'),
+    (r'Server returned (\d\w\w)|\bHTTP (?:error )?(\d{3})\b', 'http'),
+    (r'Invalid data found|Internal data stream error|Could not demultiplex|stream data error', 'invalid'),
+    (r'No decoder available|Could not determine type of stream|missing a plug-?in|Your GStreamer installation', 'unplayable'),
+    (r'Could not connect|Connection refused|Network is unreachable|No route to host', 'connect'),
+    (r'Input/output error|Connection reset|Broken pipe', 'lost'),
+)
+
+
+def playerErrorHint(kind, msg, code=None):
+    # the explanation of a player's error message, '' when it is not a known case. kind: 'FF_ERROR', 'GST_ERROR' or
+    # 'GST_MISSING_PLUGIN'; msg: the player's text; code: FF_ERROR's FFmpeg code (GStreamer's codes say too little)
+    msg = ensure_str(msg or '')
+    if 'GST_MISSING_PLUGIN' == kind:
+        return _('A GStreamer plugin for this format is missing.')
+    found, httpCode = '', ''
+    try:
+        code = int(code) if code is not None else None
+    except (TypeError, ValueError):
+        code = None
+    if 'FF_ERROR' == kind and code is not None:
+        if code == FF_EACCES and 'KID' in msg:
+            found = 'drm'
+        elif code == FF_TIMEDOUT:
+            found = 'timeout'
+        elif code in FF_HTTP_ERRORS:
+            httpCode = FF_HTTP_ERRORS[code]
+            found = {'401': 'forbidden', '403': 'forbidden', '404': 'notfound'}.get(httpCode, 'http')
+        elif code == FF_INVALIDDATA:
+            found = 'invalid'
+        elif code in FF_UNPLAYABLE:
+            found = 'unplayable'
+        elif code == FF_PROTOCOL_NOT_FOUND:
+            found = 'protocol'
+        elif code in FF_CONNECT_FAILED:
+            found = 'connect'
+        elif code in FF_CONNECTION_LOST:
+            found = 'lost'
+    if not found:
+        for pattern, name in PLAYER_ERROR_PATTERNS:
+            m = re.search(pattern, msg, re.IGNORECASE)
+            if m:
+                found = name
+                if 'http' == name:
+                    httpCode = (m.group(1) or m.group(2) or '').upper()
+                break
+    if 'http' == found and not httpCode:
+        found = ''
+    texts = {
+        'drm': _('Video with DRM protection.'),
+        'timeout': _('Operation timed out.'),
+        'resolve': _('Could not resolve host.'),
+        'forbidden': _('Access Forbidden'),
+        'notfound': _('File Not Found.'),
+        'http': _('The server answers with an error (HTTP %s).') % httpCode,
+        'invalid': _('The stream data cannot be read.'),
+        'unplayable': _('The player cannot play this format.'),
+        'protocol': _('Unsupported protocol.'),
+        'connect': _('Failed to connect to host.'),
+        'lost': _('The connection to the server was interrupted.'),
+    }
+    return texts.get(found, '')
+
+
 class ExtPlayerCommandsDispatcher():
     def __init__(self, owner):
         self.owner = owner
@@ -105,6 +197,14 @@ class ExtPlayerCommandsDispatcher():
 
     def setSubtitleTrack(self, id):
         self.extPlayerSendCommand('PLAYBACK_SET_SUBTITLE_TRACK', id, False)
+
+    def setForcedSubtitlesOnly(self, on):
+        # exteplayer3 "forcedonly": so1 only the forced cues, so0 all of them
+        self.extPlayerSendCommand('PLAYBACK_SET_FORCED_ONLY', 1 if on else 0, False)
+
+    def setAudioChannel(self, channel):
+        # exteplayer3 "achannel": dual mono 0 left, 1 stereo, 2 right
+        self.extPlayerSendCommand('PLAYBACK_SET_AUDIO_CHANNEL', channel, False)
 
     def setDownloadFileTimeout(self, timeout):
         self.extPlayerSendCommand('PLAYBACK_SET_DOWNLOAD_FILE_TIMEOUT', timeout, False)
@@ -341,6 +441,11 @@ class IPTVExtMoviePlayer(Screen):
             self.lastPosition = lastPosition
         else:
             self.lastPosition = 0
+        # exteplayer3 188: only forced subtitle cues (so1/so0), dual mono channel (am<n>: 0 left, 1 stereo, 2 right)
+        self.forcedSubtitlesOnly = False
+        self.audioChannel = 1
+        # resumed with --start: the infobar once the player knows the length
+        self.showInfoBarAtLength = False
         self.downloader = additionalParams.get('downloader', None)
         self.chapters, self.descriptionText = self.loadChapters(filesrcLocation, additionalParams)
         self.chapterLastIdx = -1
@@ -842,6 +947,12 @@ class IPTVExtMoviePlayer(Screen):
                 else:
                     item.type = IPTVChoiceBoxItem.TYPE_OFF
                 options.append(item)
+            if self._dualMonoSelectable():
+                # exteplayer3 188 "achannel": left / both / right channel of dual mono audio (two languages)
+                for channel, label in ((0, _("Left")), (1, _("Stereo")), (2, _("Right"))):
+                    item = IPTVChoiceBoxItem("%s: %s" % (_("Dual mono"), label), "", {'audio_channel': channel})
+                    item.type = IPTVChoiceBoxItem.TYPE_ON if channel == self.audioChannel else IPTVChoiceBoxItem.TYPE_OFF
+                    options.append(item)
             self.openChild(boundFunction(self.childClosed, self.selectAudioTrackCallback), IPTVChoiceBoxWidget, {'width': 500, 'height': 240, 'current_idx': currIdx, 'title': _("Select audio track"), 'options': options})
         else:
             self.showMessage(_("Information about audio tracks not available."), MessageBox.TYPE_INFO, None)
@@ -850,9 +961,25 @@ class IPTVExtMoviePlayer(Screen):
         printDBG("selectAudioTrackCallback ret[%r]" % [ret])
         if isinstance(ret, IPTVChoiceBoxItem):
             ret = ret.privateData
-            if 'track_id' in ret and ret['track_id'] != self.playback['AudioTrack'].get('id', -1):
+            if 'audio_channel' in ret:
+                self.audioChannel = ret['audio_channel']
+                self.extPlayerCmddDispatcher.setAudioChannel(ret['audio_channel'])
+            elif 'track_id' in ret and ret['track_id'] != self.playback['AudioTrack'].get('id', -1):
                 self.metaHandler.setAudioTrackIdx(ret.get('track_idx', -1))
                 self.extPlayerCmddDispatcher.setAudioTrack(ret['track_id'])
+                if self.audioChannel != 1:
+                    # a dual mono channel belongs to the track it was chosen for
+                    self.audioChannel = 1
+                    self.extPlayerCmddDispatcher.setAudioChannel(1)
+
+    def _dualMonoSelectable(self):
+        # a track of at most two channels (the player reports "c" since v186, 0 when unknown)
+        if 'eplayer' != self.player or not ExtePlayer3Cap('achannel'):
+            return False
+        try:
+            return int(self.playback['AudioTrack'].get('c', 0) or 0) <= 2
+        except (TypeError, ValueError):
+            return False
 
     def selectSubtitle(self):
         printDBG("IPTVExtMoviePlayer.selectSubtitle")
@@ -893,6 +1020,11 @@ class IPTVExtMoviePlayer(Screen):
             else:
                 item.type = IPTVChoiceBoxItem.TYPE_OFF
             options.append(item)
+        if len(embeddedTracksTab) and 'eplayer' == self.player and ExtePlayer3Cap('forcedonly'):
+            # exteplayer3 188: of the embedded track only the forced cues (flagged PGS pictures, a forced track)
+            item = IPTVChoiceBoxItem(_("Only forced subtitles"), "", {'other': 'forced_only'})
+            item.type = IPTVChoiceBoxItem.TYPE_ON if self.forcedSubtitlesOnly else IPTVChoiceBoxItem.TYPE_OFF
+            options.append(item)
         if self.subHandler['enabled'] and None != self.metaHandler.getSubtitleTrack():
             options.append(IPTVChoiceBoxItem(_('Synchronize'), "", {'other': 'synchro'}))
         if len(self.externalSubTracks):
@@ -918,6 +1050,9 @@ class IPTVExtMoviePlayer(Screen):
                     self.disableSubtitles()
                 elif option == 'synchro':
                     self.showSubSynchroControl()
+                elif option == 'forced_only':
+                    self.forcedSubtitlesOnly = not self.forcedSubtitlesOnly
+                    self.extPlayerCmddDispatcher.setForcedSubtitlesOnly(self.forcedSubtitlesOnly)
                 elif option == 'load':
                     self.openSubtitlesFromFile()
                 elif option == 'download':
@@ -1391,6 +1526,9 @@ class IPTVExtMoviePlayer(Screen):
                         self.playback['IsLive'] = True
                     else:
                         self.playback['IsLive'] = False
+                    if 0 < val and self.showInfoBarAtLength:
+                        self.showInfoBarAtLength = False
+                        self.showPlaybackInfoBar()
                     if 0 < val:
                         # restore last position
                         if 10 < self.lastPosition and self.lastPosition < (self.playback['Length'] - 10):
@@ -2125,19 +2263,28 @@ class IPTVExtMoviePlayer(Screen):
                     self.playerBinaryInfo['seekms'] = bool(obj.get('seekms'))
                 elif "c_l" == key:
                     self.playerChaptersReceived(obj)
+                elif "s_o" == key:
+                    # answer to so1/so0: only forced subtitle cues on/off
+                    self.forcedSubtitlesOnly = bool(obj.get('o'))
+                elif "a_m" == key:
+                    # answer to am<n>: the dual mono channel
+                    self.audioChannel = obj.get('m', self.audioChannel)
+                elif "DRM_KEY_DROP" == key:
+                    # no key for a track of the stream (--key): an audio track is switched over, others dropped
+                    printDBG("exteplayer3 DRM_KEY_DROP %s" % obj)
                 elif "GST_ERROR" == key:
                     printDBG('GST_ERROR: %s, code %s\n' % (ensure_str(obj['msg']), obj['code']))
                     msgType = MessageBox.TYPE_ERROR
-                    msgText += 'GST_ERROR: %s (code %s)\n' % (ensure_str(obj['msg']), obj['code'])
+                    msgText += self._playerErrorText(key, obj, 'GST_ERROR: %s (code %s)\n' % (ensure_str(obj['msg']), obj['code']))
                     if ensure_str(obj['msg']) == "No URI handler implemented for 'ifd'.":
                         msgText += _('Try to change extplayer or disable IFD in GSTplayer configuration')
                 elif "FF_ERROR" == key:
                     printDBG('FF_ERROR: %s, code %s\n' % (ensure_str(obj['msg']), obj['code']))
                     msgType = MessageBox.TYPE_ERROR
-                    msgText += 'FF_ERROR: %s, code %s\n' % (ensure_str(obj['msg']), obj['code'])
+                    msgText += self._playerErrorText(key, obj, 'FF_ERROR: %s, code %s\n' % (ensure_str(obj['msg']), obj['code']))
                 elif "GST_MISSING_PLUGIN" == key:
                     printDBG('GST_MISSING_PLUGIN: %s\n' % ensure_str(obj['msg']))
-                    msgText += 'GST_MISSING_PLUGIN: %s\n' % ensure_str(obj['msg'])
+                    msgText += self._playerErrorText(key, obj, 'GST_MISSING_PLUGIN: %s\n' % ensure_str(obj['msg']))
 
                 # {u'PLAYBACK_INFO':
                 # {u'isSeeking': False,
@@ -2532,6 +2679,8 @@ class IPTVExtMoviePlayer(Screen):
                 if subtitleTrackIdx >= 0:
                     cmd += ' -9 %d ' % subtitleTrackIdx
 
+            cmd += self._extePlayer3NewOptions(tmpUri)
+
             if audioUri != '':
                 cmd += ' -x "%s" ' % shellQuote(audioUri)
 
@@ -2757,6 +2906,10 @@ class IPTVExtMoviePlayer(Screen):
                 self.consoleWrite("c\n")
             self.consoleWrite("s%s\n" % arg1)
             self.consoleWrite("sc\n")
+        elif 'PLAYBACK_SET_FORCED_ONLY' == command:
+            self.consoleWrite("so%s\n" % arg1)
+        elif 'PLAYBACK_SET_AUDIO_CHANNEL' == command:
+            self.consoleWrite("am%s\n" % arg1)
         else:
             # All below commands require that 'PLAY ' status,
             # so we first send command to resume playback
@@ -2796,6 +2949,55 @@ class IPTVExtMoviePlayer(Screen):
                 printDBG("IPTVExtMoviePlayer.extPlayerSendCommand unknown command[%s]" % command)
                 return False
         return True
+
+    def _playerErrorText(self, kind, obj, original):
+        # the player's error in plain words (translated) in front of its original message, which stays for the log
+        hint = ''
+        try:
+            hint = playerErrorHint(kind, ensure_str(obj.get('msg', '')), obj.get('code'))
+        except Exception:
+            printExc()
+        return '%s\n%s' % (hint, original) if hint else original
+
+    def _extePlayer3NewOptions(self, tmpUri):
+        # options of exteplayer3 188, each only when the installed player reports it in EPLAYER3_EXTENDED (older
+        # players stop at an option they do not know)
+        opts = ''
+        # resume: the position before the first packet instead of a jump a moment after the start (not while
+        # buffering - the downloaded part decides there - and not for live streams)
+        if self.lastPosition > 10 and self.downloader is None and not tmpUri.meta.get('iptv_livestream') and ExtePlayer3Cap('start'):
+            opts += ' --start %d' % (self.lastPosition - 5)
+            printDBG("IPTVExtMoviePlayer: resume with --start %d" % (self.lastPosition - 5))
+            self.lastPosition = 0
+            # the infobar shows where it goes on, like the jump of the older way did
+            self.showInfoBarAtLength = True
+        if ExtePlayer3Cap('forcedonly') and config.plugins.iptvplayer.exteplayer_forced_subtitles.value:
+            opts += ' --forced-only'
+            self.forcedSubtitlesOnly = True
+        xcode = ExtePlayer3Cap('xcode')
+        for value, ac3Opt, eac3Opt in ((config.plugins.iptvplayer.exteplayer_dts_transcode.value, '-Z', '--dts-eac3'),
+                                       (config.plugins.iptvplayer.exteplayer_truehd_transcode.value, '-X', '--truehd-eac3')):
+            if 'eac3' == value and xcode & 4:
+                opts += ' ' + eac3Opt
+            elif value in ('ac3', 'eac3') and xcode & 1:
+                # E-AC-3 without the encoder in this FFmpeg: AC3
+                opts += ' ' + ac3Opt
+        if xcode & 2 and config.plugins.iptvplayer.exteplayer_heaac_transcode.value:
+            opts += ' -Y'
+        if ExtePlayer3Version() >= 188:
+            if '1' == config.plugins.iptvplayer.exteplayer_hls_quality.value:
+                opts += ' -Q 1'
+            if config.plugins.iptvplayer.exteplayer_default_audio_only.value:
+                opts += ' -D 1'
+            if '0x0' != config.plugins.iptvplayer.exteplayer_h264_limit.value:
+                opts += ' -M %s' % config.plugins.iptvplayer.exteplayer_h264_limit.value
+        keys = tmpUri.meta.get('iptv_drm_keys', '')
+        if keys and ExtePlayer3Cap('drmkey') & 1:
+            # CENC (ClearKey) keys of the host, "kid:key" each
+            for pair in keys.split(','):
+                if pair.strip():
+                    opts += ' --key "%s"' % shellQuote(pair.strip())
+        return opts
 
     def createSummary(self):
         summary = config.plugins.iptvplayer.extplayer_summary.value

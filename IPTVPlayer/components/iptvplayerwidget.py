@@ -57,7 +57,8 @@ from Plugins.Extensions.IPTVPlayer.tools.iptvtools import FreeSpace as iptvtools
                                                           GetE2VideoModeChoices, GetE2VideoMode, SetE2VideoMode, TestTmpCookieDir, TestTmpJSCacheDir,\
                                                           ClearTmpCookieDir, ClearTmpJSCacheDir, SetTmpCookieDir, SetTmpJSCacheDir,\
                                                           GetEnabledHostsList, SaveHostsOrderList, GetHostsAliases, formatBytes, getExcMSG, \
-                                                          findT9JumpIndex, StripColorCodes, GITHUB_UPDATE_REPO
+                                                          findT9JumpIndex, StripColorCodes, GITHUB_UPDATE_REPO, \
+                                                          ExtePlayer3Version, ExtePlayer3CoversBufferingReason, WarmExtePlayer3Info
 from Plugins.Extensions.IPTVPlayer.tools.iptvhostgroups import IPTVHostsGroups
 from Plugins.Extensions.IPTVPlayer.components.iptvhostpin import AskHostPin, ClearUnlockedHosts, HostNeedsPin, IsHostUnlocked
 from Plugins.Extensions.IPTVPlayer.iptvdm.iptvdh import DMHelper
@@ -1959,6 +1960,8 @@ class E2iPlayerWidget(Screen):
         self.onShow.remove(self.onStart)
         #self.onLayoutFinish.remove(self.onStart)
         self.setTitle('E2iPlayer ' + GetIPTVPlayerVerstion())
+        # exteplayer3's capabilities (EPLAYER3_EXTENDED) in the background, before the first playback asks for them
+        WarmExtePlayer3Info()
         self.loadSpinner()
         self.hideSpinner()
         self.checkBlacklistedImage()
@@ -2518,7 +2521,10 @@ class E2iPlayerWidget(Screen):
             elif "forbidden" == url.meta['iptv_buffering']:
                 return False
         if "|" in url:
-            return True
+            # header-pipe urls and the merge:// link of separate video / audio; exteplayer3 plays merge:// with -x,
+            # before version 188 (186) it froze on a live HLS master with an audio switch
+            if not (url.startswith('merge://') and self._directPlayerValue() == 'exteplayer' and ExtePlayer3Version() >= 188):
+                return True
 
         # check based on protocol
         protocol = url.meta.get('iptv_proto', '')
@@ -2531,6 +2537,31 @@ class E2iPlayerWidget(Screen):
             return config.plugins.iptvplayer.buforowanie_rtmp.value
         elif protocol in ['m3u8', 'em3u8']:
             return config.plugins.iptvplayer.buforowanie_m3u8.value
+
+    def _directPlayerValue(self):
+        # the player a stream without buffering goes to ('exteplayer', 'extgstplayer', 'mini', 'standard')
+        try:
+            # the configured slot only when the host has no player of its own (GetMoviePlayer logs and checks binaries)
+            player = self.activePlayer.get('player', None)
+            if player is None:
+                player = self.getMoviePlayer(False, self.useAlternativePlayer)
+            return player.value
+        except Exception:
+            printExc()
+            return ''
+
+    def _dropBufferingFixedByPlayer(self, url):
+        # "required" with an iptv_buffering_reason the installed exteplayer3 has a fix for: played directly when
+        # exteplayer3 is the player (the host does not know the player, gstplayer still needs the buffering)
+        reasons = [item for item in url.meta.get('iptv_buffering_reason', '').split(',') if item]
+        if not reasons or url.meta.get('iptv_buffering', '') not in ('required', 'remux'):
+            return url
+        if self._directPlayerValue() != 'exteplayer' or not all(ExtePlayer3CoversBufferingReason(item) for item in reasons):
+            return url
+        printDBG("playVideo: exteplayer3 %d covers %s, iptv_buffering %s dropped" % (ExtePlayer3Version(), reasons, url.meta['iptv_buffering']))
+        meta = dict(url.meta)
+        meta.pop('iptv_buffering', None)
+        return strwithmeta(str(url), meta)
 
     def isUrlBlocked(self, url, type):
         protocol = url.meta.get('iptv_proto', '')
@@ -2613,6 +2644,13 @@ class E2iPlayerWidget(Screen):
                 self.session.open(MessageBox, reaseon, type=MessageBox.TYPE_INFO, timeout=10)
                 return
 
+            if not recorderMode:
+                url = self._dropBufferingFixedByPlayer(url)
+                if url.meta.get('iptv_drm_keys') and self._directPlayerValue() != 'exteplayer':
+                    # ClearKey (CENC): only exteplayer3 decrypts with the keys - another player would stop without a word
+                    self.stopAutoPlaySequencer()
+                    self.session.open(MessageBox, _("Video with DRM protection."), type=MessageBox.TYPE_INFO, timeout=10)
+                    return
             if url.startswith('file://'):
                 isBufferingMode = False
             elif url.meta.get('iptv_buffering', '') in ('required', 'forbidden'):

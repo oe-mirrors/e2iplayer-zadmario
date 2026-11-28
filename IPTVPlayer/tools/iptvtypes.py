@@ -31,6 +31,13 @@ def enum(**enums):
 # be used only to materials that we know that they do
 # not work without buffering, or vice versa
 #   "iptv_buffering":       "required" | "forbidden"
+#   "iptv_buffering_reason": why "required" is set, when a newer exteplayer3 plays the stream directly:
+#                           "hlsseg1" HLS segments or playlists with another name (.js/.png/.jpeg/.html/.woff2/.txt/
+#                           none), "hlsseg2" an image in front of the TS data, "avcc" broken avcC header, "oldtls" CDN
+#                           the player of old images fails on, "chunkedpl" chunked playlist the OE-A player read cut
+#                           off (several joined by ","); with exteplayer3 as player and a build that covers all of them
+#                           the flag is ignored (ExtePlayer3CoversBufferingReason, tools/iptvtools.py)
+#   "iptv_drm_keys":        "kidhex:keyhex,..." CENC (ClearKey) keys: exteplayer3 with "drmkey" gets them as --key
 
 #   "Host": http header field
 #   "User-Agent": http header field
